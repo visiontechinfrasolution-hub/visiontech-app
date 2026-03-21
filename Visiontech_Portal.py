@@ -24,10 +24,13 @@ with st.form("search_form"):
     with c3: dispatch_date = st.date_input("📅 Date", value=None)
     
     # TRANSPORTER DROPDOWN
-    transporter_list = ["", "visiontech", "Safexpress", "Delhivery", "VRL Logistics", "TCI Express", "Gati", "Blue Dart"]
+    transporter_list = ["", "visiontech", "Safexpress", "Delhivery", "VRL Logistics", "TCI Express", "Gati"]
     with c4: transporter = st.selectbox("🚚 Transporter", transporter_list)
     
-    with c5: tsp_partner = st.text_input("🤝 TSP Partner")
+    # TSP PARTNER DROPDOWN (Naya add kiya gaya)
+    # Bhai, apne TSP partners ke naam yahan is list mein add kar lena
+    tsp_list = ["", "Partner A", "Partner B", "Partner C", "Ericsson", "Nokia"]
+    with c5: tsp_partner = st.selectbox("🤝 TSP Partner", tsp_list)
     
     with c6:
         st.write("") 
@@ -59,8 +62,19 @@ if pending_report:
                 if col in df.columns:
                     df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
-            if 'Project Number' in df.columns:
+            if 'Project Number' in df.columns and 'Item Code' in df.columns:
+                # Pehle Items ko merge karte hain taaki duplicate lines ka sum ho jaye
+                agg_funcs = {col: 'sum' if col in qty_cols else 'first' for col in df.columns if col not in ['Project Number', 'Item Code']}
+                df = df.groupby(['Project Number', 'Item Code'], as_index=False).agg(agg_funcs)
+
+                # 🔥 NAYA LOGIC: Sirf Capex aur Qty B > 0 wale items ko hi check karenge
+                if 'Product' in df.columns and 'Qty B' in df.columns:
+                    df = df[(df['Product'].astype(str).str.contains('capex', case=False, na=False)) & (df['Qty B'] > 0)]
+
+                # Ab Project Number ke hisaab se total check karenge
                 grouped = df.groupby('Project Number', as_index=False)[qty_cols].sum()
+                
+                # Mismatch Logic
                 pending_mask = (grouped['Qty A'] > 0) & ((grouped['Qty A'] != grouped['Qty B']) | (grouped['Qty A'] != grouped['Qty C']))
                 pending_df = grouped[pending_mask]
                 
@@ -73,7 +87,7 @@ if pending_report:
                 else:
                     st.success("✅ Wah! Visiontech ka koi bhi STN Pending nahi hai. Sab DONE hai!")
             else:
-                st.warning("Database mein 'Project Number' column nahi mila.")
+                st.warning("Database mein 'Project Number' ya 'Item Code' column nahi mila.")
         else:
             st.warning("Visiontech ka koi data database mein nahi mila.")
     except Exception as e:
@@ -91,7 +105,6 @@ elif submit_search:
         query = query.ilike("SITE ID", f"%{site_query.strip()}%")
         has_filter = True
     if dispatch_date:
-        # 🚨 YAHAN FIX KIYA HAI: 'ilike' hata kar exact Date match ('.eq') lagaya hai
         date_str = dispatch_date.strftime("%Y-%m-%d")
         query = query.eq("Dispatch Date", date_str)
         has_filter = True
@@ -109,7 +122,6 @@ elif submit_search:
             if response.data:
                 df = pd.DataFrame(response.data)
 
-                # --- QTY SUM & DUPLICATE HATANA ---
                 qty_cols = ['Qty A', 'Qty B', 'Qty C']
                 for col in qty_cols:
                     if col in df.columns:
@@ -128,10 +140,14 @@ elif submit_search:
                     original_cols = [c for c in response.data[0].keys() if c in df.columns]
                     df = df[original_cols]
 
-                # --- STN DONE / PENDING LOGIC ---
-                total_a = int(df['Qty A'].sum()) if 'Qty A' in df.columns else 0
-                total_b = int(df['Qty B'].sum()) if 'Qty B' in df.columns else 0
-                total_c = int(df['Qty C'].sum()) if 'Qty C' in df.columns else 0
+                # 🔥 NAYA LOGIC: STN BOX ke liye sirf Capex + Qty B>0 count hoga
+                stn_df = df.copy()
+                if 'Product' in stn_df.columns and 'Qty B' in stn_df.columns:
+                    stn_df = stn_df[(stn_df['Product'].astype(str).str.contains('capex', case=False, na=False)) & (stn_df['Qty B'] > 0)]
+
+                total_a = int(stn_df['Qty A'].sum()) if 'Qty A' in stn_df.columns else 0
+                total_b = int(stn_df['Qty B'].sum()) if 'Qty B' in stn_df.columns else 0
+                total_c = int(stn_df['Qty C'].sum()) if 'Qty C' in stn_df.columns else 0
 
                 if total_a > 0:
                     if total_a == total_b and total_a == total_c:
@@ -139,19 +155,16 @@ elif submit_search:
                     else:
                         status_placeholder.markdown("<div style='background-color: #f8d7da; color: #721c24; border: 1px solid #dc3545; padding: 7px 5px; border-radius: 5px; text-align: center; font-weight: bold; font-size: 14px;'>❌ STN PENDING</div>", unsafe_allow_html=True)
 
-                # --- FORMATTING: DATE ---
                 for col in df.columns:
                     if 'date' in col.lower():
                         df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime('%d-%b-%Y')
 
-                # --- FORMATTING: DECIMALS HATANA (.0) ---
                 for col in qty_cols:
                     if col in df.columns:
                         df[col] = df[col].astype(int)
 
                 df = df.astype(str).replace(['None', 'nan', 'NULL', '<NA>', 'NoneType', 'NaT'], '')
 
-                # --- 🎯 TABLE SEQUENCE CHANGE ---
                 mera_sequence = [
                     'Sr. No.', 'SITE ID', 'Product', 'Transaction Type', 'Project Number', 'BOQ',
                     'Item Code', 'Item Description', 'Qty A', 'Qty B', 'Qty C', 'Parent',
@@ -165,7 +178,6 @@ elif submit_search:
 
                 st.success(f"✅ Record Mil Gaya! ({len(df)} Unique Items)")
                 
-                # --- 🎯 ITEM DESCRIPTION WRAPPING ---
                 st.dataframe(
                     df, 
                     use_container_width=True, 
