@@ -20,16 +20,13 @@ with st.form("search_form"):
     with c1: project_query = st.text_input("📁 Project No.")
     with c2: site_query = st.text_input("📍 SITE ID")
     
-    # DATE PICKER 
     with c3: dispatch_date = st.date_input("📅 Date", value=None)
     
-    # TRANSPORTER DROPDOWN
     transporter_list = ["", "visiontech", "Safexpress", "Delhivery", "VRL Logistics", "TCI Express", "Gati"]
     with c4: transporter = st.selectbox("🚚 Transporter", transporter_list)
     
-    # TSP PARTNER DROPDOWN (Naya add kiya gaya)
-    # Bhai, apne TSP partners ke naam yahan is list mein add kar lena
-    tsp_list = ["", "Partner A", "Partner B", "Partner C", "Ericsson", "Nokia"]
+    # 🔥 UPDATE 1: TSP list mein 'visiontech' add kar diya hai
+    tsp_list = ["", "visiontech", "Partner A", "Partner B", "Partner C", "Ericsson", "Nokia"]
     with c5: tsp_partner = st.selectbox("🤝 TSP Partner", tsp_list)
     
     with c6:
@@ -63,18 +60,19 @@ if pending_report:
                     df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
             if 'Project Number' in df.columns and 'Item Code' in df.columns:
-                # Pehle Items ko merge karte hain taaki duplicate lines ka sum ho jaye
                 agg_funcs = {col: 'sum' if col in qty_cols else 'first' for col in df.columns if col not in ['Project Number', 'Item Code']}
                 df = df.groupby(['Project Number', 'Item Code'], as_index=False).agg(agg_funcs)
 
-                # 🔥 NAYA LOGIC: Sirf Capex aur Qty B > 0 wale items ko hi check karenge
-                if 'Product' in df.columns and 'Qty B' in df.columns:
-                    df = df[(df['Product'].astype(str).str.contains('capex', case=False, na=False)) & (df['Qty B'] > 0)]
+                # 🔥 UPDATE 2: Sirf Capex, Qty B > 0, AUR Parent=='Parent' wali lines lenge
+                if 'Product' in df.columns and 'Qty B' in df.columns and 'Parent' in df.columns:
+                    df = df[
+                        (df['Product'].astype(str).str.contains('capex', case=False, na=False)) & 
+                        (df['Qty B'] > 0) & 
+                        (df['Parent'].astype(str).str.strip().str.lower() == 'parent')
+                    ]
 
-                # Ab Project Number ke hisaab se total check karenge
                 grouped = df.groupby('Project Number', as_index=False)[qty_cols].sum()
                 
-                # Mismatch Logic
                 pending_mask = (grouped['Qty A'] > 0) & ((grouped['Qty A'] != grouped['Qty B']) | (grouped['Qty A'] != grouped['Qty C']))
                 pending_df = grouped[pending_mask]
                 
@@ -140,10 +138,14 @@ elif submit_search:
                     original_cols = [c for c in response.data[0].keys() if c in df.columns]
                     df = df[original_cols]
 
-                # 🔥 NAYA LOGIC: STN BOX ke liye sirf Capex + Qty B>0 count hoga
+                # 🔥 UPDATE 3: STN Box calculation mein bhi 'Parent' wala logic lagaya hai
                 stn_df = df.copy()
-                if 'Product' in stn_df.columns and 'Qty B' in stn_df.columns:
-                    stn_df = stn_df[(stn_df['Product'].astype(str).str.contains('capex', case=False, na=False)) & (stn_df['Qty B'] > 0)]
+                if 'Product' in stn_df.columns and 'Qty B' in stn_df.columns and 'Parent' in stn_df.columns:
+                    stn_df = stn_df[
+                        (stn_df['Product'].astype(str).str.contains('capex', case=False, na=False)) & 
+                        (stn_df['Qty B'] > 0) &
+                        (stn_df['Parent'].astype(str).str.strip().str.lower() == 'parent')
+                    ]
 
                 total_a = int(stn_df['Qty A'].sum()) if 'Qty A' in stn_df.columns else 0
                 total_b = int(stn_df['Qty B'].sum()) if 'Qty B' in stn_df.columns else 0
