@@ -70,7 +70,7 @@ if stn_pending_btn:
     status_placeholder.empty()
     st.info("⏳ Visiontech ka STN Pending data nikal rahe hain...")
     try:
-        response = supabase.table("BOQ Report").select("*").ilike("Transporter", "%visiontech%").limit(10000).execute()
+        response = supabase.table("BOQ Report").select("*").ilike("Transporter", "%visiontech%").limit(50000).execute()
         if response.data:
             df = pd.DataFrame(response.data)
             qty_cols = ['Qty A', 'Qty B', 'Qty C']
@@ -79,11 +79,10 @@ if stn_pending_btn:
                     df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
             if 'Project Number' in df.columns and 'Item Code' in df.columns:
-                # Pehle items ko merge karna
                 agg_funcs = {col: 'sum' if col in qty_cols else 'first' for col in df.columns if col not in ['Project Number', 'Item Code']}
                 items_df = df.groupby(['Project Number', 'Item Code'], as_index=False).agg(agg_funcs)
 
-                # 🔥 STRICT EXACT LOGIC (Item Level Par)
+                # 🔥 EXACT LOGIC: Capex + Warehouse + Parent + Qty A>0 + Qty B>0 + Qty C=0
                 if 'Product' in items_df.columns and 'Issue From' in items_df.columns and 'Parent/Child' in items_df.columns:
                     pending_mask = (
                         (items_df['Product'].astype(str).str.contains('capex', case=False, na=False)) & 
@@ -122,39 +121,41 @@ if stn_pending_btn:
     except Exception as e:
         st.error(f"Error: {e}")
 
-# --- LOGIC 2: NEW BOQ REPORT ---
+# --- LOGIC 2: NEW BOQ REPORT (SMART DATE MATCHER) ---
 elif new_boq_btn:
     if boq_date_input is None:
         st.warning("⚠️ Kripya 'Generate New BOQ' button ke theek pehle wale box mein Date select karein!")
     else:
         st.info(f"⏳ {boq_date_input.strftime('%d-%b-%Y')} ka BOQ data nikal rahe hain...")
         try:
-            response = supabase.table("BOQ Report").select("*").limit(10000).execute()
+            # Limit badha di hai taaki koi naya data na chhoote
+            response = supabase.table("BOQ Report").select("*").limit(50000).execute()
             if response.data:
                 df = pd.DataFrame(response.data)
                 
                 if 'BOQ Date' in df.columns:
-                    df['clean_date'] = df['BOQ Date'].astype(str).str.strip()
+                    target_date = boq_date_input
                     
-                    d1 = boq_date_input.strftime("%d-%b-%Y")
-                    d2 = boq_date_input.strftime("%Y-%m-%d")
-                    d3 = boq_date_input.strftime("%d-%m-%Y")
-                    d4 = boq_date_input.strftime("%d/%m/%Y")
+                    # 🔥 Har format try karega (Capital/Small sab ignore)
+                    str_formats = [
+                        target_date.strftime("%d-%b-%Y").lower(), # 17-mar-2026
+                        target_date.strftime("%d-%b-%y").lower(), # 17-mar-26
+                        target_date.strftime("%d-%m-%Y").lower(), # 17-03-2026
+                        target_date.strftime("%Y-%m-%d").lower(), # 2026-03-17
+                        target_date.strftime("%d/%m/%Y").lower(), # 17/03/2026
+                    ]
                     
-                    df['parsed'] = pd.to_datetime(df['clean_date'], errors='coerce').dt.date
+                    boq_col = df['BOQ Date'].astype(str).str.strip().str.lower()
+                    parsed_dates = pd.to_datetime(df['BOQ Date'], errors='coerce').dt.date
                     
-                    boq_df = df[
-                        (df['parsed'] == boq_date_input) | 
-                        (df['clean_date'].str.contains(d1, case=False, na=False)) |
-                        (df['clean_date'].str.contains(d2, case=False, na=False)) |
-                        (df['clean_date'].str.contains(d3, case=False, na=False)) |
-                        (df['clean_date'].str.contains(d4, case=False, na=False))
-                    ].copy()
+                    # Match check logic
+                    mask = parsed_dates == target_date
+                    for fmt in str_formats:
+                        mask = mask | boq_col.str.contains(fmt, regex=False, na=False)
+                        
+                    boq_df = df[mask].copy()
                     
                     if not boq_df.empty:
-                        if 'clean_date' in boq_df.columns: boq_df = boq_df.drop(columns=['clean_date'])
-                        if 'parsed' in boq_df.columns: boq_df = boq_df.drop(columns=['parsed'])
-                        
                         st.success(f"✅ Record Mil Gaya! ({len(boq_df)} Lines)")
                         
                         qty_cols = ['Qty A', 'Qty B', 'Qty C']
@@ -171,9 +172,9 @@ elif new_boq_btn:
                         st.dataframe(boq_df, use_container_width=True, hide_index=True)
                         
                         csv = convert_df_to_csv(boq_df)
-                        st.download_button(label="📥 Download Excel File", data=csv, file_name=f"New_BOQ_{boq_date_input.strftime('%d-%b-%Y')}.csv", mime="text/csv")
+                        st.download_button(label="📥 Download Excel File", data=csv, file_name=f"New_BOQ_{target_date.strftime('%d-%b-%Y')}.csv", mime="text/csv")
                     else:
-                        st.warning(f"❌ {boq_date_input.strftime('%d-%b-%Y')} ki date par koi data nahi mila. Supabase mein check karein ki data upload hua hai ya nahi.")
+                        st.warning(f"❌ {target_date.strftime('%d-%b-%Y')} ki date par koi BOQ nahi mila. Database mein check karein.")
                 else:
                     st.error("Database mein 'BOQ Date' column nahi mila.")
         except Exception as e:
@@ -182,7 +183,7 @@ elif new_boq_btn:
 # --- LOGIC 3: NORMAL SEARCH ---
 elif submit_search:
     has_filter = False
-    query = supabase.table("BOQ Report").select("*").limit(10000)
+    query = supabase.table("BOQ Report").select("*").limit(50000)
     
     if project_query:
         query = query.ilike("Project Number", f"%{project_query.strip()}%")
@@ -226,7 +227,6 @@ elif submit_search:
                     original_cols = [c for c in response.data[0].keys() if c in df.columns]
                     df = df[original_cols]
 
-                # Update Normal Search STN logic
                 stn_df = df.copy()
                 if 'Product' in stn_df.columns and 'Issue From' in stn_df.columns and 'Parent/Child' in stn_df.columns:
                     stn_df = stn_df[
