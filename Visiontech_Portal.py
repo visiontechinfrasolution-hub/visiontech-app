@@ -1,6 +1,7 @@
 import streamlit as st
 from supabase import create_client
 import pandas as pd
+from datetime import datetime
 
 # --- 1. CONNECTION ---
 URL = "https://sckyflvukpmdqmdzjzhs.supabase.co"
@@ -12,14 +13,22 @@ st.set_page_config(page_title="Visiontech Portal", layout="wide")
 st.markdown("<h3 style='text-align: center; margin-bottom: 0px;'>🔍 Visiontech Industrial Solutions</h3>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; color: gray; margin-bottom: 20px;'>BOQ Report - Advanced Search & STN Tracker</p>", unsafe_allow_html=True)
 
-# --- 3. SINGLE LINE SEARCH BOXES ---
+# --- 3. SINGLE LINE SEARCH BOXES & BUTTONS ---
 with st.form("search_form"):
-    c1, c2, c3, c4, c5, c6, c7 = st.columns([1.5, 1.2, 1.2, 1.2, 1.5, 1, 1.2])
+    # Ab 8 columns banaye hain taaki Pending button bhi same line mein aaye
+    c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([1.2, 1.2, 1.1, 1.3, 1.2, 0.8, 1.2, 0.9])
     
     with c1: project_query = st.text_input("📁 Project No.")
     with c2: site_query = st.text_input("📍 SITE ID")
-    with c3: dispatch_date = st.text_input("📅 Date")
-    with c4: transporter = st.text_input("🚚 Transporter")
+    
+    # DATE PICKER (Calendar)
+    with c3: dispatch_date = st.date_input("📅 Date", value=None)
+    
+    # TRANSPORTER DROPDOWN
+    # Bhai, agar aur naam add karne hain, toh is list mein inhi format ("Naam") mein aage likh dijiye
+    transporter_list = ["", "visiontech", "Safexpress", "Delhivery", "VRL Logistics", "TCI Express", "Gati", "Blue Dart"]
+    with c4: transporter = st.text_input("🚚 Transporter") if False else st.selectbox("🚚 Transporter", transporter_list)
+    
     with c5: tsp_partner = st.text_input("🤝 TSP Partner")
     
     with c6:
@@ -30,10 +39,60 @@ with st.form("search_form"):
     with c7:
         st.write("") 
         st.markdown("<div style='margin-top: 5px;'></div>", unsafe_allow_html=True)
+        # NAYA BUTTON: Visiontech STN Pending Report ke liye
+        pending_report = st.form_submit_button("🚨 Pending Report")
+        
+    with c8:
+        st.write("") 
+        st.markdown("<div style='margin-top: 5px;'></div>", unsafe_allow_html=True)
         status_placeholder = st.empty() 
 
-# --- 4. LOGIC & DATA FETCH ---
-if submit_search:
+# --- 4. LOGIC FOR PENDING REPORT (VISIONTECH) ---
+if pending_report:
+    status_placeholder.empty()
+    st.info("⏳ Visiontech ka STN Pending data nikal rahe hain, kripya thoda intezar karein...")
+    try:
+        # Sirf visiontech ka data fetch karega
+        response = supabase.table("BOQ Report").select("*").ilike("Transporter", "%visiontech%").execute()
+        
+        if response.data:
+            df = pd.DataFrame(response.data)
+            qty_cols = ['Qty A', 'Qty B', 'Qty C']
+            
+            for col in qty_cols:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+
+            if 'Project Number' in df.columns:
+                # Project Number ke hisaab se total Qty nikalna
+                grouped = df.groupby('Project Number', as_index=False)[qty_cols].sum()
+                
+                # Logic: Qty A > 0 aur (Qty A != Qty B ya Qty A != Qty C)
+                pending_mask = (grouped['Qty A'] > 0) & ((grouped['Qty A'] != grouped['Qty B']) | (grouped['Qty A'] != grouped['Qty C']))
+                pending_df = grouped[pending_mask]
+                
+                if not pending_df.empty:
+                    pending_df['Status'] = '❌ PENDING'
+                    
+                    st.error(f"🚨 Visiontech ke {len(pending_df)} Projects ka STN Pending hai!")
+                    
+                    # Decimals (.0) hatane ke liye
+                    for col in qty_cols:
+                        pending_df[col] = pending_df[col].astype(int)
+                        
+                    # Clean table show karna
+                    st.dataframe(pending_df, use_container_width=True, hide_index=True)
+                else:
+                    st.success("✅ Wah! Visiontech ka koi bhi STN Pending nahi hai. Sab DONE hai!")
+            else:
+                st.warning("Database mein 'Project Number' column nahi mila.")
+        else:
+            st.warning("Visiontech ka koi data database mein nahi mila.")
+    except Exception as e:
+        st.error(f"Error fetching report: {e}")
+
+# --- 5. LOGIC FOR NORMAL SEARCH ---
+elif submit_search:
     has_filter = False
     query = supabase.table("BOQ Report").select("*")
     
@@ -44,7 +103,9 @@ if submit_search:
         query = query.ilike("SITE ID", f"%{site_query.strip()}%")
         has_filter = True
     if dispatch_date:
-        query = query.ilike("Dispatch Date", f"%{dispatch_date.strip()}%")
+        # Calendar ki date ko text (YYYY-MM-DD) mein badalna taaki database mein search ho sake
+        date_str = dispatch_date.strftime("%Y-%m-%d")
+        query = query.ilike("Dispatch Date", f"%{date_str}%")
         has_filter = True
     if transporter:
         query = query.ilike("Transporter", f"%{transporter.strip()}%")
@@ -103,29 +164,11 @@ if submit_search:
                 df = df.astype(str).replace(['None', 'nan', 'NULL', '<NA>', 'NoneType', 'NaT'], '')
 
                 # --- 🎯 TABLE SEQUENCE CHANGE ---
-                # Aapka diya hua exact sequence
                 mera_sequence = [
-                    'Sr. No.',
-                    'SITE ID',
-                    'Product',
-                    'Transaction Type',
-                    'Project Number',
-                    'BOQ',
-                    'Item Code',
-                    'Item Description',
-                    'Qty A',
-                    'Qty B',
-                    'Qty C',
-                    'Parent',
-                    'Dispatch Date',
-                    'Line Status',
-                    'Transporter',
-                    'TSP Partner Name',
-                    'LR Number',
-                    'Challan Number',
-                    'Vehicle Number',
-                    'Item Category',
-                    'SRN BOQ'
+                    'Sr. No.', 'SITE ID', 'Product', 'Transaction Type', 'Project Number', 'BOQ',
+                    'Item Code', 'Item Description', 'Qty A', 'Qty B', 'Qty C', 'Parent',
+                    'Dispatch Date', 'Line Status', 'Transporter', 'TSP Partner Name',
+                    'LR Number', 'Challan Number', 'Vehicle Number', 'Item Category', 'SRN BOQ'
                 ]
                 
                 final_cols = [c for c in mera_sequence if c in df.columns]
@@ -135,7 +178,6 @@ if submit_search:
                 st.success(f"✅ Record Mil Gaya! ({len(df)} Unique Items)")
                 
                 # --- 🎯 ITEM DESCRIPTION WRAPPING ---
-                # Yahan humne Item Description ko extra space di hai taaki wo lamba na khinche
                 st.dataframe(
                     df, 
                     use_container_width=True, 
@@ -143,7 +185,7 @@ if submit_search:
                     column_config={
                         "Item Description": st.column_config.TextColumn(
                             "Item Description",
-                            width="large", # Isse column chauda ho jayega aur padhne mein aasaani hogi
+                            width="large", 
                         )
                     }
                 )
@@ -153,5 +195,3 @@ if submit_search:
                 
         except Exception as e:
             st.error(f"Error detail: {e}")
-    else:
-        st.info("Kripya search karne ke liye kam se kam ek box mein detail bhariye.")
