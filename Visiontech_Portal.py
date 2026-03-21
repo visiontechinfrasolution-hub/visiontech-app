@@ -9,29 +9,30 @@ supabase = create_client(URL, KEY)
 
 # --- 2. UI SETUP ---
 st.set_page_config(page_title="Visiontech Portal", layout="wide")
-# Title ko thoda chota aur compact kar diya
 st.markdown("<h3 style='text-align: center; margin-bottom: 0px;'>🔍 Visiontech Industrial Solutions</h3>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: gray;'>BOQ Report - Advanced Search & STN Tracker</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: gray; margin-bottom: 20px;'>BOQ Report - Advanced Search & STN Tracker</p>", unsafe_allow_html=True)
 
-# --- 3. COMPACT SEARCH BOXES (Collapsible) ---
-# Ye naya feature hai: Isse aap form ko open/close kar sakte hain jagah bachane ke liye
-with st.expander("🔍 Search Filters (Click karke form open/close karein)", expanded=True):
-    with st.form("search_form"):
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            project_query = st.text_input("📁 Project Number")
-        with col2:
-            site_query = st.text_input("📍 SITE ID")
-        with col3:
-            dispatch_date = st.text_input("📅 Dispatch Date")
-
-        col4, col5 = st.columns(2)
-        with col4:
-            transporter = st.text_input("🚚 Transporter")
-        with col5:
-            tsp_partner = st.text_input("🤝 TSP Partner Name")
-            
-        submit_search = st.form_submit_button("🔍 Search Data")
+# --- 3. SINGLE LINE SEARCH BOXES ---
+with st.form("search_form"):
+    # 7 columns banaye hain: 5 boxes ke liye, 1 button ke liye, 1 STN Status ke liye
+    c1, c2, c3, c4, c5, c6, c7 = st.columns([1.5, 1.2, 1.2, 1.2, 1.5, 1, 1.2])
+    
+    with c1: project_query = st.text_input("📁 Project No.")
+    with c2: site_query = st.text_input("📍 SITE ID")
+    with c3: dispatch_date = st.text_input("📅 Date")
+    with c4: transporter = st.text_input("🚚 Transporter")
+    with c5: tsp_partner = st.text_input("🤝 TSP Partner")
+    
+    with c6:
+        st.write("") # Button ko text box ke level par laane ke liye spacing
+        st.markdown("<div style='margin-top: 5px;'></div>", unsafe_allow_html=True)
+        submit_search = st.form_submit_button("🔍 Search")
+        
+    with c7:
+        st.write("") # Status box ko bhi line me set karne ke liye
+        st.markdown("<div style='margin-top: 5px;'></div>", unsafe_allow_html=True)
+        # Ye ek khali jagah (placeholder) banayi hai jahan search ke baad result aayega
+        status_placeholder = st.empty() 
 
 # --- 4. LOGIC & DATA FETCH ---
 if submit_search:
@@ -61,7 +62,7 @@ if submit_search:
             if response.data:
                 df = pd.DataFrame(response.data)
 
-                # --- IMPORTANT 1: QTY SUM & DUPLICATE HATANA ---
+                # --- QTY SUM & DUPLICATE HATANA ---
                 qty_cols = ['Qty A', 'Qty B', 'Qty C']
                 for col in qty_cols:
                     if col in df.columns:
@@ -80,26 +81,18 @@ if submit_search:
                     original_cols = [c for c in response.data[0].keys() if c in df.columns]
                     df = df[original_cols]
 
-                # --- IMPORTANT 2: STN DONE / PENDING LOGIC (COMPACT BOX) ---
+                # --- STN DONE / PENDING LOGIC (SINGLE LINE SMALL BOX) ---
                 total_a = int(df['Qty A'].sum()) if 'Qty A' in df.columns else 0
                 total_b = int(df['Qty B'].sum()) if 'Qty B' in df.columns else 0
                 total_c = int(df['Qty C'].sum()) if 'Qty C' in df.columns else 0
 
                 if total_a > 0:
                     if total_a == total_b and total_a == total_c:
-                        # Hara box chota kar diya
-                        st.markdown("""
-                        <div style='background-color: #d4edda; border: 1px solid #28a745; padding: 5px; border-radius: 5px; text-align: center; margin-bottom: 10px;'>
-                            <h4 style='color: #155724; margin: 0;'>✅ STN DONE</h4>
-                        </div>
-                        """, unsafe_allow_html=True)
+                        # Chota sa Hara Box jo 7th column mein aayega
+                        status_placeholder.markdown("<div style='background-color: #d4edda; color: #155724; border: 1px solid #28a745; padding: 7px 5px; border-radius: 5px; text-align: center; font-weight: bold; font-size: 14px;'>✅ STN DONE</div>", unsafe_allow_html=True)
                     else:
-                        # Lal box chota kar diya aur numbers se .0 hata diya
-                        st.markdown(f"""
-                        <div style='background-color: #f8d7da; border: 1px solid #dc3545; padding: 5px; border-radius: 5px; text-align: center; margin-bottom: 10px;'>
-                            <h4 style='color: #721c24; margin: 0;'>❌ STN PENDING (Mismatch - Qty A: {total_a} | Qty B: {total_b} | Qty C: {total_c})</h4>
-                        </div>
-                        """, unsafe_allow_html=True)
+                        # Chota sa Lal Box
+                        status_placeholder.markdown("<div style='background-color: #f8d7da; color: #721c24; border: 1px solid #dc3545; padding: 7px 5px; border-radius: 5px; text-align: center; font-weight: bold; font-size: 14px;'>❌ PENDING</div>", unsafe_allow_html=True)
 
                 # --- FORMATTING: DATE ---
                 for col in df.columns:
@@ -109,7 +102,6 @@ if submit_search:
                 # --- FORMATTING: DECIMALS HATANA (.0) ---
                 for col in qty_cols:
                     if col in df.columns:
-                        # Is line se table ke andar ka .0 hamesha ke liye hat jayega
                         df[col] = df[col].astype(int)
 
                 df = df.astype(str).replace(['None', 'nan', 'NULL', '<NA>', 'NoneType', 'NaT'], '')
@@ -123,4 +115,4 @@ if submit_search:
         except Exception as e:
             st.error(f"Error detail: {e}")
     else:
-        st.info("Kripya search karne ke liye kam se kam ek box mein detail bhariye aur 'Search Data' button dabaiye.")
+        st.info("Kripya search karne ke liye kam se kam ek box mein detail bhariye.")
