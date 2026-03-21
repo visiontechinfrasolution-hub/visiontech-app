@@ -82,7 +82,6 @@ if stn_pending_btn:
                 agg_funcs = {col: 'sum' if col in qty_cols else 'first' for col in df.columns if col not in ['Project Number', 'Item Code']}
                 items_df = df.groupby(['Project Number', 'Item Code'], as_index=False).agg(agg_funcs)
 
-                # 🔥 EXACT LOGIC: Capex + Warehouse + Parent + Qty A>0 + Qty B>0 + Qty C=0
                 if 'Product' in items_df.columns and 'Issue From' in items_df.columns and 'Parent/Child' in items_df.columns:
                     pending_mask = (
                         (items_df['Product'].astype(str).str.contains('capex', case=False, na=False)) & 
@@ -121,36 +120,42 @@ if stn_pending_btn:
     except Exception as e:
         st.error(f"Error: {e}")
 
-# --- LOGIC 2: NEW BOQ REPORT (SMART DATE MATCHER) ---
+# --- LOGIC 2: NEW BOQ REPORT (FOOLPROOF STRING MATCHER) ---
 elif new_boq_btn:
     if boq_date_input is None:
         st.warning("⚠️ Kripya 'Generate New BOQ' button ke theek pehle wale box mein Date select karein!")
     else:
         st.info(f"⏳ {boq_date_input.strftime('%d-%b-%Y')} ka BOQ data nikal rahe hain...")
         try:
-            # Limit badha di hai taaki koi naya data na chhoote
             response = supabase.table("BOQ Report").select("*").limit(50000).execute()
             if response.data:
                 df = pd.DataFrame(response.data)
                 
                 if 'BOQ Date' in df.columns:
-                    target_date = boq_date_input
+                    t_date = boq_date_input
+                    day_str = str(t_date.day) # '18' or '8'
+                    day_padded = f"{t_date.day:02d}" # '18' or '08'
+                    month_name = t_date.strftime("%b").lower() # 'mar'
+                    month_num = f"{t_date.month:02d}" # '03'
+                    year = str(t_date.year) # '2026'
+                    year_short = str(t_date.year)[-2:] # '26'
                     
-                    # 🔥 Har format try karega (Capital/Small sab ignore)
-                    str_formats = [
-                        target_date.strftime("%d-%b-%Y").lower(), # 17-mar-2026
-                        target_date.strftime("%d-%b-%y").lower(), # 17-mar-26
-                        target_date.strftime("%d-%m-%Y").lower(), # 17-03-2026
-                        target_date.strftime("%Y-%m-%d").lower(), # 2026-03-17
-                        target_date.strftime("%d/%m/%Y").lower(), # 17/03/2026
+                    # 🔥 Har ek possible Excel format yahan list kar diya hai
+                    formats_to_check = [
+                        f"{day_padded}-{month_name}-{year}",       # 18-mar-2026
+                        f"{day_str}-{month_name}-{year}",         # 8-mar-2026
+                        f"{day_padded}-{month_name}-{year_short}", # 18-mar-26
+                        f"{year}-{month_num}-{day_padded}",       # 2026-03-18
+                        f"{day_padded}-{month_num}-{year}",       # 18-03-2026
+                        f"{day_padded}/{month_num}/{year}",       # 18/03/2026
+                        f"{month_num}/{day_padded}/{year}",       # 03/18/2026 (US Format)
                     ]
                     
+                    # Convert BOQ Date to string and make it lowercase for easy matching
                     boq_col = df['BOQ Date'].astype(str).str.strip().str.lower()
-                    parsed_dates = pd.to_datetime(df['BOQ Date'], errors='coerce').dt.date
                     
-                    # Match check logic
-                    mask = parsed_dates == target_date
-                    for fmt in str_formats:
+                    mask = pd.Series(False, index=df.index)
+                    for fmt in formats_to_check:
                         mask = mask | boq_col.str.contains(fmt, regex=False, na=False)
                         
                     boq_df = df[mask].copy()
@@ -172,9 +177,9 @@ elif new_boq_btn:
                         st.dataframe(boq_df, use_container_width=True, hide_index=True)
                         
                         csv = convert_df_to_csv(boq_df)
-                        st.download_button(label="📥 Download Excel File", data=csv, file_name=f"New_BOQ_{target_date.strftime('%d-%b-%Y')}.csv", mime="text/csv")
+                        st.download_button(label="📥 Download Excel File", data=csv, file_name=f"New_BOQ_{boq_date_input.strftime('%d-%b-%Y')}.csv", mime="text/csv")
                     else:
-                        st.warning(f"❌ {target_date.strftime('%d-%b-%Y')} ki date par koi BOQ nahi mila. Database mein check karein.")
+                        st.warning(f"❌ {boq_date_input.strftime('%d-%b-%Y')} ki date par koi BOQ nahi mila. Database mein check karein.")
                 else:
                     st.error("Database mein 'BOQ Date' column nahi mila.")
         except Exception as e:
