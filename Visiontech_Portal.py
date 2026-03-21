@@ -28,7 +28,6 @@ mera_sequence = [
 
 # --- 3. MAIN SEARCH BOXES (LINE 1) ---
 with st.form("search_form"):
-    # Ab 8 columns hain taaki UI clean dikhe
     c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([1.1, 1.0, 1.1, 1.0, 1.1, 1.1, 0.8, 1.0])
     
     with c1: project_query = st.text_input("📁 Project No.")
@@ -71,7 +70,7 @@ if stn_pending_btn:
     status_placeholder.empty()
     st.info("⏳ Visiontech ka STN Pending data nikal rahe hain...")
     try:
-        response = supabase.table("BOQ Report").select("*").ilike("Transporter", "%visiontech%").execute()
+        response = supabase.table("BOQ Report").select("*").ilike("Transporter", "%visiontech%").limit(10000).execute()
         if response.data:
             df = pd.DataFrame(response.data)
             qty_cols = ['Qty A', 'Qty B', 'Qty C']
@@ -79,44 +78,45 @@ if stn_pending_btn:
                 if col in df.columns:
                     df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
-            # 🔥 NEW STRICT LOGIC: Capex + Warehouse + Parent
-            if 'Product' in df.columns and 'Issue From' in df.columns and 'Parent/Child' in df.columns:
-                df = df[
-                    (df['Product'].astype(str).str.contains('capex', case=False, na=False)) & 
-                    (df['Issue From'].astype(str).str.contains('warehouse', case=False, na=False)) & 
-                    (df['Parent/Child'].astype(str).str.strip().str.lower() == 'parent')
-                ]
-
-            if not df.empty and 'Project Number' in df.columns and 'Item Code' in df.columns:
+            if 'Project Number' in df.columns and 'Item Code' in df.columns:
+                # Pehle items ko merge karna
                 agg_funcs = {col: 'sum' if col in qty_cols else 'first' for col in df.columns if col not in ['Project Number', 'Item Code']}
                 items_df = df.groupby(['Project Number', 'Item Code'], as_index=False).agg(agg_funcs)
 
-                project_totals = items_df.groupby('Project Number', as_index=False)[qty_cols].sum()
-                
-                # 🔥 STRICT QTY LOGIC: Qty A > 0 AND Qty B > 0 AND Qty C == 0
-                pending_mask = (project_totals['Qty A'] > 0) & (project_totals['Qty B'] > 0) & (project_totals['Qty C'] == 0)
-                pending_projects = project_totals[pending_mask]['Project Number']
-                
-                pending_df = items_df[items_df['Project Number'].isin(pending_projects)]
-                
-                if not pending_df.empty:
-                    st.error(f"🚨 {len(pending_projects)} Sites aisi hain jinka STN Pending hai!")
-                    for col in qty_cols:
-                        pending_df[col] = pending_df[col].astype(int)
+                # 🔥 STRICT EXACT LOGIC (Item Level Par)
+                if 'Product' in items_df.columns and 'Issue From' in items_df.columns and 'Parent/Child' in items_df.columns:
+                    pending_mask = (
+                        (items_df['Product'].astype(str).str.contains('capex', case=False, na=False)) & 
+                        (items_df['Issue From'].astype(str).str.contains('warehouse', case=False, na=False)) & 
+                        (items_df['Parent/Child'].astype(str).str.strip().str.lower() == 'parent') &
+                        (items_df['Qty A'] > 0) & 
+                        (items_df['Qty B'] > 0) & 
+                        (items_df['Qty C'] == 0)
+                    )
                     
-                    final_cols = [c for c in mera_sequence if c in pending_df.columns]
-                    bache_hue_cols = [c for c in pending_df.columns if c not in final_cols]
-                    pending_df = pending_df[final_cols + bache_hue_cols]
+                    pending_df = items_df[pending_mask]
+                    
+                    if not pending_df.empty:
+                        unique_projects = pending_df['Project Number'].nunique()
+                        st.error(f"🚨 {unique_projects} Sites mein items ka STN Pending hai!")
+                        
+                        for col in qty_cols:
+                            pending_df[col] = pending_df[col].astype(int)
+                        
+                        final_cols = [c for c in mera_sequence if c in pending_df.columns]
+                        bache_hue_cols = [c for c in pending_df.columns if c not in final_cols]
+                        pending_df = pending_df[final_cols + bache_hue_cols]
 
-                    st.dataframe(pending_df, use_container_width=True, hide_index=True)
-                    
-                    # Excel Download Button
-                    csv = convert_df_to_csv(pending_df)
-                    st.download_button(label="📥 Download Excel File", data=csv, file_name="STN_Pending_Sites.csv", mime="text/csv")
+                        st.dataframe(pending_df, use_container_width=True, hide_index=True)
+                        
+                        csv = convert_df_to_csv(pending_df)
+                        st.download_button(label="📥 Download Excel File", data=csv, file_name="STN_Pending_Sites.csv", mime="text/csv")
+                    else:
+                        st.success("✅ Wah! Visiontech ka koi bhi STN Pending nahi hai. Sab DONE hai!")
                 else:
-                    st.success("✅ Wah! Visiontech ka koi bhi STN Pending nahi hai. Sab DONE hai!")
+                    st.warning("Data mein 'Product', 'Issue From' ya 'Parent/Child' column missing hai.")
             else:
-                st.warning("Diye gaye filter (Capex, Warehouse, Parent) par koi data match nahi hua.")
+                st.warning("Database mein 'Project Number' ya 'Item Code' column nahi mila.")
         else:
             st.warning("Visiontech ka koi data database mein nahi mila.")
     except Exception as e:
@@ -129,20 +129,34 @@ elif new_boq_btn:
     else:
         st.info(f"⏳ {boq_date_input.strftime('%d-%b-%Y')} ka BOQ data nikal rahe hain...")
         try:
-            response = supabase.table("BOQ Report").select("*").execute()
+            response = supabase.table("BOQ Report").select("*").limit(10000).execute()
             if response.data:
                 df = pd.DataFrame(response.data)
                 
                 if 'BOQ Date' in df.columns:
-                    # Safe Date Filtering
-                    df['parsed_date'] = pd.to_datetime(df['BOQ Date'], errors='coerce').dt.date
-                    boq_df = df[df['parsed_date'] == boq_date_input].copy()
+                    df['clean_date'] = df['BOQ Date'].astype(str).str.strip()
+                    
+                    d1 = boq_date_input.strftime("%d-%b-%Y")
+                    d2 = boq_date_input.strftime("%Y-%m-%d")
+                    d3 = boq_date_input.strftime("%d-%m-%Y")
+                    d4 = boq_date_input.strftime("%d/%m/%Y")
+                    
+                    df['parsed'] = pd.to_datetime(df['clean_date'], errors='coerce').dt.date
+                    
+                    boq_df = df[
+                        (df['parsed'] == boq_date_input) | 
+                        (df['clean_date'].str.contains(d1, case=False, na=False)) |
+                        (df['clean_date'].str.contains(d2, case=False, na=False)) |
+                        (df['clean_date'].str.contains(d3, case=False, na=False)) |
+                        (df['clean_date'].str.contains(d4, case=False, na=False))
+                    ].copy()
                     
                     if not boq_df.empty:
-                        boq_df = boq_df.drop(columns=['parsed_date'])
+                        if 'clean_date' in boq_df.columns: boq_df = boq_df.drop(columns=['clean_date'])
+                        if 'parsed' in boq_df.columns: boq_df = boq_df.drop(columns=['parsed'])
+                        
                         st.success(f"✅ Record Mil Gaya! ({len(boq_df)} Lines)")
                         
-                        # Decimal Fix
                         qty_cols = ['Qty A', 'Qty B', 'Qty C']
                         for col in qty_cols:
                             if col in boq_df.columns:
@@ -156,11 +170,10 @@ elif new_boq_btn:
 
                         st.dataframe(boq_df, use_container_width=True, hide_index=True)
                         
-                        # Excel Download Button
                         csv = convert_df_to_csv(boq_df)
                         st.download_button(label="📥 Download Excel File", data=csv, file_name=f"New_BOQ_{boq_date_input.strftime('%d-%b-%Y')}.csv", mime="text/csv")
                     else:
-                        st.warning(f"❌ {boq_date_input.strftime('%d-%b-%Y')} ki date par koi BOQ nahi mila.")
+                        st.warning(f"❌ {boq_date_input.strftime('%d-%b-%Y')} ki date par koi data nahi mila. Supabase mein check karein ki data upload hua hai ya nahi.")
                 else:
                     st.error("Database mein 'BOQ Date' column nahi mila.")
         except Exception as e:
@@ -169,7 +182,7 @@ elif new_boq_btn:
 # --- LOGIC 3: NORMAL SEARCH ---
 elif submit_search:
     has_filter = False
-    query = supabase.table("BOQ Report").select("*")
+    query = supabase.table("BOQ Report").select("*").limit(10000)
     
     if project_query:
         query = query.ilike("Project Number", f"%{project_query.strip()}%")
