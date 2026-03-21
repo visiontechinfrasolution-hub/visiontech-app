@@ -15,13 +15,11 @@ st.markdown("<p style='text-align: center; color: gray; margin-bottom: 20px;'>BO
 
 # --- 3. SINGLE LINE SEARCH BOXES & BUTTONS ---
 with st.form("search_form"):
-    # Ab 9 columns banaye hain taaki BOQ box bhi same line mein fit ho sake
     c1, c2, c3, c4, c5, c6, c7, c8, c9 = st.columns([1.1, 1.0, 1.1, 1.0, 1.1, 1.1, 0.8, 1.1, 0.9])
     
     with c1: project_query = st.text_input("📁 Project No.")
-    with c2: site_query = st.text_input("📍 SITE ID")
+    with c2: site_query = st.text_input("📍 Site ID")
     
-    # 🔥 NAYA BOX: BOQ ke liye
     with c3: boq_query = st.text_input("📄 BOQ")
     
     with c4: dispatch_date = st.date_input("📅 Date", value=None)
@@ -66,11 +64,11 @@ if pending_report:
                 agg_funcs = {col: 'sum' if col in qty_cols else 'first' for col in df.columns if col not in ['Project Number', 'Item Code']}
                 df = df.groupby(['Project Number', 'Item Code'], as_index=False).agg(agg_funcs)
 
-                if 'Product' in df.columns and 'Qty B' in df.columns and 'Parent' in df.columns:
+                if 'Product' in df.columns and 'Qty B' in df.columns and 'Parent/Child' in df.columns:
                     df = df[
                         (df['Product'].astype(str).str.contains('capex', case=False, na=False)) & 
                         (df['Qty B'] > 0) & 
-                        (df['Parent'].astype(str).str.strip().str.lower() == 'parent')
+                        (df['Parent/Child'].astype(str).str.strip().str.lower() == 'parent')
                     ]
 
                 grouped = df.groupby('Project Number', as_index=False)[qty_cols].sum()
@@ -102,9 +100,8 @@ elif submit_search:
         query = query.ilike("Project Number", f"%{project_query.strip()}%")
         has_filter = True
     if site_query:
-        query = query.ilike("SITE ID", f"%{site_query.strip()}%")
+        query = query.ilike("Site ID", f"%{site_query.strip()}%")
         has_filter = True
-    # 🔥 NAYA LOGIC: BOQ se search karne ke liye
     if boq_query:
         query = query.ilike("BOQ", f"%{boq_query.strip()}%")
         has_filter = True
@@ -145,11 +142,11 @@ elif submit_search:
                     df = df[original_cols]
 
                 stn_df = df.copy()
-                if 'Product' in stn_df.columns and 'Qty B' in stn_df.columns and 'Parent' in stn_df.columns:
+                if 'Product' in stn_df.columns and 'Qty B' in stn_df.columns and 'Parent/Child' in stn_df.columns:
                     stn_df = stn_df[
                         (stn_df['Product'].astype(str).str.contains('capex', case=False, na=False)) & 
                         (stn_df['Qty B'] > 0) &
-                        (stn_df['Parent'].astype(str).str.strip().str.lower() == 'parent')
+                        (stn_df['Parent/Child'].astype(str).str.strip().str.lower() == 'parent')
                     ]
 
                 total_a = int(stn_df['Qty A'].sum()) if 'Qty A' in stn_df.columns else 0
@@ -172,11 +169,32 @@ elif submit_search:
 
                 df = df.astype(str).replace(['None', 'nan', 'NULL', '<NA>', 'NoneType', 'NaT'], '')
 
+                # --- 🎯 AAPKA EXACT TABLE SEQUENCE ---
                 mera_sequence = [
-                    'Sr. No.', 'SITE ID', 'Product', 'Transaction Type', 'Project Number', 'BOQ',
-                    'Item Code', 'Item Description', 'Qty A', 'Qty B', 'Qty C', 'Parent',
-                    'Dispatch Date', 'Line Status', 'Transporter', 'TSP Partner Name',
-                    'LR Number', 'Challan Number', 'Vehicle Number', 'Item Category', 'SRN BOQ'
+                    'Sr. No.',
+                    'Site ID',
+                    'Product',
+                    'Transaction Type',
+                    'Issue From',
+                    'Project Number',
+                    'BOQ',
+                    'Item Code',
+                    'Item Description',
+                    'Qty A',
+                    'Qty B',
+                    'Qty C',
+                    'Dispatch Date',
+                    'Parent/Child',
+                    'Line Status',
+                    'Transporter',
+                    'TSP Partner Name',
+                    'LR Number',
+                    'Vehicle Number',
+                    'Challan Number',
+                    'BOQ Date',
+                    'Department',
+                    'Item Category',
+                    'Source Of Fulfilment'
                 ]
                 
                 final_cols = [c for c in mera_sequence if c in df.columns]
