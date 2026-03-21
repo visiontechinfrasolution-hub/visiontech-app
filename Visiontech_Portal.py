@@ -15,31 +15,34 @@ st.markdown("<p style='text-align: center; color: gray; margin-bottom: 20px;'>BO
 
 # --- 3. SINGLE LINE SEARCH BOXES & BUTTONS ---
 with st.form("search_form"):
-    c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([1.2, 1.2, 1.1, 1.3, 1.2, 0.8, 1.2, 0.9])
+    # Ab 9 columns banaye hain taaki BOQ box bhi same line mein fit ho sake
+    c1, c2, c3, c4, c5, c6, c7, c8, c9 = st.columns([1.1, 1.0, 1.1, 1.0, 1.1, 1.1, 0.8, 1.1, 0.9])
     
     with c1: project_query = st.text_input("📁 Project No.")
     with c2: site_query = st.text_input("📍 SITE ID")
     
-    with c3: dispatch_date = st.date_input("📅 Date", value=None)
+    # 🔥 NAYA BOX: BOQ ke liye
+    with c3: boq_query = st.text_input("📄 BOQ")
+    
+    with c4: dispatch_date = st.date_input("📅 Date", value=None)
     
     transporter_list = ["", "visiontech", "Safexpress", "Delhivery", "VRL Logistics", "TCI Express", "Gati"]
-    with c4: transporter = st.selectbox("🚚 Transporter", transporter_list)
+    with c5: transporter = st.selectbox("🚚 Transporter", transporter_list)
     
-    # 🔥 UPDATE 1: TSP list mein 'visiontech' add kar diya hai
     tsp_list = ["", "visiontech", "Partner A", "Partner B", "Partner C", "Ericsson", "Nokia"]
-    with c5: tsp_partner = st.selectbox("🤝 TSP Partner", tsp_list)
+    with c6: tsp_partner = st.selectbox("🤝 TSP Partner", tsp_list)
     
-    with c6:
+    with c7:
         st.write("") 
         st.markdown("<div style='margin-top: 5px;'></div>", unsafe_allow_html=True)
         submit_search = st.form_submit_button("🔍 Search")
         
-    with c7:
+    with c8:
         st.write("") 
         st.markdown("<div style='margin-top: 5px;'></div>", unsafe_allow_html=True)
         pending_report = st.form_submit_button("🚨 Pending Report")
         
-    with c8:
+    with c9:
         st.write("") 
         st.markdown("<div style='margin-top: 5px;'></div>", unsafe_allow_html=True)
         status_placeholder = st.empty() 
@@ -63,7 +66,6 @@ if pending_report:
                 agg_funcs = {col: 'sum' if col in qty_cols else 'first' for col in df.columns if col not in ['Project Number', 'Item Code']}
                 df = df.groupby(['Project Number', 'Item Code'], as_index=False).agg(agg_funcs)
 
-                # 🔥 UPDATE 2: Sirf Capex, Qty B > 0, AUR Parent=='Parent' wali lines lenge
                 if 'Product' in df.columns and 'Qty B' in df.columns and 'Parent' in df.columns:
                     df = df[
                         (df['Product'].astype(str).str.contains('capex', case=False, na=False)) & 
@@ -102,6 +104,10 @@ elif submit_search:
     if site_query:
         query = query.ilike("SITE ID", f"%{site_query.strip()}%")
         has_filter = True
+    # 🔥 NAYA LOGIC: BOQ se search karne ke liye
+    if boq_query:
+        query = query.ilike("BOQ", f"%{boq_query.strip()}%")
+        has_filter = True
     if dispatch_date:
         date_str = dispatch_date.strftime("%Y-%m-%d")
         query = query.eq("Dispatch Date", date_str)
@@ -138,7 +144,6 @@ elif submit_search:
                     original_cols = [c for c in response.data[0].keys() if c in df.columns]
                     df = df[original_cols]
 
-                # 🔥 UPDATE 3: STN Box calculation mein bhi 'Parent' wala logic lagaya hai
                 stn_df = df.copy()
                 if 'Product' in stn_df.columns and 'Qty B' in stn_df.columns and 'Parent' in stn_df.columns:
                     stn_df = stn_df[
