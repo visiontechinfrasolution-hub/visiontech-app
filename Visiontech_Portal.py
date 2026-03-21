@@ -14,7 +14,6 @@ st.markdown("<p style='text-align: center; color: gray; margin-bottom: 20px;'>BO
 
 # --- 3. SINGLE LINE SEARCH BOXES ---
 with st.form("search_form"):
-    # 7 columns banaye hain: 5 boxes ke liye, 1 button ke liye, 1 STN Status ke liye
     c1, c2, c3, c4, c5, c6, c7 = st.columns([1.5, 1.2, 1.2, 1.2, 1.5, 1, 1.2])
     
     with c1: project_query = st.text_input("📁 Project No.")
@@ -24,14 +23,13 @@ with st.form("search_form"):
     with c5: tsp_partner = st.text_input("🤝 TSP Partner")
     
     with c6:
-        st.write("") # Button ko text box ke level par laane ke liye spacing
+        st.write("") 
         st.markdown("<div style='margin-top: 5px;'></div>", unsafe_allow_html=True)
         submit_search = st.form_submit_button("🔍 Search")
         
     with c7:
-        st.write("") # Status box ko bhi line me set karne ke liye
+        st.write("") 
         st.markdown("<div style='margin-top: 5px;'></div>", unsafe_allow_html=True)
-        # Ye ek khali jagah (placeholder) banayi hai jahan search ke baad result aayega
         status_placeholder = st.empty() 
 
 # --- 4. LOGIC & DATA FETCH ---
@@ -81,18 +79,16 @@ if submit_search:
                     original_cols = [c for c in response.data[0].keys() if c in df.columns]
                     df = df[original_cols]
 
-                # --- STN DONE / PENDING LOGIC (SINGLE LINE SMALL BOX) ---
+                # --- STN DONE / PENDING LOGIC ---
                 total_a = int(df['Qty A'].sum()) if 'Qty A' in df.columns else 0
                 total_b = int(df['Qty B'].sum()) if 'Qty B' in df.columns else 0
                 total_c = int(df['Qty C'].sum()) if 'Qty C' in df.columns else 0
 
                 if total_a > 0:
                     if total_a == total_b and total_a == total_c:
-                        # Chota sa Hara Box jo 7th column mein aayega
                         status_placeholder.markdown("<div style='background-color: #d4edda; color: #155724; border: 1px solid #28a745; padding: 7px 5px; border-radius: 5px; text-align: center; font-weight: bold; font-size: 14px;'>✅ STN DONE</div>", unsafe_allow_html=True)
                     else:
-                        # Chota sa Lal Box
-                        status_placeholder.markdown("<div style='background-color: #f8d7da; color: #721c24; border: 1px solid #dc3545; padding: 7px 5px; border-radius: 5px; text-align: center; font-weight: bold; font-size: 14px;'>❌ PENDING</div>", unsafe_allow_html=True)
+                        status_placeholder.markdown("<div style='background-color: #f8d7da; color: #721c24; border: 1px solid #dc3545; padding: 7px 5px; border-radius: 5px; text-align: center; font-weight: bold; font-size: 14px;'>❌ STN PENDING</div>", unsafe_allow_html=True)
 
                 # --- FORMATTING: DATE ---
                 for col in df.columns:
@@ -106,8 +102,51 @@ if submit_search:
 
                 df = df.astype(str).replace(['None', 'nan', 'NULL', '<NA>', 'NoneType', 'NaT'], '')
 
+                # --- 🎯 TABLE SEQUENCE CHANGE ---
+                # Aapka diya hua exact sequence
+                mera_sequence = [
+                    'Sr. No.',
+                    'SITE ID',
+                    'Product',
+                    'Transaction Type',
+                    'Project Number',
+                    'BOQ',
+                    'Item Code',
+                    'Item Description',
+                    'Qty A',
+                    'Qty B',
+                    'Qty C',
+                    'Parent',
+                    'Dispatch Date',
+                    'Line Status',
+                    'Transporter',
+                    'TSP Partner Name',
+                    'LR Number',
+                    'Challan Number',
+                    'Vehicle Number',
+                    'Item Category',
+                    'SRN BOQ'
+                ]
+                
+                final_cols = [c for c in mera_sequence if c in df.columns]
+                bache_hue_cols = [c for c in df.columns if c not in final_cols]
+                df = df[final_cols + bache_hue_cols]
+
                 st.success(f"✅ Record Mil Gaya! ({len(df)} Unique Items)")
-                st.dataframe(df, use_container_width=True, hide_index=True)
+                
+                # --- 🎯 ITEM DESCRIPTION WRAPPING ---
+                # Yahan humne Item Description ko extra space di hai taaki wo lamba na khinche
+                st.dataframe(
+                    df, 
+                    use_container_width=True, 
+                    hide_index=True,
+                    column_config={
+                        "Item Description": st.column_config.TextColumn(
+                            "Item Description",
+                            width="large", # Isse column chauda ho jayega aur padhne mein aasaani hogi
+                        )
+                    }
+                )
                 
             else:
                 st.warning("❌ Diye gaye filters par koi data nahi mila. Spelling check kar lijiye.")
