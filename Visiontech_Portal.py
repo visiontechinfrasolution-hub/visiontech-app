@@ -19,7 +19,11 @@ search_id = st.text_input("SITE ID enter karein (e.g. IN-1052232):")
 if search_id:
     try:
         # Table Name: BOQ Report, Column Name: SITE ID
-        response = supabase.table("BOQ Report").select("*").eq("SITE ID", search_id).execute()
+        # User ke type kiye hue spaces ko hatane ke liye
+clean_query = search_query.strip() 
+
+# 'eq' ki jagah 'ilike' lagaya taaki aage-piche kuch bhi ho toh match ho jaye
+response = supabase.table("BOQ Report").select("*").ilike(search_type, f"%{clean_query}%").execute()
         
         if response.data:
             df = pd.DataFrame(response.data)
