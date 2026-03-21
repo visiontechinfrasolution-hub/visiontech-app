@@ -14,47 +14,55 @@ st.write("BOQ Report - Smart Search Engine")
 
 st.divider() 
 
-# --- 3. SMART SEARCH OPTIONS ---
-st.subheader("Bhai, kis column se dhoondhna hai?")
-search_type = st.radio(
-    "Option select karein:",
-    ["Project Number", "SITE ID"],
-    horizontal=True 
-)
+# --- 3. SMART SEARCH BOXES (Bina Selection Ke) ---
+st.subheader("Bhai, niche kisi bhi ek box mein ID daliye:")
 
-search_query = st.text_input(f"Apna {search_type} yahan enter karein (e.g. 1054561):")
+# Do boxes ko aamne-saamne (side-by-side) rakhne ke liye
+col1, col2 = st.columns(2)
+
+with col1:
+    project_query = st.text_input("📁 Project Number yahan enter karein:")
+
+with col2:
+    site_query = st.text_input("📍 SITE ID yahan enter karein:")
 
 # --- 4. LOGIC & DATA FETCH ---
-if search_query:
+# Agar dono mein se kisi bhi ek box mein kuch likha hai
+if project_query or site_query:
     try:
-        # User ke daale hue extra spaces (aage-peeche) hatane ke liye
-        clean_query = search_query.strip()
-        
-        # ilike aur % lagane se partial match aur case-insensitive search hoga
-        # Isse agar database mein "IN-1054561 " (space ke sath) hoga, toh bhi mil jayega
+        # Pata lagate hain ki user ne kis box mein type kiya hai
+        if project_query:
+            search_type = "Project Number"
+            clean_query = project_query.strip()
+        else:
+            search_type = "SITE ID"
+            clean_query = site_query.strip()
+            
+        # Data database se nikalna
         response = supabase.table("BOQ Report").select("*").ilike(search_type, f"%{clean_query}%").execute()
         
         if response.data:
             df = pd.DataFrame(response.data)
 
-            # --- FORMATTING ---
-            if 'Date' in df.columns:
-                try:
-                    df['Date'] = pd.to_datetime(df['Date']).dt.strftime('%d-%b-%Y')
-                except:
-                    pass
+            # --- FORMATTING: DATE (17-Mar-2026 format) ---
+            # Ye code har us column ko theek karega jiske naam mein 'date' likha hoga
+            for col in df.columns:
+                if 'date' in col.lower():
+                    # Date ko proper format mein badalna
+                    df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime('%d-%b-%Y')
             
-            # NULLs ko saaf karna
-            df = df.astype(str).replace(['None', 'nan', 'NULL', '<NA>', 'NoneType'], '')
+            # --- FORMATTING: NULLs ---
+            # 'NaT' (Not a Time) ko bhi khali box banane ke liye add kiya hai
+            df = df.astype(str).replace(['None', 'nan', 'NULL', '<NA>', 'NoneType', 'NaT'], '')
 
             st.success(f"✅ Record Mil Gaya! (Searched by {search_type})")
             st.dataframe(df, use_container_width=True, hide_index=True)
             
         else:
-            st.warning(f"❌ Ye {search_type} ('{clean_query}') database mein nahi mila. Ek baar spelling check kar lijiye.")
+            st.warning(f"❌ Ye {search_type} ('{clean_query}') database mein nahi mila.")
             
     except Exception as e:
-        st.error(f"Error: Kya table mein '{search_type}' naam ka exact column hai? (Detail: {e})")
+        st.error(f"Error detail: {e}")
 
 else:
-    st.info("Upar detail daliye, poora data table niche aa jayega.")
+    st.info("Kripya Project Number ya SITE ID mein se koi ek detail bhariye, data apne aap aa jayega.")
