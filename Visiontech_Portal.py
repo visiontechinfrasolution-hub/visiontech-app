@@ -15,19 +15,17 @@ st.markdown("<p style='text-align: center; color: gray; margin-bottom: 20px;'>BO
 
 # --- 3. SINGLE LINE SEARCH BOXES & BUTTONS ---
 with st.form("search_form"):
-    # Ab 8 columns banaye hain taaki Pending button bhi same line mein aaye
     c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([1.2, 1.2, 1.1, 1.3, 1.2, 0.8, 1.2, 0.9])
     
     with c1: project_query = st.text_input("📁 Project No.")
     with c2: site_query = st.text_input("📍 SITE ID")
     
-    # DATE PICKER (Calendar)
+    # DATE PICKER 
     with c3: dispatch_date = st.date_input("📅 Date", value=None)
     
     # TRANSPORTER DROPDOWN
-    # Bhai, agar aur naam add karne hain, toh is list mein inhi format ("Naam") mein aage likh dijiye
     transporter_list = ["", "visiontech", "Safexpress", "Delhivery", "VRL Logistics", "TCI Express", "Gati", "Blue Dart"]
-    with c4: transporter = st.text_input("🚚 Transporter") if False else st.selectbox("🚚 Transporter", transporter_list)
+    with c4: transporter = st.selectbox("🚚 Transporter", transporter_list)
     
     with c5: tsp_partner = st.text_input("🤝 TSP Partner")
     
@@ -39,7 +37,6 @@ with st.form("search_form"):
     with c7:
         st.write("") 
         st.markdown("<div style='margin-top: 5px;'></div>", unsafe_allow_html=True)
-        # NAYA BUTTON: Visiontech STN Pending Report ke liye
         pending_report = st.form_submit_button("🚨 Pending Report")
         
     with c8:
@@ -52,7 +49,6 @@ if pending_report:
     status_placeholder.empty()
     st.info("⏳ Visiontech ka STN Pending data nikal rahe hain, kripya thoda intezar karein...")
     try:
-        # Sirf visiontech ka data fetch karega
         response = supabase.table("BOQ Report").select("*").ilike("Transporter", "%visiontech%").execute()
         
         if response.data:
@@ -64,23 +60,15 @@ if pending_report:
                     df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
             if 'Project Number' in df.columns:
-                # Project Number ke hisaab se total Qty nikalna
                 grouped = df.groupby('Project Number', as_index=False)[qty_cols].sum()
-                
-                # Logic: Qty A > 0 aur (Qty A != Qty B ya Qty A != Qty C)
                 pending_mask = (grouped['Qty A'] > 0) & ((grouped['Qty A'] != grouped['Qty B']) | (grouped['Qty A'] != grouped['Qty C']))
                 pending_df = grouped[pending_mask]
                 
                 if not pending_df.empty:
                     pending_df['Status'] = '❌ PENDING'
-                    
                     st.error(f"🚨 Visiontech ke {len(pending_df)} Projects ka STN Pending hai!")
-                    
-                    # Decimals (.0) hatane ke liye
                     for col in qty_cols:
                         pending_df[col] = pending_df[col].astype(int)
-                        
-                    # Clean table show karna
                     st.dataframe(pending_df, use_container_width=True, hide_index=True)
                 else:
                     st.success("✅ Wah! Visiontech ka koi bhi STN Pending nahi hai. Sab DONE hai!")
@@ -103,9 +91,9 @@ elif submit_search:
         query = query.ilike("SITE ID", f"%{site_query.strip()}%")
         has_filter = True
     if dispatch_date:
-        # Calendar ki date ko text (YYYY-MM-DD) mein badalna taaki database mein search ho sake
+        # 🚨 YAHAN FIX KIYA HAI: 'ilike' hata kar exact Date match ('.eq') lagaya hai
         date_str = dispatch_date.strftime("%Y-%m-%d")
-        query = query.ilike("Dispatch Date", f"%{date_str}%")
+        query = query.eq("Dispatch Date", date_str)
         has_filter = True
     if transporter:
         query = query.ilike("Transporter", f"%{transporter.strip()}%")
@@ -195,3 +183,5 @@ elif submit_search:
                 
         except Exception as e:
             st.error(f"Error detail: {e}")
+    else:
+        st.info("Kripya search karne ke liye kam se kam ek box mein detail bhariye.")
