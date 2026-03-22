@@ -110,7 +110,7 @@ if menu_selection == "📦 BOQ Report":
                     else: st.warning("Columns missing for Pending Logic.")
         except Exception as e: st.error(f"Error: {e}")
 
-    # --- BOQ DATE LOGIC (AB DISPATCH DATE PAR SEARCH KAREGA) ---
+    # --- BOQ DATE LOGIC ---
     elif new_boq_btn:
         if boq_date_input is None: st.warning("⚠️ Kripya Date select karein!")
         else:
@@ -201,18 +201,17 @@ if menu_selection == "📦 BOQ Report":
         else: st.info("Kripya search karne ke liye kam se kam ek box mein detail bhariye.")
 
 # =====================================================================
-# 🟦 PAGE 2: PO REPORT (With Password & Exact Sequence)
+# 🟦 PAGE 2: PO REPORT
 # =====================================================================
 elif menu_selection == "🧾 PO Report":
     st.markdown("<h3 style='text-align: center; margin-bottom: 0px;'>🧾 Purchase Order (PO) Report</h3>", unsafe_allow_html=True)
     
-    # 🎯 AAPKA EXACT PO TABLE SEQUENCE
     po_sequence = [
         'Organization', 'PO Number', 'Shipment Number', 'Receipt Number', 
         'Item', 'Description', 'UOM', 'Quantity Received'
     ]
 
-    # --- PASSWORD LOCK LOGIC ---
+    # --- PASSWORD LOCK ---
     if "po_unlocked" not in st.session_state:
         st.session_state.po_unlocked = False
 
@@ -223,14 +222,14 @@ elif menu_selection == "🧾 PO Report":
             st.warning("🔒 Ye page secure hai. Kripya password daalein.")
             pwd = st.text_input("Enter Password:", type="password")
             if st.button("Unlock 🔓", use_container_width=True):
-                # 🔥 AAP YAHAN APNA PASSWORD SET KAR SAKTE HAIN
+                # Yahan apna password change kar sakte hain
                 if pwd == "1234": 
                     st.session_state.po_unlocked = True
                     st.rerun()
                 else:
                     st.error("❌ Galat Password!")
     else:
-        # --- PO REPORT MAIN PAGE (Unlocked) ---
+        # --- UNLOCKED VIEW ---
         c1, c2 = st.columns([8, 1])
         with c2:
             if st.button("🔒 Lock", help="Page ko wapas lock karein"):
@@ -239,11 +238,12 @@ elif menu_selection == "🧾 PO Report":
                 
         st.markdown("<p style='text-align: center; color: gray; margin-bottom: 20px;'>Search and Manage PO Details</p>", unsafe_allow_html=True)
 
+        # 🔥 UPDATE: Naye Search Boxes 
         with st.form("po_search_form"):
             col1, col2, col3, col4 = st.columns(4)
             with col1: search_po = st.text_input("📄 PO Number")
-            with col2: search_item = st.text_input("📦 Item Code")
-            with col3: search_org = st.text_input("🏢 Organization")
+            with col2: search_shipment = st.text_input("🚚 Shipment Number")
+            with col3: search_receipt = st.text_input("🧾 Receipt Number")
             with col4:
                 st.write("") 
                 st.markdown("<div style='margin-top: 5px;'></div>", unsafe_allow_html=True)
@@ -253,39 +253,40 @@ elif menu_selection == "🧾 PO Report":
             has_filter = False
             query = supabase.table("PO Report").select("*").limit(50000)
             
-            # PO Number ko properly handle karna
             if search_po:
                 try:
                     query = query.eq("PO Number", int(search_po.strip()))
                     has_filter = True
                 except ValueError:
-                    st.error("PO Number mein sirf numbers daalein!")
+                    st.error("❌ PO Number mein sirf numbers daalein!")
             
-            if search_item:
-                query = query.ilike("Item", f"%{search_item.strip()}%")
-                has_filter = True
-                
-            if search_org:
-                query = query.ilike("Organization", f"%{search_org.strip()}%")
-                has_filter = True
+            if search_shipment:
+                try:
+                    query = query.eq("Shipment Number", int(search_shipment.strip()))
+                    has_filter = True
+                except ValueError:
+                    st.error("❌ Shipment Number mein sirf numbers daalein!")
+                    
+            if search_receipt:
+                try:
+                    query = query.eq("Receipt Number", int(search_receipt.strip()))
+                    has_filter = True
+                except ValueError:
+                    st.error("❌ Receipt Number mein sirf numbers daalein!")
 
             if has_filter:
                 try:
                     response = query.execute()
                     if response.data:
                         po_df = pd.DataFrame(response.data)
-                        
-                        # Data thoda clean karna
                         po_df = po_df.astype(str).replace(['None', 'nan', 'NULL', '<NA>', 'NoneType', 'NaT'], '')
                         
-                        # 🎯 EXACT SEQUENCE SETTING
                         final_cols = [c for c in po_sequence if c in po_df.columns]
                         bache_hue_cols = [c for c in po_df.columns if c not in final_cols]
                         po_df = po_df[final_cols + bache_hue_cols]
 
                         st.success(f"✅ Record Mil Gaya! ({len(po_df)} Lines)")
                         
-                        # Table dikhana
                         st.dataframe(
                             po_df, 
                             use_container_width=True, 
@@ -295,11 +296,10 @@ elif menu_selection == "🧾 PO Report":
                             }
                         )
                         
-                        # Excel Download Option
                         csv = convert_df_to_csv(po_df)
                         st.download_button(label="📥 Download Excel File", data=csv, file_name=f"PO_Report_{datetime.now().strftime('%d%b%Y')}.csv", mime="text/csv")
                     else:
-                        st.warning("❌ Data nahi mila. Spelling ya PO Number check karein.")
+                        st.warning("❌ Data nahi mila. Kripya check karein ki number sahi hai ya nahi.")
                 except Exception as e:
                     st.error(f"Error detail: {e}")
             else:
