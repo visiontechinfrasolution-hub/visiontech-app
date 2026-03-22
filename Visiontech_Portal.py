@@ -103,4 +103,4 @@ if menu_selection == "📦 BOQ Report":
                             final_cols = [c for c in mera_sequence if c in pending_df.columns]
                             bache_hue_cols = [c for c in pending_df.columns if c not in final_cols]
                             pending_df = pending_df[final_cols + bache_hue_cols]
-                            st.dataframe(pending_df, use_container_width=True, hide_index=
+                            st.dataframe(pending_df, use_container_width=True, hide_index=True)
