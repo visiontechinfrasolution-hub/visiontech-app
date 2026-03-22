@@ -120,70 +120,55 @@ if stn_pending_btn:
     except Exception as e:
         st.error(f"Error: {e}")
 
-# --- LOGIC 2: NEW BOQ REPORT (FOOLPROOF STRING MATCHER) ---
+# --- LOGIC 2: NEW BOQ REPORT (SERVER-SIDE SMART MATCHER) ---
 elif new_boq_btn:
     if boq_date_input is None:
         st.warning("⚠️ Kripya 'Generate New BOQ' button ke theek pehle wale box mein Date select karein!")
     else:
-        st.info(f"⏳ {boq_date_input.strftime('%d-%b-%Y')} ka BOQ data nikal rahe hain...")
-        try:
-            response = supabase.table("BOQ Report").select("*").limit(50000).execute()
-            if response.data:
-                df = pd.DataFrame(response.data)
-                
-                if 'BOQ Date' in df.columns:
-                    t_date = boq_date_input
-                    day_str = str(t_date.day) # '18' or '8'
-                    day_padded = f"{t_date.day:02d}" # '18' or '08'
-                    month_name = t_date.strftime("%b").lower() # 'mar'
-                    month_num = f"{t_date.month:02d}" # '03'
-                    year = str(t_date.year) # '2026'
-                    year_short = str(t_date.year)[-2:] # '26'
-                    
-                    # 🔥 Har ek possible Excel format yahan list kar diya hai
-                    formats_to_check = [
-                        f"{day_padded}-{month_name}-{year}",       # 18-mar-2026
-                        f"{day_str}-{month_name}-{year}",         # 8-mar-2026
-                        f"{day_padded}-{month_name}-{year_short}", # 18-mar-26
-                        f"{year}-{month_num}-{day_padded}",       # 2026-03-18
-                        f"{day_padded}-{month_num}-{year}",       # 18-03-2026
-                        f"{day_padded}/{month_num}/{year}",       # 18/03/2026
-                        f"{month_num}/{day_padded}/{year}",       # 03/18/2026 (US Format)
-                    ]
-                    
-                    # Convert BOQ Date to string and make it lowercase for easy matching
-                    boq_col = df['BOQ Date'].astype(str).str.strip().str.lower()
-                    
-                    mask = pd.Series(False, index=df.index)
-                    for fmt in formats_to_check:
-                        mask = mask | boq_col.str.contains(fmt, regex=False, na=False)
-                        
-                    boq_df = df[mask].copy()
-                    
-                    if not boq_df.empty:
-                        st.success(f"✅ Record Mil Gaya! ({len(boq_df)} Lines)")
-                        
-                        qty_cols = ['Qty A', 'Qty B', 'Qty C']
-                        for col in qty_cols:
-                            if col in boq_df.columns:
-                                boq_df[col] = pd.to_numeric(boq_df[col], errors='coerce').fillna(0).astype(int)
-                                
-                        boq_df = boq_df.astype(str).replace(['None', 'nan', 'NULL', '<NA>', 'NoneType', 'NaT'], '')
-                        
-                        final_cols = [c for c in mera_sequence if c in boq_df.columns]
-                        bache_hue_cols = [c for c in boq_df.columns if c not in final_cols]
-                        boq_df = boq_df[final_cols + bache_hue_cols]
+        st.info(f"⏳ {boq_date_input.strftime('%d-%b-%Y')} ka BOQ data nikal rahe hain (Searching full database)...")
+        
+        # 🔥 SERVER SIDE FILTER: Ab poore 2 Lakh+ data mein se nikalega
+        formats_to_try = [
+            boq_date_input.strftime("%d-%b-%Y"),         # 18-Mar-2026 
+            boq_date_input.strftime("%d-%b-%Y").lower(), # 18-mar-2026
+            boq_date_input.strftime("%d-%b-%y"),         # 18-Mar-26
+            boq_date_input.strftime("%Y-%m-%d"),         # 2026-03-18
+            boq_date_input.strftime("%d-%m-%Y"),         # 18-03-2026
+            boq_date_input.strftime("%d/%m/%Y"),         # 18/03/2026
+            str(boq_date_input.day) + "-" + boq_date_input.strftime("%b-%Y") # 8-Mar-2026
+        ]
+        
+        df = pd.DataFrame()
+        for fmt in formats_to_try:
+            try:
+                # Direct Database ke andar dhoondhega
+                res = supabase.table("BOQ Report").select("*").ilike("BOQ Date", f"%{fmt}%").limit(10000).execute()
+                if res.data and len(res.data) > 0:
+                    df = pd.DataFrame(res.data)
+                    break # Milte hi loop band
+            except Exception as e:
+                continue
 
-                        st.dataframe(boq_df, use_container_width=True, hide_index=True)
-                        
-                        csv = convert_df_to_csv(boq_df)
-                        st.download_button(label="📥 Download Excel File", data=csv, file_name=f"New_BOQ_{boq_date_input.strftime('%d-%b-%Y')}.csv", mime="text/csv")
-                    else:
-                        st.warning(f"❌ {boq_date_input.strftime('%d-%b-%Y')} ki date par koi BOQ nahi mila. Database mein check karein.")
-                else:
-                    st.error("Database mein 'BOQ Date' column nahi mila.")
-        except Exception as e:
-            st.error(f"Error: {e}")
+        if not df.empty:
+            st.success(f"✅ Record Mil Gaya! ({len(df)} Lines)")
+            
+            qty_cols = ['Qty A', 'Qty B', 'Qty C']
+            for col in qty_cols:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
+                    
+            df = df.astype(str).replace(['None', 'nan', 'NULL', '<NA>', 'NoneType', 'NaT'], '')
+            
+            final_cols = [c for c in mera_sequence if c in df.columns]
+            bache_hue_cols = [c for c in df.columns if c not in final_cols]
+            boq_df = df[final_cols + bache_hue_cols]
+
+            st.dataframe(boq_df, use_container_width=True, hide_index=True)
+            
+            csv = convert_df_to_csv(boq_df)
+            st.download_button(label="📥 Download Excel File", data=csv, file_name=f"New_BOQ_{boq_date_input.strftime('%d-%b-%Y')}.csv", mime="text/csv")
+        else:
+            st.warning(f"❌ {boq_date_input.strftime('%d-%b-%Y')} ki date par koi BOQ nahi mila. Kripya check karein ki Excel mein 'BOQ Date' column mein us date par entry hai ya nahi.")
 
 # --- LOGIC 3: NORMAL SEARCH ---
 elif submit_search:
