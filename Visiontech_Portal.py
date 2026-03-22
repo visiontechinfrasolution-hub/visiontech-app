@@ -110,7 +110,7 @@ if menu_selection == "📦 BOQ Report":
                     else: st.warning("Columns missing for Pending Logic.")
         except Exception as e: st.error(f"Error: {e}")
 
-    # --- BOQ DATE LOGIC ---
+    # --- BOQ DATE LOGIC (AB DISPATCH DATE PAR SEARCH KAREGA) ---
     elif new_boq_btn:
         if boq_date_input is None: st.warning("⚠️ Kripya Date select karein!")
         else:
@@ -299,4 +299,8 @@ elif menu_selection == "🧾 PO Report":
                         csv = convert_df_to_csv(po_df)
                         st.download_button(label="📥 Download Excel File", data=csv, file_name=f"PO_Report_{datetime.now().strftime('%d%b%Y')}.csv", mime="text/csv")
                     else:
-                        st.warning("❌ Data nahi mila
+                        st.warning("❌ Data nahi mila. Spelling ya PO Number check karein.")
+                except Exception as e:
+                    st.error(f"Error detail: {e}")
+            else:
+                st.info("Kripya search karne ke liye kam se kam ek box mein detail bhariye.")
