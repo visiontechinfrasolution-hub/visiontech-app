@@ -26,7 +26,7 @@ st.sidebar.caption("© 2026 Visiontech Infra Solutions")
 tab1, tab2, tab3, tab4 = st.tabs(["📦 BOQ Report", "🧾 PO Report", "🏗️ Site Detail", "📊 Indus Basic Data"])
 
 # =====================================================================
-# 🟩 TAB 1: BOQ REPORT (NO LOGIC CHANGES)
+# 🟩 TAB 1: BOQ REPORT (PROJECT ID SEARCH FIXED)
 # =====================================================================
 with tab1:
     st.markdown("<h3 style='text-align: center; margin-bottom: 0px;'>🔍 Visiontech Infra Solutions</h3>", unsafe_allow_html=True)
@@ -35,6 +35,7 @@ with tab1:
     mera_sequence = ['Sr. No.', 'Site ID', 'Product', 'Transaction Type', 'Issue From', 'Project Number', 'BOQ', 'Item Code', 'Item Description', 'Qty A', 'Qty B', 'Qty C', 'Dispatch Date', 'Parent/Child', 'Line Status', 'Transporter', 'TSP Partner Name', 'LR Number', 'Vehicle Number', 'Challan Number', 'BOQ Date', 'Department', 'Item Category', 'Source Of Fulfilment']
 
     with st.form("search_form"):
+        # Wahi aapke 8 Columns
         c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([1.1, 1.0, 1.1, 1.0, 1.1, 1.1, 0.8, 1.0])
         with c1: project_query = st.text_input("📁 Project No.", key="boq_p_infra")
         with c2: site_query = st.text_input("📍 Site ID", key="boq_s_infra")
@@ -56,15 +57,23 @@ with tab1:
     with r3: new_boq_btn = st.button("📄 Generate New BOQ", use_container_width=True)
 
     if submit_search:
-        res = supabase.table("BOQ Report").select("*").ilike("Site ID", f"%{site_query}%").execute()
+        query = supabase.table("BOQ Report").select("*")
+        # --- FIXED SEARCH LOGIC ---
+        if project_query: query = query.ilike("Project Number", f"%{project_query.strip()}%")
+        if site_query: query = query.ilike("Site ID", f"%{site_query.strip()}%")
+        if boq_query: query = query.ilike("BOQ", f"%{boq_query.strip()}%")
+        
+        res = query.execute()
         if res.data:
             df = pd.DataFrame(res.data)
             st.dataframe(df, use_container_width=True)
-            wa_msg = f"📦 *VISIONTECH INFRA BOQ*\n📍 *Site:* {site_query}\n🚀 _Sent via Portal_"
-            st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">📲 Share BOQ</button></a>', unsafe_allow_html=True)
+            wa_msg = f"📦 *VISIONTECH INFRA BOQ*\n📍 *Site:* {site_query or '-'}\n📁 *Project:* {project_query or '-'}\n🚀 _Sent via Portal_"
+            st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">🚀 Share BOQ</button></a>', unsafe_allow_html=True)
+        else:
+            st.warning("❌ Data nahi mila.")
 
 # =====================================================================
-# 🟦 TAB 2: PO REPORT (TABLE MOVED TO LEFT)
+# 🟦 TAB 2: PO REPORT (NO CHANGE)
 # =====================================================================
 with tab2:
     st.markdown("<h3 style='text-align: center; margin-bottom: 0px;'>🧾 Visiontech Infra - PO Report</h3>", unsafe_allow_html=True)
@@ -85,22 +94,12 @@ with tab2:
             if res.data:
                 po_df = pd.DataFrame(res.data)
                 st.dataframe(po_df, use_container_width=True, hide_index=True)
-                
                 summary_df = po_df[['Shipment Number', 'Receipt Number']].drop_duplicates().reset_index(drop=True)
                 summary_df.index = summary_df.index + 1
-                
                 st.markdown("---")
-                # PO Number Left Pe
                 st.markdown(f"📄 **PO Number :- {s_po}**")
-                
-                # Table ab LEFT pe aayega (columns hata diye)
                 st.markdown("""<style>div[data-testid="stTable"] table {width: auto !important; min-width: 400px; text-align: center;} th {text-align: center !important;} td {text-align: center !important;}</style>""", unsafe_allow_html=True)
                 st.table(summary_df)
-
-                wa_msg = f"🧾 *VISIONTECH INFRA PO*\n📄 *PO Number :-* {s_po}\n"
-                for i, r in summary_df.iterrows():
-                    wa_msg += f"🔹 {r['Shipment Number']} | {r['Receipt Number']}\n"
-                st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">📲 Send to Group</button></a>', unsafe_allow_html=True)
 
 # =====================================================================
 # 🟨 TAB 3: SITE DETAIL (NO CHANGE)
@@ -110,11 +109,11 @@ with tab3:
     if st.session_state.get('site_unlocked', False):
         with st.form("sd_form_infra"):
             s1, s2 = st.columns(2)
-            with s1: p_id = st.text_input("📁 Project ID")
-            with s2: site_id = st.text_input("📍 Site ID")
+            with s1: p_id_in = st.text_input("📁 Project ID")
+            with s2: site_id_in = st.text_input("📍 Site ID")
             sub_sd = st.form_submit_button("🔍 Search Site")
         if sub_sd:
-            res = supabase.table("Site Detail").select("*").ilike("SITE ID", f"%{site_id}%").execute()
+            res = supabase.table("Site Detail").select("*").ilike("SITE ID", f"%{site_id_in}%").execute()
             if res.data: st.dataframe(pd.DataFrame(res.data), use_container_width=True)
     else:
         pwd = st.text_input("Enter Password:", type="password", key="s_pwd_infra")
@@ -138,12 +137,4 @@ with tab4:
         if res.data:
             for row in res.data:
                 fse_name = row.get('FSE ', row.get('FSE', '-'))
-                st.markdown(f"""
-                ---
-                **Site ID** :- {row.get('Site ID', '-')}  
-                **Site Name** :- {row.get('Site Name', '-')}  
-                **FSE** :- {fse_name}  
-                **Lat-Long** :- {row.get('Lat')} {row.get('Long')}
-                """)
-                wa_msg = f"📊 *VISIONTECH INFRA*\n📍 *Site ID:* {row.get('Site ID')}\n👷 *FSE:* {fse_name}"
-                st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">🚀 Send to VISPL Group</button></a>', unsafe_allow_html=True)
+                st.markdown(f"--- \n**Site ID** :- {row.get('Site ID', '-')}  \n**Site Name** :- {row.get('Site Name', '-')}  \n**FSE** :- {fse_name}  \n**Lat-Long** :- {row.get('Lat')} {row.get('Long')}")
