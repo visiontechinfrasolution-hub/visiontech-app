@@ -14,11 +14,11 @@ def convert_df_to_csv(df):
     return df.to_csv(index=False).encode('utf-8')
 
 # --- 2. UI SETUP ---
-st.set_page_config(page_title="Visiontech Portal", layout="wide")
+st.set_page_config(page_title="VIS GROUP Portal", layout="wide")
 
 st.sidebar.image("https://cdn-icons-png.flaticon.com/512/2942/2942813.png", width=80) 
 st.sidebar.title("🧭 Visiontech")
-st.sidebar.caption("© 2026 Visiontech Industrial Solutions")
+st.sidebar.caption("© 2026 Visiontech Infra Solutions")
 
 # --- 3. HORIZONTAL TABS (EK KE BAAJU ME EK) ---
 tab1, tab2, tab3, tab4 = st.tabs(["📦 BOQ Report", "🧾 PO Report", "🏗️ Site Detail", "📊 Indus Basic Data"])
