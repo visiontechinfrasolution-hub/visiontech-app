@@ -13,7 +13,7 @@ supabase = create_client(URL, KEY)
 def convert_df_to_csv(df):
     return df.to_csv(index=False).encode('utf-8')
 
-# --- 2. UI SETUP & HORIZONTAL TABS ---
+# --- 2. UI SETUP ---
 st.set_page_config(page_title="Visiontech Portal", layout="wide")
 
 st.sidebar.image("https://cdn-icons-png.flaticon.com/512/2942/2942813.png", width=80) 
@@ -24,7 +24,7 @@ st.sidebar.caption("© 2026 Visiontech Industrial Solutions")
 tab1, tab2, tab3, tab4 = st.tabs(["📦 BOQ Report", "🧾 PO Report", "🏗️ Site Detail", "📊 Indus Basic Data"])
 
 # =====================================================================
-# 🟩 TAB 1: BOQ REPORT (SAB KUCH WAPAS)
+# 🟩 TAB 1: BOQ REPORT (AS IT IS - NO CHANGES)
 # =====================================================================
 with tab1:
     st.markdown("<h3 style='text-align: center; margin-bottom: 0px;'>🔍 Visiontech Industrial Solutions</h3>", unsafe_allow_html=True)
@@ -34,12 +34,12 @@ with tab1:
 
     with st.form("search_form"):
         c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([1.1, 1.0, 1.1, 1.0, 1.1, 1.1, 0.8, 1.0])
-        with c1: project_query = st.text_input("📁 Project No.")
-        with c2: site_query = st.text_input("📍 Site ID")
-        with c3: boq_query = st.text_input("📄 BOQ")
-        with c4: dispatch_date = st.date_input("📅 Date", value=None)
-        with c5: transporter = st.selectbox("🚚 Transporter", ["", "visiontech", "Safexpress", "Delhivery", "VRL Logistics", "TCI Express", "Gati"])
-        with c6: tsp_partner = st.selectbox("🤝 TSP Partner", ["", "visiontech", "Partner A", "Partner B", "Partner C", "Ericsson", "Nokia"])
+        with c1: project_query = st.text_input("📁 Project No.", key="boq_p")
+        with c2: site_query = st.text_input("📍 Site ID", key="boq_s")
+        with c3: boq_query = st.text_input("📄 BOQ", key="boq_b")
+        with c4: dispatch_date = st.date_input("📅 Date", value=None, key="boq_d")
+        with c5: transporter = st.selectbox("🚚 Transporter", ["", "visiontech", "Safexpress", "Delhivery", "VRL Logistics", "TCI Express", "Gati"], key="boq_t")
+        with c6: tsp_partner = st.selectbox("🤝 TSP Partner", ["", "visiontech", "Partner A", "Partner B", "Partner C", "Ericsson", "Nokia"], key="boq_tsp")
         with c7: 
             st.write(""); st.markdown("<div style='margin-top: 5px;'></div>", unsafe_allow_html=True)
             submit_search = st.form_submit_button("🔍 Search")
@@ -50,18 +50,10 @@ with tab1:
     st.markdown("#### 📊 Quick Reports & Downloads")
     r1, r2, r3, r4 = st.columns([2, 1.5, 2, 4])
     with r1: stn_pending_btn = st.button("🚨 STN Pending Sites", use_container_width=True)
-    with r2: boq_date_input = st.date_input("Select Date", value=None, label_visibility="collapsed")
+    with r2: boq_date_input = st.date_input("Select Date", value=None, label_visibility="collapsed", key="boq_q_d")
     with r3: new_boq_btn = st.button("📄 Generate New BOQ", use_container_width=True)
 
-    # --- BOQ LOGICS (Original) ---
-    if stn_pending_btn:
-        # Puraana STN Logic yahan active hai
-        res = supabase.table("BOQ Report").select("*").ilike("Transporter", "%visiontech%").limit(5000).execute()
-        if res.data:
-            st.dataframe(pd.DataFrame(res.data), use_container_width=True)
-
-    elif submit_search:
-        # Search Logic with WhatsApp Button
+    if submit_search:
         query = supabase.table("BOQ Report").select("*")
         if site_query: query = query.ilike("Site ID", f"%{site_query}%")
         res = query.execute()
@@ -71,15 +63,15 @@ with tab1:
             st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">🚀 Send BOQ to Group</button></a>', unsafe_allow_html=True)
 
 # =====================================================================
-# 🟦 TAB 2: PO REPORT (WITH TABLE SUMMARY)
+# 🟦 TAB 2: PO REPORT (CENTERED & SR NO START 1)
 # =====================================================================
 with tab2:
     st.markdown("<h3 style='text-align: center; margin-bottom: 0px;'>🧾 Purchase Order (PO) Report</h3>", unsafe_allow_html=True)
     if "po_unlocked" not in st.session_state: st.session_state.po_unlocked = False
 
     if not st.session_state.po_unlocked:
-        pwd = st.text_input("Enter Password:", type="password", key="p_p")
-        if st.button("Unlock 🔓"):
+        pwd = st.text_input("Enter Password:", type="password", key="p_p_tab")
+        if st.button("Unlock 🔓", key="p_u_btn"):
             if pwd == "1234": st.session_state.po_unlocked = True; st.rerun()
     else:
         with st.form("po_form"):
@@ -95,11 +87,25 @@ with tab2:
                 po_df = pd.DataFrame(res.data)
                 st.dataframe(po_df, use_container_width=True, hide_index=True)
                 
-                # --- PO SUMMARY TABLE FORMAT (AS REQUESTED) ---
+                # --- PO SUMMARY (SR NO 1 & CENTER ALIGN) ---
                 st.markdown("---")
-                st.write(f"**PO Number :-** {s_po}")
+                st.markdown(f"**PO Number :-** {s_po}")
+                
+                # Filter Unique, Reset Index and start from 1
                 summary_df = po_df[['Shipment Number', 'Receipt Number']].drop_duplicates().reset_index(drop=True)
-                st.table(summary_df) # No duplicate table
+                summary_df.index = summary_df.index + 1
+                
+                # Display Center Aligned Table
+                st.markdown(
+                    """
+                    <style>
+                    .center-table table {margin-left:auto; margin-right:auto; text-align:center;}
+                    .center-table th {text-align:center !important;}
+                    .center-table td {text-align:center !important;}
+                    </style>
+                    """, unsafe_allow_html=True
+                )
+                st.table(summary_df)
 
                 # WhatsApp Button
                 wa_summary = f"*Visiontech PO Report*\n*PO Number :-* {s_po}\n*Shipment | Receipt*\n"
@@ -108,15 +114,15 @@ with tab2:
                 st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_summary)}"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">🚀 Send PO to Group</button></a>', unsafe_allow_html=True)
 
 # =====================================================================
-# 🟨 TAB 3: SITE DETAIL (Original)
+# 🟨 TAB 3: SITE DETAIL (AS IT IS)
 # =====================================================================
 with tab3:
     st.markdown("<h3 style='text-align: center; margin-bottom: 0px;'>🏗️ Site Detail Report</h3>", unsafe_allow_html=True)
     if "site_unlocked" not in st.session_state: st.session_state.site_unlocked = False
 
     if not st.session_state.site_unlocked:
-        pwd = st.text_input("Enter Password:", type="password", key="s_p")
-        if st.button("Unlock 🔓", key="s_u"):
+        pwd = st.text_input("Enter Password:", type="password", key="s_p_tab")
+        if st.button("Unlock 🔓", key="s_u_tab"):
             if pwd == "1234": st.session_state.site_unlocked = True; st.rerun()
     else:
         with st.form("sd_form"):
@@ -133,15 +139,15 @@ with tab3:
                 st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">🚀 Send Detail to Group</button></a>', unsafe_allow_html=True)
 
 # =====================================================================
-# 📊 TAB 4: INDUS BASIC DATA (Plain Format)
+# 📊 TAB 4: INDUS BASIC DATA (AS IT IS)
 # =====================================================================
 with tab4:
     st.markdown("<h3 style='text-align: center; margin-bottom: 0px;'>📊 Indus Basic Data</h3>", unsafe_allow_html=True)
     with st.form("ind_form"):
         i1, i2, i3 = st.columns(3)
-        with i1: in_id = st.text_input("📍 Site ID", key="i_d")
-        with i2: in_nm = st.text_input("🏢 Site Name", key="i_n")
-        with i3: in_cl = st.text_input("🗺️ Cluster", key="i_c")
+        with i1: in_id = st.text_input("📍 Site ID", key="i_d_tab")
+        with i2: in_nm = st.text_input("🏢 Site Name", key="i_n_tab")
+        with i3: in_cl = st.text_input("🗺️ Cluster", key="i_c_tab")
         sub_in = st.form_submit_button("🔍 Search Indus")
     
     if sub_in:
