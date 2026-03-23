@@ -13,97 +13,128 @@ supabase = create_client(URL, KEY)
 def convert_df_to_csv(df):
     return df.to_csv(index=False).encode('utf-8')
 
-# --- 2. UI SETUP ---
+# --- 2. UI SETUP & SIDEBAR MENU ---
 st.set_page_config(page_title="Visiontech Portal", layout="wide")
 
-# Header Section
-st.markdown("<h2 style='text-align: center;'>🌐 Visiontech Industrial Solutions Portal</h2>", unsafe_allow_html=True)
-
-# --- 3. HORIZONTAL TABS (Ek ke baaju me ek) ---
-tab1, tab2, tab3, tab4 = st.tabs(["📦 BOQ Report", "🧾 PO Report", "🏗️ Site Detail", "📊 Indus Basic Data"])
+st.sidebar.image("https://cdn-icons-png.flaticon.com/512/2942/2942813.png", width=80) 
+st.sidebar.title("🧭 Main Menu")
+menu_selection = st.sidebar.radio("Apna Module Chunein:", ["📦 BOQ Report", "🧾 PO Report", "🏗️ Site Detail", "📊 Indus Basic Data"])
+st.sidebar.divider()
+st.sidebar.caption("© 2026 Visiontech Industrial Solutions")
 
 # =====================================================================
-# 🟩 TAB 1: BOQ REPORT
+# 🟩 PAGE 1: BOQ REPORT
 # =====================================================================
-with tab1:
-    st.markdown("#### 🔍 BOQ Advanced Search & STN Tracker")
+if menu_selection == "📦 BOQ Report":
+    st.markdown("<h3 style='text-align: center; margin-bottom: 0px;'>🔍 Visiontech Industrial Solutions</h3>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: gray; margin-bottom: 20px;'>BOQ Report - Advanced Search & STN Tracker</p>", unsafe_allow_html=True)
+
     mera_sequence = ['Sr. No.', 'Site ID', 'Product', 'Transaction Type', 'Issue From', 'Project Number', 'BOQ', 'Item Code', 'Item Description', 'Qty A', 'Qty B', 'Qty C', 'Dispatch Date', 'Transporter']
 
-    with st.form("boq_form"):
-        c1, c2, c3, c4 = st.columns(4)
+    with st.form("search_form"):
+        c1, c2, c3, c4, c5, c6 = st.columns([1.1, 1.0, 1.1, 1.0, 1.1, 1.1])
         with c1: project_query = st.text_input("📁 Project No.")
         with c2: site_query = st.text_input("📍 Site ID")
         with c3: boq_query = st.text_input("📄 BOQ")
-        with c4: 
-            st.write(""); submit_search = st.form_submit_button("🔍 Search BOQ", use_container_width=True)
+        with c4: dispatch_date = st.date_input("📅 Date", value=None)
+        with c5: transporter = st.selectbox("🚚 Transporter", ["", "visiontech", "Safexpress", "Delhivery", "VRL Logistics"])
+        with c6: 
+            st.write(""); st.markdown("<div style='margin-top: 5px;'></div>", unsafe_allow_html=True)
+            submit_search = st.form_submit_button("🔍 Search")
 
     if submit_search:
-        res = supabase.table("BOQ Report").select("*").ilike("Site ID", f"%{site_query}%").limit(100).execute()
+        query = supabase.table("BOQ Report").select("*").limit(100)
+        if project_query: query = query.ilike("Project Number", f"%{project_query.strip()}%")
+        if site_query: query = query.ilike("Site ID", f"%{site_query.strip()}%")
+        if boq_query: query = query.ilike("BOQ", f"%{boq_query.strip()}%")
+        
+        res = query.execute()
         if res.data:
             df = pd.DataFrame(res.data)
-            st.dataframe(df, use_container_width=True)
-            wa_msg = f"*Visiontech BOQ*\nSite: {site_query}\nItems: {len(df)}"
+            st.dataframe(df, use_container_width=True, hide_index=True)
+            
+            # WhatsApp for BOQ
+            wa_msg = f"*Visiontech BOQ Report*\nSite: {site_query or 'Multiple'}\nProject: {project_query or '-'}\nTotal Items: {len(df)}"
             encoded_msg = urllib.parse.quote(wa_msg)
-            st.markdown(f'<a href="whatsapp://send?text={encoded_msg}"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">🚀 Share to Group</button></a>', unsafe_allow_html=True)
+            st.markdown(f'<a href="whatsapp://send?text={encoded_msg}"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">🚀 Share BOQ to Group</button></a>', unsafe_allow_html=True)
 
 # =====================================================================
-# 🟦 TAB 2: PO REPORT
+# 🟦 PAGE 2: PO REPORT
 # =====================================================================
-with tab2:
-    st.markdown("#### 🧾 Purchase Order (PO) Report")
+elif menu_selection == "🧾 PO Report":
+    st.markdown("<h3 style='text-align: center; margin-bottom: 0px;'>🧾 Purchase Order (PO) Report</h3>", unsafe_allow_html=True)
     if "po_unlocked" not in st.session_state: st.session_state.po_unlocked = False
 
     if not st.session_state.po_unlocked:
-        pwd = st.text_input("Enter Password:", type="password", key="po_p")
-        if st.button("Unlock PO 🔓"):
+        pwd = st.text_input("Enter Password:", type="password")
+        if st.button("Unlock 🔓"):
             if pwd == "1234": st.session_state.po_unlocked = True; st.rerun()
             else: st.error("❌ Galat Password!")
     else:
-        s_po = st.text_input("📄 Enter PO Number")
-        if st.button("Search PO"):
+        with st.form("po_search"):
+            col1, col2 = st.columns(2)
+            with col1: s_po = st.text_input("📄 PO Number")
+            with col2: st.write(""); sub_po = st.form_submit_button("🔍 Search PO")
+        
+        if sub_po:
             res = supabase.table("PO Report").select("*").eq("PO Number", int(s_po)).execute()
             if res.data:
-                st.dataframe(pd.DataFrame(res.data), use_container_width=True)
-                wa_msg = f"*Visiontech PO*\nNo: {s_po}\nItems: {len(res.data)}"
-                st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">🚀 Share to Group</button></a>', unsafe_allow_html=True)
+                df = pd.DataFrame(res.data)
+                st.dataframe(df, use_container_width=True, hide_index=True)
+                
+                # WhatsApp for PO
+                wa_msg = f"*Visiontech PO Report*\nPO No: {s_po}\nOrg: {res.data[0].get('Organization')}\nItems: {len(df)}"
+                encoded_msg = urllib.parse.quote(wa_msg)
+                st.markdown(f'<a href="whatsapp://send?text={encoded_msg}"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">🚀 Share PO to Group</button></a>', unsafe_allow_html=True)
 
 # =====================================================================
-# 🟨 TAB 3: SITE DETAIL
+# 🟨 PAGE 3: SITE DETAIL
 # =====================================================================
-with tab3:
-    st.markdown("#### 🏗️ Site Detail Report")
+elif menu_selection == "🏗️ Site Detail":
+    st.markdown("<h3 style='text-align: center; margin-bottom: 0px;'>🏗️ Site Detail Report</h3>", unsafe_allow_html=True)
     if "site_unlocked" not in st.session_state: st.session_state.site_unlocked = False
 
     if not st.session_state.site_unlocked:
-        pwd = st.text_input("Enter Password:", type="password", key="site_p_lock")
-        if st.button("Unlock Site Detail 🔓"):
+        pwd = st.text_input("Enter Password:", type="password", key="s_pwd")
+        if st.button("Unlock 🔓", key="s_btn"):
             if pwd == "1234": st.session_state.site_unlocked = True; st.rerun()
     else:
-        site_id_in = st.text_input("📍 Enter Site ID", key="site_detail_id")
-        if st.button("Search Site Detail"):
-            res = supabase.table("Site Detail").select("*").ilike("SITE ID", f"%{site_id_in}%").execute()
+        with st.form("site_form"):
+            s1, s2 = st.columns(2)
+            with s1: p_id = st.text_input("📁 Project ID")
+            with s2: site_id = st.text_input("📍 Site ID")
+            sub_s = st.form_submit_button("🔍 Search Site")
+        
+        if sub_s:
+            res = supabase.table("Site Detail").select("*").ilike("SITE ID", f"%{site_id}%").execute()
             if res.data:
-                st.dataframe(pd.DataFrame(res.data), use_container_width=True)
-                wa_msg = f"*Visiontech Site Detail*\nID: {site_id_in}\nStatus: {res.data[0].get('SITE STATUS')}"
-                st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">🚀 Share to Group</button></a>', unsafe_allow_html=True)
+                df = pd.DataFrame(res.data)
+                st.dataframe(df, use_container_width=True, hide_index=True)
+                
+                # WhatsApp for Site Detail
+                wa_msg = f"*Visiontech Site Detail*\nSite ID: {site_id}\nStatus: {res.data[0].get('SITE STATUS')}\nTeam: {res.data[0].get('TEAM NAME')}"
+                encoded_msg = urllib.parse.quote(wa_msg)
+                st.markdown(f'<a href="whatsapp://send?text={encoded_msg}"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">🚀 Share Detail to Group</button></a>', unsafe_allow_html=True)
 
 # =====================================================================
-# 📊 TAB 4: INDUS BASIC DATA
+# 📊 PAGE 4: INDUS BASIC DATA
 # =====================================================================
-with tab4:
-    st.markdown("#### 📊 Indus Basic Data Report")
-    with st.form("indus_form_tab"):
+elif menu_selection == "📊 Indus Basic Data":
+    st.markdown("<h3 style='text-align: center; margin-bottom: 0px;'>📊 Indus Basic Data Report</h3>", unsafe_allow_html=True)
+    with st.form("indus_form"):
         i1, i2, i3 = st.columns(3)
-        with i1: in_id = st.text_input("📍 Site ID", key="in_sid_tab")
-        with i2: in_nm = st.text_input("🏢 Site Name", key="in_snm_tab")
-        with i3: in_cl = st.text_input("🗺️ Cluster", key="in_cl_tab")
-        sub_i = st.form_submit_button("🔍 Search Indus", use_container_width=True)
-
+        with i1: in_id = st.text_input("📍 Site ID")
+        with i2: in_nm = st.text_input("🏢 Site Name")
+        with i3: in_cl = st.text_input("🗺️ Cluster")
+        sub_i = st.form_submit_button("🔍 Search Indus")
+    
     if sub_i:
         res = supabase.table("Indus Data").select("*").ilike("Site ID", f"%{in_id.strip()}%").execute()
         if res.data:
             for row in res.data:
                 fse_name = row.get('FSE ', row.get('FSE', '-'))
                 wa_msg = f"*VISPL AUTOMATION REPORT*\nSite ID: {row.get('Site ID')}\nSite Name: {row.get('Site Name')}\nFSE: {fse_name}\nLat-Long: {row.get('Lat')} {row.get('Long')}"
+                encoded_msg = urllib.parse.quote(wa_msg)
+                
                 st.markdown(f"--- \n**Site ID** :- {row.get('Site ID')} | **Site Name** :- {row.get('Site Name')}")
-                st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">🚀 Send to VISPL Group</button></a>', unsafe_allow_html=True)
+                st.markdown(f'<a href="whatsapp://send?text={encoded_msg}"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">🚀 Send to VISPL Group</button></a>', unsafe_allow_html=True)
