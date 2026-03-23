@@ -16,11 +16,11 @@ def convert_df_to_csv(df):
 # --- 2. UI SETUP ---
 st.set_page_config(page_title="Visiontech Infra Portal", layout="wide")
 
-# --- SIDEBAR UPDATED (AS REQUESTED) ---
+# Sidebar Branding
 st.sidebar.image("https://cdn-icons-png.flaticon.com/512/2942/2942813.png", width=80) 
-st.sidebar.title("🧭 VIS Group") # <--- Changed here
+st.sidebar.title("🧭 VIS Group")
 st.sidebar.divider()
-st.sidebar.caption("© 2026 Visiontech Infra Solutions") # <--- Changed here
+st.sidebar.caption("© 2026 Visiontech Infra Solutions")
 
 # --- 3. HORIZONTAL TABS ---
 tab1, tab2, tab3, tab4 = st.tabs(["📦 BOQ Report", "🧾 PO Report", "🏗️ Site Detail", "📊 Indus Basic Data"])
@@ -35,7 +35,6 @@ with tab1:
     mera_sequence = ['Sr. No.', 'Site ID', 'Product', 'Transaction Type', 'Issue From', 'Project Number', 'BOQ', 'Item Code', 'Item Description', 'Qty A', 'Qty B', 'Qty C', 'Dispatch Date', 'Parent/Child', 'Line Status', 'Transporter', 'TSP Partner Name', 'LR Number', 'Vehicle Number', 'Challan Number', 'BOQ Date', 'Department', 'Item Category', 'Source Of Fulfilment']
 
     with st.form("search_form"):
-        # Wahi aapke 8 Columns
         c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([1.1, 1.0, 1.1, 1.0, 1.1, 1.1, 0.8, 1.0])
         with c1: project_query = st.text_input("📁 Project No.", key="boq_p_infra")
         with c2: site_query = st.text_input("📍 Site ID", key="boq_s_infra")
@@ -61,11 +60,11 @@ with tab1:
         if res.data:
             df = pd.DataFrame(res.data)
             st.dataframe(df, use_container_width=True)
-            wa_msg = f"📦 *VISIONTECH INFRA BOQ*\n📍 *Site:* {site_query}\n🚀 _Visiontech Infra_"
+            wa_msg = f"📦 *VISIONTECH INFRA BOQ*\n📍 *Site:* {site_query}\n🚀 _Sent via Portal_"
             st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">📲 Share BOQ</button></a>', unsafe_allow_html=True)
 
 # =====================================================================
-# 🟦 TAB 2: PO REPORT (PO NUMBER LEFT & CENTERED TABLE)
+# 🟦 TAB 2: PO REPORT (TABLE MOVED TO LEFT)
 # =====================================================================
 with tab2:
     st.markdown("<h3 style='text-align: center; margin-bottom: 0px;'>🧾 Visiontech Infra - PO Report</h3>", unsafe_allow_html=True)
@@ -91,12 +90,12 @@ with tab2:
                 summary_df.index = summary_df.index + 1
                 
                 st.markdown("---")
+                # PO Number Left Pe
                 st.markdown(f"📄 **PO Number :- {s_po}**")
                 
-                c_l, c_m, c_r = st.columns([1, 2, 1])
-                with c_m:
-                    st.markdown("""<style>div[data-testid="stTable"] table {text-align: center;} th {text-align: center !important;} td {text-align: center !important;}</style>""", unsafe_allow_html=True)
-                    st.table(summary_df)
+                # Table ab LEFT pe aayega (columns hata diye)
+                st.markdown("""<style>div[data-testid="stTable"] table {width: auto !important; min-width: 400px; text-align: center;} th {text-align: center !important;} td {text-align: center !important;}</style>""", unsafe_allow_html=True)
+                st.table(summary_df)
 
                 wa_msg = f"🧾 *VISIONTECH INFRA PO*\n📄 *PO Number :-* {s_po}\n"
                 for i, r in summary_df.iterrows():
@@ -104,7 +103,7 @@ with tab2:
                 st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">📲 Send to Group</button></a>', unsafe_allow_html=True)
 
 # =====================================================================
-# 🟨 TAB 3: SITE DETAIL (ORIGINAL)
+# 🟨 TAB 3: SITE DETAIL (NO CHANGE)
 # =====================================================================
 with tab3:
     st.markdown("<h3 style='text-align: center; margin-bottom: 0px;'>🏗️ Visiontech Infra Site Detail</h3>", unsafe_allow_html=True)
@@ -123,7 +122,7 @@ with tab3:
             if pwd == "1234": st.session_state.site_unlocked = True; st.rerun()
 
 # =====================================================================
-# 📊 TAB 4: INDUS BASIC DATA (EK KE NICHE EK)
+# 📊 TAB 4: INDUS BASIC DATA (NO CHANGE)
 # =====================================================================
 with tab4:
     st.markdown("<h3 style='text-align: center;'>📊 Indus Basic Data</h3>", unsafe_allow_html=True)
