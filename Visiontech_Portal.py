@@ -23,7 +23,7 @@ st.sidebar.divider()
 st.sidebar.caption("© 2026 Visiontech Industrial Solutions")
 
 # =====================================================================
-# 🟩 PAGE 1: BOQ REPORT (NO CHANGES)
+# 🟩 PAGE 1: BOQ REPORT (AS IS)
 # =====================================================================
 if menu_selection == "📦 BOQ Report":
     st.markdown("<h3 style='text-align: center; margin-bottom: 0px;'>🔍 Visiontech Industrial Solutions</h3>", unsafe_allow_html=True)
@@ -198,7 +198,7 @@ if menu_selection == "📦 BOQ Report":
         else: st.info("Kripya search karne ke liye kam se kam ek box mein detail bhariye.")
 
 # =====================================================================
-# 🟦 PAGE 2: PO REPORT (NO CHANGES)
+# 🟦 PAGE 2: PO REPORT (AS IS)
 # =====================================================================
 elif menu_selection == "🧾 PO Report":
     st.markdown("<h3 style='text-align: center; margin-bottom: 0px;'>🧾 Purchase Order (PO) Report</h3>", unsafe_allow_html=True)
@@ -242,7 +242,7 @@ elif menu_selection == "🧾 PO Report":
                 if res.data: st.dataframe(pd.DataFrame(res.data), use_container_width=True, hide_index=True)
 
 # =====================================================================
-# 🟨 PAGE 3: SITE DETAIL (NO CHANGES)
+# 🟨 PAGE 3: SITE DETAIL (AS IS)
 # =====================================================================
 elif menu_selection == "🏗️ Site Detail":
     st.markdown("<h3 style='text-align: center; margin-bottom: 0px;'>🏗️ Site Detail Report</h3>", unsafe_allow_html=True)
@@ -282,7 +282,7 @@ elif menu_selection == "🏗️ Site Detail":
             if res.data: st.dataframe(pd.DataFrame(res.data), use_container_width=True, hide_index=True)
 
 # =====================================================================
-# 📊 PAGE 4: INDUS BASIC DATA (NEW MODULE ADDED HERE)
+# 📊 PAGE 4: INDUS BASIC DATA (NEW MODULE - PLAIN TEXT & AUTO-APP LINK)
 # =====================================================================
 elif menu_selection == "📊 Indus Basic Data":
     st.markdown("<h3 style='text-align: center; margin-bottom: 0px;'>📊 Indus Basic Data Report</h3>", unsafe_allow_html=True)
@@ -305,13 +305,13 @@ elif menu_selection == "📊 Indus Basic Data":
             res = query.execute()
             if res.data:
                 for row in res.data:
-                    # FSE Handle (Fix for name issue)
+                    # Fix for FSE name (checks both "FSE " and "FSE")
                     fse_name = row.get('FSE ', row.get('FSE', '-'))
                     lat_long = f"{row.get('Lat', '')} {row.get('Long', '')}"
                     
-                    # WhatsApp Message Text
+                    # WhatsApp Format
                     wa_message = (
-                        f"*Visiontech Site Report*\n"
+                        f"*VISPL AUTOMATION REPORT*\n"
                         f"---------------------------\n"
                         f"*Site ID* :- {row.get('Site ID', '-')}\n"
                         f"*Site Name* :- {row.get('Site Name', '-')}\n"
@@ -327,9 +327,10 @@ elif menu_selection == "📊 Indus Basic Data":
                     )
                     
                     encoded_msg = urllib.parse.quote(wa_message)
-                    whatsapp_url = f"https://web.whatsapp.com/send?text={encoded_msg}"
+                    # whatsapp:// trigger seedha app kholta hai
+                    whatsapp_url = f"whatsapp://send?text={encoded_msg}"
 
-                    # Display UI Format
+                    # Display on Portal
                     st.markdown(f"""
                     ---
                     **Site ID** :- {row.get('Site ID') or '-'}  
@@ -345,11 +346,11 @@ elif menu_selection == "📊 Indus Basic Data":
                     **Lat - Long** :- {lat_long}
                     """)
                     
-                    # WhatsApp Button
+                    # Button with Green Color
                     st.markdown(f"""
-                        <a href="{whatsapp_url}" target="_blank">
+                        <a href="{whatsapp_url}">
                             <button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">
-                                🚀 Send to Group
+                                🚀 Send to VISPL Group
                             </button>
                         </a>
                     """, unsafe_allow_html=True)
