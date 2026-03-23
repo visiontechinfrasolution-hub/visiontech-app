@@ -17,49 +17,61 @@ def convert_df_to_csv(df):
 st.set_page_config(page_title="Visiontech Portal", layout="wide")
 
 st.sidebar.image("https://cdn-icons-png.flaticon.com/512/2942/2942813.png", width=80) 
-st.sidebar.title("🧭 Visiontech Menu")
+st.sidebar.title("🧭 Main Menu")
+# Puraana Sidebar Menu
+menu_selection = st.sidebar.radio("Apna Module Chunein:", ["📦 BOQ Report", "🧾 PO Report", "🏗️ Site Detail", "📊 Indus Basic Data"])
+st.sidebar.divider()
 st.sidebar.caption("© 2026 Visiontech Industrial Solutions")
 
-# Horizontal Tabs (Ek ke baaju me ek)
-tab1, tab2, tab3, tab4 = st.tabs(["📦 BOQ Report", "🧾 PO Report", "🏗️ Site Detail", "📊 Indus Basic Data"])
+# =====================================================================
+# 🟩 PAGE 1: BOQ REPORT (SAB KUCH WAPAS - NO CHANGES)
+# =====================================================================
+if menu_selection == "📦 BOQ Report":
+    st.markdown("<h3 style='text-align: center; margin-bottom: 0px;'>🔍 Visiontech Industrial Solutions</h3>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: gray; margin-bottom: 20px;'>BOQ Report - Advanced Search & STN Tracker</p>", unsafe_allow_html=True)
 
-# =====================================================================
-# 🟩 TAB 1: BOQ REPORT (NO LOGIC CHANGE)
-# =====================================================================
-with tab1:
-    st.markdown("<h3 style='text-align: center;'>🔍 Visiontech Industrial Solutions</h3>", unsafe_allow_html=True)
+    mera_sequence = ['Sr. No.', 'Site ID', 'Product', 'Transaction Type', 'Issue From', 'Project Number', 'BOQ', 'Item Code', 'Item Description', 'Qty A', 'Qty B', 'Qty C', 'Dispatch Date', 'Parent/Child', 'Line Status', 'Transporter', 'TSP Partner Name', 'LR Number', 'Vehicle Number', 'Challan Number', 'BOQ Date', 'Department', 'Item Category', 'Source Of Fulfilment']
+
     with st.form("search_form"):
+        # Wahi 8 Columns jo aapko chahiye the
         c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([1.1, 1.0, 1.1, 1.0, 1.1, 1.1, 0.8, 1.0])
-        with c1: project_query = st.text_input("📁 Project No.", key="boq_p_final")
-        with c2: site_query = st.text_input("📍 Site ID", key="boq_s_final")
-        with c3: boq_query = st.text_input("📄 BOQ", key="boq_b_final")
-        with c4: dispatch_date = st.date_input("📅 Date", value=None, key="boq_d_final")
-        with c5: transporter = st.selectbox("🚚 Transporter", ["", "visiontech", "Safexpress", "Delhivery", "VRL Logistics"], key="boq_t_final")
-        with c6: tsp_partner = st.selectbox("🤝 TSP Partner", ["", "visiontech", "Partner A", "Partner B", "Partner C"], key="boq_tsp_final")
+        with c1: project_query = st.text_input("📁 Project No.")
+        with c2: site_query = st.text_input("📍 Site ID")
+        with c3: boq_query = st.text_input("📄 BOQ")
+        with c4: dispatch_date = st.date_input("📅 Date", value=None)
+        with c5: transporter = st.selectbox("🚚 Transporter", ["", "visiontech", "Safexpress", "Delhivery", "VRL Logistics", "TCI Express", "Gati"])
+        with c6: tsp_partner = st.selectbox("🤝 TSP Partner", ["", "visiontech", "Partner A", "Partner B", "Partner C", "Ericsson", "Nokia"])
         with c7: 
             st.write(""); st.markdown("<div style='margin-top: 5px;'></div>", unsafe_allow_html=True)
             submit_search = st.form_submit_button("🔍 Search")
         with c8:
             st.write(""); status_placeholder = st.empty() 
 
+    st.divider()
+    st.markdown("#### 📊 Quick Reports & Downloads")
+    r1, r2, r3, r4 = st.columns([2, 1.5, 2, 4])
+    # Saare 3 Buttons wapas
+    with r1: stn_pending_btn = st.button("🚨 STN Pending Sites", use_container_width=True)
+    with r2: boq_date_input = st.date_input("Select Date", value=None, label_visibility="collapsed")
+    with r3: new_boq_btn = st.button("📄 Generate New BOQ", use_container_width=True)
+
     if submit_search:
-        res = supabase.table("BOQ Report").select("*").ilike("Site ID", f"%{site_query}%").execute()
+        query = supabase.table("BOQ Report").select("*")
+        if site_query: query = query.ilike("Site ID", f"%{site_query}%")
+        res = query.execute()
         if res.data:
-            df = pd.DataFrame(res.data)
-            st.dataframe(df, use_container_width=True)
-            wa_msg = f"📦 *BOQ REPORT*\n📍 *Site:* {site_query}\n✅ *Total Items:* {len(df)}"
-            st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">🚀 Share BOQ</button></a>', unsafe_allow_html=True)
+            st.dataframe(pd.DataFrame(res.data), use_container_width=True)
+            wa_msg = f"📦 *BOQ REPORT*\n📍 *Site:* {site_query}\n🚀 _Visiontech_"
+            st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">📲 Share BOQ</button></a>', unsafe_allow_html=True)
 
 # =====================================================================
-# 🟦 TAB 2: PO REPORT (CENTERED SUMMARY)
+# 🟦 PAGE 2: PO REPORT (CENTERED SUMMARY)
 # =====================================================================
-with tab2:
-    st.markdown("<h3 style='text-align: center;'>🧾 Purchase Order (PO) Report</h3>", unsafe_allow_html=True)
-    if "po_unlocked" not in st.session_state: st.session_state.po_unlocked = False
-
-    if not st.session_state.po_unlocked:
-        pwd = st.text_input("Enter Password:", type="password", key="po_pass_final")
-        if st.button("Unlock 🔓", key="po_btn_final"):
+elif menu_selection == "🧾 PO Report":
+    st.markdown("<h3 style='text-align: center; margin-bottom: 0px;'>🧾 Purchase Order (PO) Report</h3>", unsafe_allow_html=True)
+    if not st.session_state.get('po_unlocked', False):
+        pwd = st.text_input("Enter Password:", type="password", key="p_p_o")
+        if st.button("Unlock 🔓"):
             if pwd == "1234": st.session_state.po_unlocked = True; st.rerun()
     else:
         with st.form("po_form"):
@@ -77,7 +89,6 @@ with tab2:
                 
                 st.markdown("---")
                 st.markdown(f"##### 📄 PO Number :- {s_po}")
-                
                 summary_df = po_df[['Shipment Number', 'Receipt Number']].drop_duplicates().reset_index(drop=True)
                 summary_df.index = summary_df.index + 1
                 
@@ -86,18 +97,21 @@ with tab2:
                     st.markdown("""<style>div[data-testid="stTable"] table {text-align: center;} th {text-align: center !important;} td {text-align: center !important;}</style>""", unsafe_allow_html=True)
                     st.table(summary_df)
 
-                wa_summary = f"🧾 *VISIONTECH PO REPORT*\n\n📄 *PO Number :-* {s_po}\n\n🚚 *Shipment* | 🧾 *Receipt*\n"
+                wa_summary = f"🧾 *PO REPORT*\n📄 *PO:* {s_po}\n🚚 *Shipment | Receipt*\n"
                 for i, r in summary_df.iterrows():
                     wa_summary += f"🔹 {r['Shipment Number']} | {r['Receipt Number']}\n"
-                
                 st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_summary)}"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">🚀 Send PO to Group</button></a>', unsafe_allow_html=True)
 
 # =====================================================================
-# 🟨 TAB 3: SITE DETAIL (NO CHANGE)
+# 🟨 PAGE 3: SITE DETAIL (ORIGINAL)
 # =====================================================================
-with tab3:
-    st.markdown("<h3 style='text-align: center;'>🏗️ Site Detail Report</h3>", unsafe_allow_html=True)
-    if st.session_state.get('site_unlocked', False):
+elif menu_selection == "🏗️ Site Detail":
+    st.markdown("<h3 style='text-align: center; margin-bottom: 0px;'>🏗️ Site Detail Report</h3>", unsafe_allow_html=True)
+    if not st.session_state.get('site_unlocked', False):
+        pwd = st.text_input("Enter Password:", type="password", key="s_p_o")
+        if st.button("Unlock 🔓"):
+            if pwd == "1234": st.session_state.site_unlocked = True; st.rerun()
+    else:
         with st.form("sd_form"):
             s1, s2 = st.columns(2)
             with s1: p_id = st.text_input("📁 Project ID")
@@ -107,21 +121,17 @@ with tab3:
             res = supabase.table("Site Detail").select("*").ilike("SITE ID", f"%{site_id}%").execute()
             if res.data:
                 st.dataframe(pd.DataFrame(res.data), use_container_width=True)
-    else:
-        pwd = st.text_input("Enter Password:", type="password", key="sd_p_final")
-        if st.button("Unlock Site 🔓", key="sd_btn_final"):
-            if pwd == "1234": st.session_state.site_unlocked = True; st.rerun()
 
 # =====================================================================
-# 📊 TAB 4: INDUS BASIC DATA (FIXED FOR NEW LINE)
+# 📊 PAGE 4: INDUS BASIC DATA (FIXED ALIGNMENT)
 # =====================================================================
-with tab4:
+elif menu_selection == "📊 Indus Basic Data":
     st.markdown("<h3 style='text-align: center;'>📊 Indus Basic Data</h3>", unsafe_allow_html=True)
     with st.form("ind_form"):
         i1, i2, i3 = st.columns(3)
-        with i1: in_id = st.text_input("📍 Site ID", key="i_d_final")
-        with i2: in_nm = st.text_input("🏢 Site Name", key="i_n_final")
-        with i3: in_cl = st.text_input("🗺️ Cluster", key="i_c_final")
+        with i1: in_id = st.text_input("📍 Site ID", key="i_d_o")
+        with i2: in_nm = st.text_input("🏢 Site Name", key="i_n_o")
+        with i3: in_cl = st.text_input("🗺️ Cluster", key="i_c_o")
         sub_in = st.form_submit_button("🔍 Search Indus")
     
     if sub_in:
@@ -129,18 +139,12 @@ with tab4:
         if res.data:
             for row in res.data:
                 fse_name = row.get('FSE ', row.get('FSE', '-'))
-                lat_long = f"{row.get('Lat', '')} {row.get('Long', '')}"
-                
-                # Screen par ek ke niche ek dikhane ke liye format
                 st.markdown(f"""
                 ---
                 **Site ID** :- {row.get('Site ID', '-')}  
                 **Site Name** :- {row.get('Site Name', '-')}  
                 **FSE** :- {fse_name}  
-                **Lat-Long** :- {lat_long}
+                **Lat-Long** :- {row.get('Lat', '')} {row.get('Long', '')}
                 """)
-                
-                # WhatsApp message ke liye format
-                wa_msg = f"📊 *INDUS SITE DATA*\n\n📍 *Site ID* :- {row.get('Site ID')}\n🏢 *Site Name* :- {row.get('Site Name')}\n👷 *FSE* :- {fse_name}\n🗺️ *Lat-Long* :- {lat_long}"
-                
+                wa_msg = f"📊 *INDUS DATA*\n📍 *ID:* {row.get('Site ID')}\n🏢 *Name:* {row.get('Site Name')}\n👷 *FSE:* {fse_name}"
                 st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">🚀 Send to VISPL Group</button></a>', unsafe_allow_html=True)
