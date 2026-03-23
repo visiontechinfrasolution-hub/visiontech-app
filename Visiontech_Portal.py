@@ -17,12 +17,13 @@ st.set_page_config(page_title="Visiontech Portal", layout="wide")
 
 st.sidebar.image("https://cdn-icons-png.flaticon.com/512/2942/2942813.png", width=80) 
 st.sidebar.title("🧭 Main Menu")
+# Yahan 4th option add kiya gaya hai
 menu_selection = st.sidebar.radio("Apna Module Chunein:", ["📦 BOQ Report", "🧾 PO Report", "🏗️ Site Detail", "📊 Indus Basic Data"])
 st.sidebar.divider()
 st.sidebar.caption("© 2026 Visiontech Industrial Solutions")
 
 # =====================================================================
-# 🟩 PAGE 1: BOQ REPORT
+# 🟩 PAGE 1: BOQ REPORT (AS IT IS)
 # =====================================================================
 if menu_selection == "📦 BOQ Report":
     st.markdown("<h3 style='text-align: center; margin-bottom: 0px;'>🔍 Visiontech Industrial Solutions</h3>", unsafe_allow_html=True)
@@ -111,81 +112,213 @@ if menu_selection == "📦 BOQ Report":
     elif new_boq_btn:
         if boq_date_input is None: st.warning("⚠️ Kripya Date select karein!")
         else:
+            st.info(f"⏳ {boq_date_input.strftime('%d-%b-%Y')} ka data nikal rahe hain...")
             iso_date = boq_date_input.strftime("%Y-%m-%d")
+            df = pd.DataFrame()
             try:
-                res = supabase.table("BOQ Report").select("*").eq("Dispatch Date", iso_date).execute()
-                if res.data:
-                    df = pd.DataFrame(res.data)
-                    st.success(f"✅ Record Mil Gaya! ({len(df)} Lines)")
-                    st.dataframe(df, use_container_width=True)
-            except Exception as e: st.error(f"Error: {e}")
+                res = supabase.table("BOQ Report").select("*").eq("Dispatch Date", iso_date).limit(50000).execute()
+                if res.data: df = pd.DataFrame(res.data)
+            except Exception: pass
+
+            if df.empty:
+                formats_to_try = [boq_date_input.strftime("%d-%b-%Y"), boq_date_input.strftime("%d-%b-%y"), boq_date_input.strftime("%d-%m-%Y"), boq_date_input.strftime("%d/%m/%Y")]
+                for fmt in formats_to_try:
+                    try:
+                        res = supabase.table("BOQ Report").select("*").ilike("Dispatch Date", f"%{fmt}%").limit(10000).execute()
+                        if res.data:
+                            df = pd.DataFrame(res.data)
+                            break
+                    except Exception: continue
+
+            if not df.empty:
+                st.success(f"✅ Record Mil Gaya! ({len(df)} Lines)")
+                qty_cols = ['Qty A', 'Qty B', 'Qty C']
+                for col in qty_cols:
+                    if col in df.columns: df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
+                for col in df.columns:
+                    if 'date' in col.lower(): df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime('%d-%b-%Y')
+                df = df.astype(str).replace(['None', 'nan', 'NULL', '<NA>', 'NoneType', 'NaT'], '')
+                final_cols = [c for c in mera_sequence if c in df.columns]
+                bache_hue_cols = [c for c in df.columns if c not in final_cols]
+                boq_df = df[final_cols + bache_hue_cols]
+                st.dataframe(boq_df, use_container_width=True, hide_index=True)
+                csv = convert_df_to_csv(boq_df)
+                st.download_button("📥 Download Excel File", data=csv, file_name=f"New_BOQ_{boq_date_input.strftime('%d-%b-%Y')}.csv", mime="text/csv")
+            else: st.warning("❌ Is date par koi dispatch nahi mila.")
 
     elif submit_search:
-        query = supabase.table("BOQ Report").select("*")
-        if project_query: query = query.ilike("Project Number", f"%{project_query}%")
-        if site_query: query = query.ilike("Site ID", f"%{site_query}%")
-        # ... baaki filters ...
-        res = query.execute()
-        if res.data:
-            st.dataframe(pd.DataFrame(res.data), use_container_width=True)
+        has_filter = False
+        query = supabase.table("BOQ Report").select("*").limit(50000)
+        
+        if project_query: query, has_filter = query.ilike("Project Number", f"%{project_query.strip()}%"), True
+        if site_query: query, has_filter = query.ilike("Site ID", f"%{site_query.strip()}%"), True
+        if boq_query: query, has_filter = query.ilike("BOQ", f"%{boq_query.strip()}%"), True
+        if dispatch_date: query, has_filter = query.eq("Dispatch Date", dispatch_date.strftime("%Y-%m-%d")), True
+        if transporter: query, has_filter = query.ilike("Transporter", f"%{transporter.strip()}%"), True
+        if tsp_partner: query, has_filter = query.ilike("TSP Partner Name", f"%{tsp_partner.strip()}%"), True
+
+        if has_filter:
+            try:
+                response = query.execute()
+                if response.data:
+                    df = pd.DataFrame(response.data)
+                    qty_cols = ['Qty A', 'Qty B', 'Qty C']
+                    for col in qty_cols:
+                        if col in df.columns: df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+                    if 'Item Code' in df.columns:
+                        agg_funcs = {c: 'sum' if c in qty_cols else 'first' for c in df.columns if c != 'Item Code'}
+                        df = df.groupby('Item Code', as_index=False).agg(agg_funcs)
+
+                    stn_df = df.copy()
+                    if 'Product' in stn_df.columns and 'Issue From' in stn_df.columns and 'Parent/Child' in stn_df.columns:
+                        stn_df = stn_df[(stn_df['Product'].astype(str).str.contains('capex', case=False, na=False)) & (stn_df['Issue From'].astype(str).str.contains('warehouse', case=False, na=False)) & (stn_df['Parent/Child'].astype(str).str.strip().str.lower() == 'parent')]
+                    
+                    total_a = int(stn_df['Qty A'].sum()) if 'Qty A' in stn_df.columns else 0
+                    total_b = int(stn_df['Qty B'].sum()) if 'Qty B' in stn_df.columns else 0
+                    total_c = int(stn_df['Qty C'].sum()) if 'Qty C' in stn_df.columns else 0
+
+                    if total_a > 0:
+                        if total_a == total_b and total_c > 0: status_placeholder.markdown("<div style='background-color: #d4edda; color: #155724; border: 1px solid #28a745; padding: 7px 5px; border-radius: 5px; text-align: center; font-weight: bold;'>✅ STN DONE</div>", unsafe_allow_html=True)
+                        else: status_placeholder.markdown("<div style='background-color: #f8d7da; color: #721c24; border: 1px solid #dc3545; padding: 7px 5px; border-radius: 5px; text-align: center; font-weight: bold;'>❌ STN PENDING</div>", unsafe_allow_html=True)
+
+                    for col in df.columns:
+                        if 'date' in col.lower(): df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime('%d-%b-%Y')
+                    for col in qty_cols:
+                        if col in df.columns: df[col] = df[col].astype(int)
+                    df = df.astype(str).replace(['None', 'nan', 'NULL', '<NA>', 'NoneType', 'NaT'], '')
+                    
+                    final_cols = [c for c in mera_sequence if c in df.columns]
+                    bache_hue_cols = [c for c in df.columns if c not in final_cols]
+                    df = df[final_cols + bache_hue_cols]
+
+                    st.success(f"✅ Record Mil Gaya! ({len(df)} Unique Items)")
+                    st.dataframe(df, use_container_width=True, hide_index=True)
+                else: st.warning("❌ Data nahi mila.")
+            except Exception as e: st.error(f"Error detail: {e}")
+        else: st.info("Kripya search karne ke liye kam se kam ek box mein detail bhariye.")
 
 # =====================================================================
-# 🟦 PAGE 2: PO REPORT
+# 🟦 PAGE 2: PO REPORT (AS IT IS)
 # =====================================================================
 elif menu_selection == "🧾 PO Report":
     st.markdown("<h3 style='text-align: center; margin-bottom: 0px;'>🧾 Purchase Order (PO) Report</h3>", unsafe_allow_html=True)
     if "po_unlocked" not in st.session_state: st.session_state.po_unlocked = False
 
     if not st.session_state.po_unlocked:
-        pwd = st.text_input("Enter Password:", type="password")
-        if st.button("Unlock 🔓"):
-            if pwd == "1234":
-                st.session_state.po_unlocked = True
-                st.rerun()
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        c1, c2, c3 = st.columns([1, 1, 1])
+        with c2:
+            st.warning("🔒 Ye page secure hai. Kripya password daalein.")
+            pwd = st.text_input("Enter Password:", type="password")
+            if st.button("Unlock 🔓", use_container_width=True):
+                if pwd == "1234": 
+                    st.session_state.po_unlocked = True
+                    st.rerun()
+                else: st.error("❌ Galat Password!")
     else:
-        with st.form("po_search"):
-            p1, p2 = st.columns(2)
-            with p1: po_no = st.text_input("PO Number")
-            submit_po = st.form_submit_button("Search")
-        if submit_po:
-            res = supabase.table("PO Report").select("*").eq("PO Number", po_no).execute()
-            if res.data: st.dataframe(pd.DataFrame(res.data))
+        c1, c2 = st.columns([8, 1])
+        with c2:
+            if st.button("🔒 Lock"):
+                st.session_state.po_unlocked = False
+                st.rerun()
+        
+        with st.form("po_search_form"):
+            col1, col2, col3, col4 = st.columns(4)
+            with col1: search_po = st.text_input("📄 PO Number")
+            with col2: search_shipment = st.text_input("🚚 Shipment Number")
+            with col3: search_receipt = st.text_input("🧾 Receipt Number")
+            with col4: 
+                st.write(""); st.markdown("<div style='margin-top: 5px;'></div>", unsafe_allow_html=True)
+                submit_po_search = st.form_submit_button("🔍 Search PO")
+
+        if submit_po_search:
+            has_filter = False
+            query = supabase.table("PO Report").select("*").limit(50000)
+            if search_po: query, has_filter = query.eq("PO Number", int(search_po)), True
+            if search_shipment: query, has_filter = query.eq("Shipment Number", int(search_shipment)), True
+            if search_receipt: query, has_filter = query.eq("Receipt Number", int(search_receipt)), True
+            if has_filter:
+                res = query.execute()
+                if res.data: st.dataframe(pd.DataFrame(res.data), use_container_width=True, hide_index=True)
 
 # =====================================================================
-# 🟨 PAGE 3: SITE DETAIL
+# 🟨 PAGE 3: SITE DETAIL (AS IT IS)
 # =====================================================================
 elif menu_selection == "🏗️ Site Detail":
     st.markdown("<h3 style='text-align: center; margin-bottom: 0px;'>🏗️ Site Detail Report</h3>", unsafe_allow_html=True)
     if "site_unlocked" not in st.session_state: st.session_state.site_unlocked = False
 
     if not st.session_state.site_unlocked:
-        pwd = st.text_input("Enter Password:", type="password", key="s_pwd")
-        if st.button("Unlock 🔓", key="s_btn"):
-            if pwd == "1234":
-                st.session_state.site_unlocked = True
-                st.rerun()
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        c1, c2, c3 = st.columns([1, 1, 1])
+        with c2:
+            st.warning("🔒 Ye page secure hai. Kripya password daalein.")
+            pwd = st.text_input("Enter Password:", type="password", key="site_pwd")
+            if st.button("Unlock 🔓", use_container_width=True, key="site_unlock_btn"):
+                if pwd == "1234": 
+                    st.session_state.site_unlocked = True
+                    st.rerun()
+                else: st.error("❌ Galat Password!")
     else:
-        site_id_in = st.text_input("📍 Site ID")
-        if st.button("Search Site"):
-            res = supabase.table("Site Detail").select("*").ilike("SITE ID", f"%{site_id_in}%").execute()
-            if res.data: st.dataframe(pd.DataFrame(res.data))
+        c1, c2 = st.columns([8, 1])
+        with c2:
+            if st.button("🔒 Lock", key="site_lock_btn"):
+                st.session_state.site_unlocked = False
+                st.rerun()
+        
+        with st.form("site_search_form"):
+            col1, col2, col3 = st.columns([2, 2, 1])
+            with col1: search_proj_id = st.text_input("📁 Project ID")
+            with col2: search_site_id = st.text_input("📍 Site ID")
+            with col3: 
+                st.write(""); st.markdown("<div style='margin-top: 5px;'></div>", unsafe_allow_html=True)
+                submit_site_search = st.form_submit_button("🔍 Search Site")
+
+        if submit_site_search:
+            q = supabase.table("Site Detail").select("*")
+            if search_proj_id: q = q.ilike("PROJECT ID", f"%{search_proj_id}%")
+            if search_site_id: q = q.ilike("SITE ID", f"%{search_site_id}%")
+            res = q.execute()
+            if res.data: st.dataframe(pd.DataFrame(res.data), use_container_width=True, hide_index=True)
 
 # =====================================================================
-# 📊 PAGE 4: INDUS BASIC DATA (NEW)
+# 📊 PAGE 4: INDUS BASIC DATA (NEW MODULE - AS REQUESTED)
 # =====================================================================
 elif menu_selection == "📊 Indus Basic Data":
     st.markdown("<h3 style='text-align: center; margin-bottom: 0px;'>📊 Indus Basic Data Report</h3>", unsafe_allow_html=True)
-    with st.form("indus_form"):
-        i1, i2, i3 = st.columns(3)
-        with i1: s_id = st.text_input("📍 Site ID")
-        with i2: s_nm = st.text_input("🏢 Site Name")
-        with i3: s_cl = st.text_input("🗺️ Cluster")
-        sub_i = st.form_submit_button("Search Indus")
-    
-    if sub_i:
-        q = supabase.table("Indus Data").select("*")
-        if s_id: q = q.ilike("Site ID", f"%{s_id}%")
-        if s_nm: q = q.ilike("Site Name", f"%{s_nm}%")
-        if s_cl: q = q.ilike("Area Name", f"%{s_cl}%")
-        res = q.execute()
-        if res.data: st.dataframe(pd.DataFrame(res.data), use_container_width=True)
+    st.markdown("<p style='text-align: center; color: gray; margin-bottom: 20px;'>Search Site Details</p>", unsafe_allow_html=True)
+
+    with st.form("indus_search_form"):
+        col1, col2, col3 = st.columns(3)
+        with col1: s_id = st.text_input("📍 Site ID")
+        with col2: s_nm = st.text_input("🏢 Site Name")
+        with col3: s_cl = st.text_input("🗺️ Cluster (Area Name)")
+        submit_indus = st.form_submit_button("🔍 Search Indus Data")
+
+    if submit_indus:
+        if s_id or s_nm or s_cl:
+            query = supabase.table("Indus Data").select("*")
+            if s_id: query = query.ilike("Site ID", f"%{s_id.strip()}%")
+            if s_nm: query = query.ilike("Site Name", f"%{s_nm.strip()}%")
+            if s_cl: query = query.ilike("Area Name", f"%{s_cl.strip()}%")
+            
+            res = query.execute()
+            if res.data:
+                for row in res.data:
+                    # Formatting data in plain text as requested
+                    st.markdown(f"""
+                    ---
+                    **Site ID** :- {row.get('Site ID', '')}  
+                    **Site Name** :- {row.get('Site Name', '')}  
+                    **District** :- {row.get('District', '')}  
+                    **Area Name** :- {row.get('Area Name', '')}  
+                    **Tech Name** :- {row.get('Tech Name', '')}  
+                    **Tech Number** :- {row.get('Tech Number', '')}  
+                    **FSE** :- {row.get('FSE ', '')}  
+                    **FSE Number** :- {row.get('FSE Number', '')}  
+                    **AOM Name** :- {row.get('AOM Name', '')}  
+                    **AOM Number** :- {row.get('AOM Number', '')}  
+                    **Lat - Long** :- {row.get('Lat', '')} {row.get('Long', '')}
+                    """)
+            else: st.warning("❌ Data nahi mila.")
+        else: st.info("Kripya search karne ke liye detail bhariye.")
