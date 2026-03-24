@@ -22,7 +22,7 @@ st.sidebar.caption("© 2026 Visiontech Infra Solutions")
 tab1, tab2, tab3, tab4 = st.tabs(["📦 BOQ Report", "🧾 PO Report", "🏗️ Site Detail", "📊 Indus Basic Data"])
 
 # =====================================================================
-# 🟩 TAB 1: BOQ REPORT (ONLY FIXING STN PENDING BUTTON)
+# 🟩 TAB 1: BOQ REPORT (FIXED STN PENDING LOGIC)
 # =====================================================================
 with tab1:
     st.markdown("<h3 style='text-align: center; margin-bottom: 0px;'>🔍 Visiontech Infra Solutions</h3>", unsafe_allow_html=True)
@@ -44,13 +44,8 @@ with tab1:
 
     st.divider()
     r1, r2, r3, r4 = st.columns([2, 1.5, 2, 4])
-    
-    # --- STN PENDING BUTTON FIX ---
-    with r1:
-        stn_pending_btn = st.button("🚨 STN Pending Sites", use_container_width=True)
-    
+    with r1: stn_pending_btn = st.button("🚨 STN Pending Sites", use_container_width=True)
     with r2: boq_date_pick = st.date_input("Select Date", value=None, label_visibility="collapsed", key="boq_q_d_v5")
-    
     with r3:
         if st.button("📄 Generate New BOQ", use_container_width=True):
             if boq_date_pick:
@@ -59,14 +54,11 @@ with tab1:
                 st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(msg)}">Click to Open WhatsApp</a>', unsafe_allow_html=True)
             else: st.warning("Select Date!")
 
-    # LOGIC FOR BOTH BUTTONS (Search & STN Pending)
     if submit_search or stn_pending_btn:
         query = supabase.table("BOQ Report").select("*").limit(50000)
         
-        if stn_pending_btn:
-            # Sirf pending sites dikhayega
-            query = query.ilike("Line Status", "%Pending%")
-        else:
+        # SEARCH LOGIC
+        if not stn_pending_btn:
             if project_query: query = query.ilike("Project Number", f"%{project_query.strip()}%")
             if site_query: query = query.ilike("Site ID", f"%{site_query.strip()}%")
             if boq_query: query = query.ilike("BOQ", f"%{boq_query.strip()}%")
@@ -75,18 +67,32 @@ with tab1:
         if response.data:
             df = pd.DataFrame(response.data)
             
-            # 1. Qty Format (No .0)
+            # --- STN PENDING SPECIFIC FILTERS ---
+            if stn_pending_btn:
+                # 1. Product = Capex, Issue From = Warehouse, Parent/Child = Parent
+                df = df[
+                    (df['Product'] == 'Capex') & 
+                    (df['Issue From'] == 'Warehouse') & 
+                    (df['Parent/Child'] == 'Parent')
+                ]
+                # 2. Convert Qty to numbers for filtering
+                df['Qty A'] = pd.to_numeric(df['Qty A'], errors='coerce').fillna(0)
+                df['Qty B'] = pd.to_numeric(df['Qty B'], errors='coerce').fillna(0)
+                df['Qty C'] = pd.to_numeric(df['Qty C'], errors='coerce').fillna(0)
+                
+                # 3. Qty A & B > 0 AND Qty C == 0
+                df = df[(df['Qty A'] > 0) & (df['Qty B'] > 0) & (df['Qty C'] == 0)]
+
+            # --- COMMON FORMATTING & MERGE ---
             qty_cols = ['Qty A', 'Qty B', 'Qty C']
             for col in qty_cols:
                 if col in df.columns:
                     df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
             
-            # 2. Merge Duplicates
             if 'Item Code' in df.columns:
                 agg_dict = {col: 'sum' if col in qty_cols else 'first' for col in df.columns if col != 'Item Code'}
                 df = df.groupby('Item Code', as_index=False).agg(agg_dict)
             
-            # 3. Date Format (24-Mar-2026)
             for col in ['Dispatch Date', 'BOQ Date']:
                 if col in df.columns:
                     df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime('%d-%b-%Y')
@@ -96,6 +102,6 @@ with tab1:
             st.dataframe(df[final_cols], use_container_width=True, hide_index=True)
 
 # =====================================================================
-# Baaki Tabs (PO, Site Detail, Indus) bilkul same hain, no changes.
+# 🟦 TABS 2, 3, 4 (EXISTING - NO CHANGES)
 # =====================================================================
-# (Aapka pehle wala Tab 2, 3 aur 4 ka code yahan as it is aayega)
+# (Yahan aapka PO, Site Detail aur Indus Data wala purana code aayega)
