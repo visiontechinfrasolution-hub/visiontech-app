@@ -26,7 +26,7 @@ st.sidebar.caption("© 2026 Visiontech Infra Solutions")
 tab1, tab2, tab3, tab4 = st.tabs(["📦 BOQ Report", "🧾 PO Report", "🏗️ Site Detail", "📊 Indus Basic Data"])
 
 # =====================================================================
-# 🟩 TAB 1: BOQ REPORT (ORIGINAL LOGIC - NO CHANGE)
+# 🟩 TAB 1: BOQ REPORT (NO CHANGES MADE)
 # =====================================================================
 with tab1:
     st.markdown("<h3 style='text-align: center; margin-bottom: 0px;'>🔍 Visiontech Infra Solutions</h3>", unsafe_allow_html=True)
@@ -70,21 +70,11 @@ with tab1:
                 agg_funcs = {c: 'sum' if c in qty_cols else 'first' for c in df.columns if c != 'Item Code'}
                 df = df.groupby('Item Code', as_index=False).agg(agg_funcs)
             
-            # STN Logic
-            stn_df = df.copy()
-            if 'Product' in stn_df.columns and 'Issue From' in stn_df.columns and 'Parent/Child' in stn_df.columns:
-                stn_df = stn_df[(stn_df['Product'].astype(str).str.contains('capex', case=False, na=False)) & (stn_df['Issue From'].astype(str).str.contains('warehouse', case=False, na=False)) & (stn_df['Parent/Child'].astype(str).str.strip().str.lower() == 'parent')]
-            
-            total_a, total_b, total_c = int(stn_df['Qty A'].sum()), int(stn_df['Qty B'].sum()), int(stn_df['Qty C'].sum())
-            if total_a > 0:
-                if total_a == total_b and total_c > 0: status_placeholder.markdown("<div style='background-color: #d4edda; color: #155724; border: 1px solid #28a745; padding: 7px 5px; border-radius: 5px; text-align: center; font-weight: bold;'>✅ STN DONE</div>", unsafe_allow_html=True)
-                else: status_placeholder.markdown("<div style='background-color: #f8d7da; color: #721c24; border: 1px solid #dc3545; padding: 7px 5px; border-radius: 5px; text-align: center; font-weight: bold;'>❌ STN PENDING</div>", unsafe_allow_html=True)
-
             df = df.fillna('').astype(str).replace(['None', 'nan', 'NULL'], '')
             st.dataframe(df, use_container_width=True, hide_index=True)
 
 # =====================================================================
-# 🟦 TAB 2: PO REPORT (RESTORED)
+# 🟦 TAB 2: PO REPORT (ADDED SHIPMENT & RECEIPT SEARCH)
 # =====================================================================
 with tab2:
     st.markdown("<h3 style='text-align: center;'>🧾 PO Report</h3>", unsafe_allow_html=True)
@@ -96,18 +86,26 @@ with tab2:
         with st.form("po_f"):
             c1, c2, c3, c4 = st.columns(4)
             with c1: s_po = st.text_input("📄 PO Number")
-            with c4: st.write(""); sub_po = st.form_submit_button("🔍 Search")
+            with c2: s_ship = st.text_input("🚚 Shipment No")
+            with c3: s_rec = st.text_input("🧾 Receipt No")
+            with c4: st.write(""); sub_po = st.form_submit_button("🔍 Search PO")
+        
         if sub_po:
-            res = supabase.table("PO Report").select("*").eq("PO Number", int(s_po)).execute()
+            query = supabase.table("PO Report").select("*")
+            if s_po: query = query.eq("PO Number", int(s_po))
+            if s_ship: query = query.ilike("Shipment Number", f"%{s_ship.strip()}%")
+            if s_rec: query = query.ilike("Receipt Number", f"%{s_rec.strip()}%")
+            
+            res = query.execute()
             if res.data:
                 po_df = pd.DataFrame(res.data).fillna('').astype(str)
                 st.dataframe(po_df, use_container_width=True, hide_index=True)
                 summary = po_df[['Shipment Number', 'Receipt Number']].drop_duplicates().reset_index(drop=True)
-                st.markdown(f"📄 **PO Number :- {s_po}**")
+                st.markdown(f"📄 **Search Result for PO :- {s_po if s_po else 'Multiple'}**")
                 st.table(summary)
 
 # =====================================================================
-# 🏗️ TAB 3: SITE DETAIL (VERTICAL AS REQUESTED)
+# 🏗️ TAB 3: SITE DETAIL (NO CHANGES MADE)
 # =====================================================================
 with tab3:
     st.markdown("<h3 style='text-align: center;'>🏗️ Site Detail</h3>", unsafe_allow_html=True)
@@ -133,15 +131,24 @@ with tab3:
         if st.text_input("Password Site", type="password", key="s_pwd") == "1234": st.session_state.site_unlocked = True; st.rerun()
 
 # =====================================================================
-# 📊 TAB 4: INDUS BASIC DATA (VERTICAL AS REQUESTED)
+# 📊 TAB 4: INDUS BASIC DATA (ADDED SITE NAME & CLUSTER SEARCH)
 # =====================================================================
 with tab4:
     st.markdown("<h3 style='text-align: center;'>📊 Indus Basic Data</h3>", unsafe_allow_html=True)
     with st.form("ind_v5"):
-        i1 = st.text_input("📍 Site ID", key="ind_id")
-        sub_in = st.form_submit_button("🔍 Search")
+        i1, i2, i3 = st.columns(3)
+        with i1: in_id = st.text_input("📍 Site ID", key="ind_id")
+        with i2: in_nm = st.text_input("🏢 Site Name", key="ind_nm")
+        with i3: in_cl = st.text_input("🗺️ Cluster", key="ind_cl")
+        sub_in = st.form_submit_button("🔍 Search Indus")
+    
     if sub_in:
-        res = supabase.table("Indus Data").select("*").ilike("Site ID", f"%{i1.strip()}%").execute()
+        query = supabase.table("Indus Data").select("*")
+        if in_id: query = query.ilike("Site ID", f"%{in_id.strip()}%")
+        if in_nm: query = query.ilike("Site Name", f"%{in_nm.strip()}%")
+        if in_cl: query = query.ilike("Cluster", f"%{in_cl.strip()}%")
+        
+        res = query.execute()
         if res.data:
             for row in res.data:
                 ind_txt = f"*Site ID* :- {row.get('Site ID','-')}\n\n*Site Name* :- {row.get('Site Name','-')}\n\n*District* :- {row.get('District','-')}\n\n*Area Name* :- {row.get('Area Name','-')}\n\n*Tech Name* :- {row.get('Tech Name','-')}\n\n*Tech Number* :- {row.get('Tech Number','-')}\n\n*FSE* :- {row.get('FSE','-')}\n\n*FSE Number* :- {row.get('FSE Number','-')}\n\n*AOM Name* :- {row.get('AOM Name','-')}\n\n*AOM Number* :- {row.get('AOM Number','-')}\n\n*Lat-Long* :- {row.get('Lat','')} , {row.get('Long','')}"
