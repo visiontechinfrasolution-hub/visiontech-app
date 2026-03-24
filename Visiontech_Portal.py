@@ -145,7 +145,7 @@ with tab3:
             if pwd_s == "1234": st.session_state.site_unlocked = True; st.rerun()
 
 # =====================================================================
-# 📊 TAB 4: INDUS BASIC DATA (DETAIL FIXED - VERTICAL)
+# 📊 TAB 4: INDUS BASIC DATA (ALL FIELDS ADDED)
 # =====================================================================
 with tab4:
     st.markdown("<h3 style='text-align: center;'>📊 Indus Basic Data</h3>", unsafe_allow_html=True)
@@ -160,14 +160,21 @@ with tab4:
         res = supabase.table("Indus Data").select("*").ilike("Site ID", f"%{in_id.strip()}%").execute()
         if res.data:
             for row in res.data:
-                fse_name = row.get('FSE ', row.get('FSE', '-'))
-                # YAHAN DISPLAY FORMAT CHANGE KIYA HAI TAAKI DETAIL KATE NAHI
+                # Get fields with fallback to "-" if missing
                 st.markdown("---")
                 st.markdown(f"**📍 Site ID** :- {row.get('Site ID', '-')}")
                 st.markdown(f"**🏢 Site Name** :- {row.get('Site Name', '-')}")
-                st.markdown(f"**👷 FSE Name** :- {fse_name}")
-                st.markdown(f"**🗺️ Cluster** :- {row.get('Cluster', '-')}")
+                st.markdown(f"**🏘️ District** :- {row.get('District', '-')}")
+                st.markdown(f"**🏙️ Area Name** :- {row.get('Area Name', '-')}")
+                st.markdown(f"**🔧 Tech Name** :- {row.get('Tech Name', '-')}")
+                st.markdown(f"**📞 Tech Number** :- {row.get('Tech Number', '-')}")
+                st.markdown(f"**👷 FSE** :- {row.get('FSE ', row.get('FSE', '-'))}")
+                st.markdown(f"**📱 FSE Number** :- {row.get('FSE Number', '-')}")
+                st.markdown(f"**👔 AOM Name** :- {row.get('AOM Name', '-')}")
+                st.markdown(f"**☎️ AOM Number** :- {row.get('AOM Number', '-')}")
                 st.markdown(f"**📍 Lat-Long** :- {row.get('Lat', '')} , {row.get('Long', '')}")
                 
+                # WhatsApp button same as before
+                fse_name = row.get('FSE ', row.get('FSE', '-'))
                 wa_msg = f"📊 *VISIONTECH INFRA*\n📍 *Site ID:* {row.get('Site ID')}\n👷 *FSE:* {fse_name}"
                 st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">🚀 Send to VISPL Group</button></a>', unsafe_allow_html=True)
