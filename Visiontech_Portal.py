@@ -49,11 +49,6 @@ with tab1:
             st.write(""); status_placeholder = st.empty() 
 
     st.divider()
-    r1, r2, r3, r4 = st.columns([2, 1.5, 2, 4])
-    with r1: stn_pending_btn = st.button("🚨 STN Pending Sites", use_container_width=True)
-    with r2: boq_date_input = st.date_input("Select Date", value=None, label_visibility="collapsed", key="boq_q_d_v5")
-    with r3: new_boq_btn = st.button("📄 Generate New BOQ", use_container_width=True)
-
     if submit_search:
         query = supabase.table("BOQ Report").select("*").limit(50000)
         if project_query: query = query.ilike("Project Number", f"%{project_query.strip()}%")
@@ -63,13 +58,6 @@ with tab1:
         response = query.execute()
         if response.data:
             df = pd.DataFrame(response.data)
-            qty_cols = ['Qty A', 'Qty B', 'Qty C']
-            for col in qty_cols:
-                if col in df.columns: df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
-            if 'Item Code' in df.columns:
-                agg_funcs = {c: 'sum' if c in qty_cols else 'first' for c in df.columns if c != 'Item Code'}
-                df = df.groupby('Item Code', as_index=False).agg(agg_funcs)
-            
             df = df.fillna('').astype(str).replace(['None', 'nan', 'NULL'], '')
             st.dataframe(df, use_container_width=True, hide_index=True)
 
@@ -95,14 +83,10 @@ with tab2:
             if s_po: query = query.eq("PO Number", int(s_po))
             if s_ship: query = query.ilike("Shipment Number", f"%{s_ship.strip()}%")
             if s_rec: query = query.ilike("Receipt Number", f"%{s_rec.strip()}%")
-            
             res = query.execute()
             if res.data:
                 po_df = pd.DataFrame(res.data).fillna('').astype(str)
                 st.dataframe(po_df, use_container_width=True, hide_index=True)
-                summary = po_df[['Shipment Number', 'Receipt Number']].drop_duplicates().reset_index(drop=True)
-                st.markdown(f"📄 **Search Result for PO :- {s_po if s_po else 'Multiple'}**")
-                st.table(summary)
 
 # =====================================================================
 # 🏗️ TAB 3: SITE DETAIL (NO CHANGES)
@@ -131,7 +115,7 @@ with tab3:
         if st.text_input("Password Site", type="password", key="s_pwd") == "1234": st.session_state.site_unlocked = True; st.rerun()
 
 # =====================================================================
-# 📊 TAB 4: INDUS BASIC DATA (FIXED COLUMN MAPPING)
+# 📊 TAB 4: INDUS BASIC DATA (FIXED MAPPING FOR NONE VALUES)
 # =====================================================================
 with tab4:
     st.markdown("<h3 style='text-align: center;'>📊 Indus Basic Data</h3>", unsafe_allow_html=True)
@@ -147,23 +131,28 @@ with tab4:
         if in_id: query = query.ilike("Site ID", f"%{in_id.strip()}%")
         if in_nm: query = query.ilike("Site Name", f"%{in_nm.strip()}%")
         if in_cl: query = query.ilike("Cluster", f"%{in_cl.strip()}%")
-        
         res = query.execute()
+        
         if res.data:
             for row in res.data:
-                # FIXED COLUMN NAMES HERE
+                # Helping find columns even if they have extra spaces in database
+                def get_val(keys):
+                    for k in keys:
+                        if k in row and row[k] is not None: return row[k]
+                    return "-"
+
                 ind_txt = (
-                    f"*Site ID* :- {row.get('Site ID','-')}\n\n"
-                    f"*Site Name* :- {row.get('Site Name','-')}\n\n"
-                    f"*District* :- {row.get('District','-')}\n\n"
-                    f"*Area Name* :- {row.get('Area Name','-')}\n\n"
-                    f"*Tech Name* :- {row.get('Technician Name', row.get('Tech Name','-'))}\n\n"
-                    f"*Tech Number* :- {row.get('Technician Number', row.get('Tech Number','-'))}\n\n"
-                    f"*FSE* :- {row.get('FSE Name', row.get('FSE','-'))}\n\n"
-                    f"*FSE Number* :- {row.get('FSE Number','-')}\n\n"
-                    f"*AOM Name* :- {row.get('AOM Name','-')}\n\n"
-                    f"*AOM Number* :- {row.get('AOM Number','-')}\n\n"
-                    f"*Lat-Long* :- {row.get('Latitude', row.get('Lat',''))} , {row.get('Longitude', row.get('Long',''))}"
+                    f"*Site ID* :- {get_val(['Site ID', 'SITE ID'])}\n\n"
+                    f"*Site Name* :- {get_val(['Site Name', 'SITE NAME'])}\n\n"
+                    f"*District* :- {get_val(['District', 'DISTRICT'])}\n\n"
+                    f"*Area Name* :- {get_val(['Area Name', 'AREA NAME'])}\n\n"
+                    f"*Tech Name* :- {get_val(['Tech Name', 'Technician Name', 'TECH NAME'])}\n\n"
+                    f"*Tech Number* :- {get_val(['Tech Number', 'Technician Number', 'TECH NUMBER'])}\n\n"
+                    f"*FSE* :- {get_val(['FSE', 'FSE Name', 'FSE NAME'])}\n\n"
+                    f"*FSE Number* :- {get_val(['FSE Number', 'FSE NUMBER'])}\n\n"
+                    f"*AOM Name* :- {get_val(['AOM Name', 'AOM NAME'])}\n\n"
+                    f"*AOM Number* :- {get_val(['AOM Number', 'AOM NUMBER'])}\n\n"
+                    f"*Lat-Long* :- {get_val(['Lat', 'Latitude'])} , {get_val(['Long', 'Longitude'])}"
                 )
                 st.markdown("---")
                 st.markdown(ind_txt)
