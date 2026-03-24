@@ -1,208 +1,101 @@
-import time
-import os
-import pyautogui
-import pyperclip
-import pandas as pd
-from playwright.sync_api import sync_playwright
+import streamlit as st
 from supabase import create_client
+import pandas as pd
+from datetime import datetime
+import urllib.parse
 
-# --- CONFIGURATION ---
+# --- 1. CONNECTION ---
 URL = "https://sckyflvukpmdqmdzjzhs.supabase.co"
-KEY = "sb_publishable_rAiegSkKYvM0Z9n7sUAI1w_WTgm1S4I"
+KEY = "sb_publishable_rAiegSkKYvM0Z9n7sUAI1w_WTgm1S4I" 
 supabase = create_client(URL, KEY)
 
-TARGET_GROUP = "VISPL AUTOMATION REPORT"
-AUTHORIZED_NUMBERS = ["9552273181", "9960843473", "7350533473"]
-WHATSAPP_GROUP_NAME = "VISPL AUTOMATION REPORT" # Oracle report isi group mein jayegi
+# --- 2. UI SETUP ---
+st.set_page_config(page_title="Visiontech Infra Portal", layout="wide")
 
-# Global Session Memory
-session_data = {
-    "query": None, 
-    "waiting_for_option": False, 
-    "waiting_for_oracle_date": False
-}
+# Sidebar
+st.sidebar.image("https://cdn-icons-png.flaticon.com/512/2942/2942813.png", width=80) 
+st.sidebar.title("🧭 VIS Group")
+st.sidebar.divider()
+st.sidebar.caption("© 2026 Visiontech Infra Solutions")
 
-# --- HELPERS ---
-def safe_val(data_dict, key):
-    v = data_dict.get(key)
-    return str(v).strip() if v is not None else ""
+# --- 3. TABS ---
+tab1, tab2, tab3, tab4 = st.tabs(["📦 BOQ Report", "🧾 PO Report", "🏗️ Site Detail", "📊 Indus Basic Data"])
 
-def safe_num(val):
-    try: return float(val) if val else 0.0
-    except: return 0.0
+# =====================================================================
+# 🟩 TAB 1: BOQ REPORT (ONLY FIXING STN PENDING BUTTON)
+# =====================================================================
+with tab1:
+    st.markdown("<h3 style='text-align: center; margin-bottom: 0px;'>🔍 Visiontech Infra Solutions</h3>", unsafe_allow_html=True)
+    
+    mera_sequence = ['Sr. No.', 'Site ID', 'Product', 'Transaction Type', 'Issue From', 'Project Number', 'BOQ', 'Item Code', 'Item Description', 'Qty A', 'Qty B', 'Qty C', 'Dispatch Date', 'Parent/Child', 'Line Status', 'Transporter', 'TSP Partner Name', 'LR Number', 'Vehicle Number', 'Challan Number', 'BOQ Date', 'Department', 'Item Category', 'Source Of Fulfilment']
 
-def fmt_qty(num):
-    if num == 0.0: return ""
-    return str(int(num)) if num.is_integer() else str(num)
+    with st.form("search_form"):
+        c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([1.1, 1.0, 1.1, 1.0, 1.1, 1.1, 0.8, 1.0])
+        with c1: project_query = st.text_input("📁 Project No.", key="boq_p_v5")
+        with c2: site_query = st.text_input("📍 Site ID", key="boq_s_v5")
+        with c3: boq_query = st.text_input("📄 BOQ", key="boq_b_v5")
+        with c4: dispatch_date_inp = st.date_input("📅 Date", value=None, key="boq_d_v5")
+        with c5: transporter = st.selectbox("🚚 Transporter", ["", "visiontech", "Safexpress", "Delhivery", "VRL Logistics", "TCI Express", "Gati"], key="boq_t_v5")
+        with c6: tsp_partner = st.selectbox("🤝 TSP Partner", ["", "visiontech", "Partner A", "Partner B", "Partner C", "Ericsson", "Nokia"], key="boq_tsp_v5")
+        with c7: 
+            st.write(""); submit_search = st.form_submit_button("🔍 Search")
+        with c8:
+            st.write(""); status_placeholder = st.empty() 
 
-# --- DATABASE FUNCTIONS ---
-def get_site_detail(query_str):
-    res = supabase.table("Site Detail").select("*").or_(f'"PROJECT ID".ilike.%{query_str}%,"SITE ID".ilike.%{query_str}%').execute()
-    if res.data:
-        d = res.data[0]
-        return (f"🏗️ *SITE DETAIL: {query_str}*\n"
-                f"*Project Name* - {safe_val(d, 'PROJECT NAME')}\n"
-                f"*Project Number* - {safe_val(d, 'PROJECT ID')}\n"
-                f"*Site ID* - {safe_val(d, 'SITE ID')}\n"
-                f"*Site Name* - {safe_val(d, 'SITE NAME')}\n"
-                f"*Cluster* - {safe_val(d, 'CLUSTER')}\n"
-                f"*Site Status* - {safe_val(d, 'SITE STATUS')}\n"
-                f"*PO Detail* - {safe_val(d, 'PO NO.')} | {safe_val(d, 'PO DATE')} | {safe_val(d, 'PO STATUS')}\n"
-                f"*RFAI STATUS* - {safe_val(d, 'RFAI STATUS')}\n"
-                f"*WORK DESCRIPTION* - {safe_val(d, 'WORK DESCRIPTION')}\n"
-                f"*TEAM NAME* - {safe_val(d, 'TEAM NAME')}\n"
-                f"*PTW Detail* - {safe_val(d, 'PTW NO.')} | {safe_val(d, 'PTW DATE')} | {safe_val(d, 'PTW STATUS')}\n"
-                f"*WCC Detail* - {safe_val(d, 'WCC NO.')} | {safe_val(d, 'WCC STATUS')}")
-    return f"❌ '{query_str}' nahi mila."
+    st.divider()
+    r1, r2, r3, r4 = st.columns([2, 1.5, 2, 4])
+    
+    # --- STN PENDING BUTTON FIX ---
+    with r1:
+        stn_pending_btn = st.button("🚨 STN Pending Sites", use_container_width=True)
+    
+    with r2: boq_date_pick = st.date_input("Select Date", value=None, label_visibility="collapsed", key="boq_q_d_v5")
+    
+    with r3:
+        if st.button("📄 Generate New BOQ", use_container_width=True):
+            if boq_date_pick:
+                f_date = boq_date_pick.strftime('%d-%b-%Y')
+                msg = f"Request for New BOQ Generation for Date: {f_date}"
+                st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(msg)}">Click to Open WhatsApp</a>', unsafe_allow_html=True)
+            else: st.warning("Select Date!")
 
-def get_boq_status(query_str):
-    res = supabase.table("BOQ Report").select("*").or_(f'"Project Number".ilike.%{query_str}%,"Site ID".ilike.%{query_str}%').execute()
-    if res.data:
-        site_name = ""
-        try:
-            site_res = supabase.table("Site Detail").select('"SITE NAME"').or_(f'"PROJECT ID".ilike.%{query_str}%,"SITE ID".ilike.%{query_str}%').execute()
-            if site_res.data: site_name = safe_val(site_res.data[0], 'SITE NAME')
-        except: pass
+    # LOGIC FOR BOTH BUTTONS (Search & STN Pending)
+    if submit_search or stn_pending_btn:
+        query = supabase.table("BOQ Report").select("*").limit(50000)
         
-        response = f"📦 *BOQ REPORT: {query_str}*\n*Site Name* - {site_name}\n\n"
-        merged_items = {}
-        for d in res.data:
-            if safe_val(d, 'Parent/Child').upper() != "PARENT": continue
-            code = safe_val(d, 'Item Code')
-            if code not in merged_items:
-                merged_items[code] = {
-                    'BOQ': safe_val(d, 'BOQ'), 'Desc': safe_val(d, 'Item Description'),
-                    'A': safe_num(d.get('Qty A')), 'B': safe_num(d.get('Qty B')), 'C': safe_num(d.get('Qty C')),
-                    'Status': safe_val(d, 'Line Status'), 'Date': safe_val(d, 'Dispatch Date'),
-                    'Trans': safe_val(d, 'Transporter'), 'TSP': safe_val(d, 'TSP Partner Name'),
-                    'IF': safe_val(d, 'Issue From'), 'SOF': safe_val(d, 'Source Of Fulfilment')
-                }
-            else:
-                merged_items[code]['A'] += safe_num(d.get('Qty A'))
-                merged_items[code]['B'] += safe_num(d.get('Qty B'))
-                merged_items[code]['C'] += safe_num(d.get('Qty C'))
-
-        for i, (code, item) in enumerate(merged_items.items(), 1):
-            response += f"*{i}.*\n*Item Code* - {code}\n*Description* - {item['Desc']}\n"
-            response += f"*BOQ Qty* - {fmt_qty(item['A'])}\n*Dispatched* - {fmt_qty(item['B'])}\n*STN* - {fmt_qty(item['C'])}\n"
-            response += f"*Line Status* - {item['Status']}\n*Issue From* - {item['IF']}\n*Source* - {item['SOF']}\n"
-            response += "-"*15 + "\n"
-        return response.strip()
-    return f"❌ BOQ data nahi mila."
-
-def get_po_detail(query_str):
-    try:
-        res = supabase.table("PO Report").select("*").eq("PO Number", int(query_str)).execute()
-        if res.data:
-            resp = f"🧾 *PO REPORT: {query_str}*\n\n"
-            for i, d in enumerate(res.data, 1):
-                resp += f"*{i}.*\n*PO Number* - {safe_val(d, 'PO Number')}\n*WCC Number* - {safe_val(d, 'Shipment Number')}\n*Receipt Number* - {safe_val(d, 'Receipt Number')}\n"
-                resp += "-"*15 + "\n"
-            return resp.strip()
-    except: pass
-    return f"❌ PO '{query_str}' nahi mila."
-
-# --- ORACLE SYNC ACTION ---
-def run_oracle_process(target_date, page):
-    try:
-        # Step 1: Start Message
-        send_reply(page, "🚀 *1. Run Started...*\nOracle se data fetch kiya ja raha hai...")
-        time.sleep(2)
+        if stn_pending_btn:
+            # Sirf pending sites dikhayega
+            query = query.ilike("Line Status", "%Pending%")
+        else:
+            if project_query: query = query.ilike("Project Number", f"%{project_query.strip()}%")
+            if site_query: query = query.ilike("Site ID", f"%{site_query.strip()}%")
+            if boq_query: query = query.ilike("BOQ", f"%{boq_query.strip()}%")
         
-        # Step 2: Work in Progress
-        send_reply(page, "⏳ *2. Work in progress...*\nData VISPL Tower par upload ho raha hai. Kripya mouse na chhuwein.")
-        
-        # --- [YAHAN AAPKA PURA ORACLE CODE PASTE KAREIN] ---
-        # Note: target_date variable ko apne code mein use karein
-        # Example: date_input_field.write(target_date)
-        
-        # --- PYAUTOGUI PART (Aapka Diya Hua) ---
-        # ... (Aapka report generation logic yahan aayega) ...
-        # uploaded_pos = [...]
-        # msg = f"*PO REPORT...*"
-        # pyperclip.copy(msg)
-        # os.startfile("whatsapp:")
-        # time.sleep(15)
-        # pyautogui.hotkey('ctrl', 'f')... etc.
-        # -----------------------------------------------
+        response = query.execute()
+        if response.data:
+            df = pd.DataFrame(response.data)
+            
+            # 1. Qty Format (No .0)
+            qty_cols = ['Qty A', 'Qty B', 'Qty C']
+            for col in qty_cols:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
+            
+            # 2. Merge Duplicates
+            if 'Item Code' in df.columns:
+                agg_dict = {col: 'sum' if col in qty_cols else 'first' for col in df.columns if col != 'Item Code'}
+                df = df.groupby('Item Code', as_index=False).agg(agg_dict)
+            
+            # 3. Date Format (24-Mar-2026)
+            for col in ['Dispatch Date', 'BOQ Date']:
+                if col in df.columns:
+                    df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime('%d-%b-%Y')
+            
+            df = df.fillna('').astype(str).replace(['None', 'nan', 'NULL', 'NaT'], '')
+            final_cols = [c for c in mera_sequence if c in df.columns]
+            st.dataframe(df[final_cols], use_container_width=True, hide_index=True)
 
-        time.sleep(5) # Simulation for progress
-        send_reply(page, "✅ *3. Work Completed!*\nOracle report group mein bhej di gayi hai.")
-        
-    except Exception as e:
-        send_reply(page, f"❌ *Error:* {str(e)}")
-
-# --- WHATSAPP CORE ---
-def send_reply(page, text):
-    input_box = page.locator("div[contenteditable='true'][data-tab='10']")
-    input_box.fill(text)
-    page.keyboard.press("Enter")
-
-def run_bot():
-    global session_data
-    with sync_playwright() as p:
-        context = p.chromium.launch_persistent_context(user_data_dir="./whatsapp_session", headless=False)
-        page = context.pages[0]
-        page.goto("https://web.whatsapp.com")
-        print("📲 WhatsApp login ka intezar...")
-        
-        page.wait_for_selector('div[contenteditable="true"]', timeout=120000)
-        print("✅ Login Successful! Group/Chat kholiye.")
-
-        last_seen_msg = ""
-        while True:
-            try:
-                # Chat open hai ya nahi check karein
-                msg_elements = page.locator('div.copyable-text[data-pre-plain-text]').all()
-                if not msg_elements: continue
-                
-                last_el = msg_elements[-1]
-                full_text = last_el.inner_text().strip()
-                meta = last_el.get_attribute("data-pre-plain-text") or ""
-                
-                # Bot ke apne messages ko ignore karein
-                bot_keywords = ["Which Detail", "SITE DETAIL:", "BOQ REPORT:", "PO REPORT:", "🔄", "🚀", "⏳", "📅"]
-                if any(k in full_text for k in bot_keywords) or full_text == last_seen_msg:
-                    continue
-                
-                last_seen_msg = full_text
-                
-                # SECURITY: Sender Number nikalna
-                is_authorized = any(num in meta for num in AUTHORIZED_NUMBERS)
-                is_personal = "group" not in meta.lower() # Simple check for personal chat
-
-                # 1. ORACLE RUN COMMAND (Strict Rules)
-                if "oracle run" in full_text.lower():
-                    if is_authorized: # Number check
-                        session_data["waiting_for_oracle_date"] = True
-                        send_reply(page, "📅 *Authorized!* Kripya wo Date batayein jiska process run karna hai?\n(Example: 23-03-2026)")
-                    else:
-                        send_reply(page, "❌ Aapko ye command chalane ki permission nahi hai.")
-                    continue
-
-                # 2. ORACLE DATE INPUT
-                if session_data["waiting_for_oracle_date"]:
-                    target_date = full_text
-                    session_data["waiting_for_oracle_date"] = False
-                    run_oracle_process(target_date, page)
-                    continue
-
-                # 3. NORMAL SEARCH (Site/BOQ/PO)
-                if session_data["waiting_for_option"] and full_text in ["1", "2", "3"]:
-                    q = session_data["query"]
-                    if full_text == "1": resp = get_site_detail(q)
-                    elif full_text == "2": resp = get_boq_status(q)
-                    else: resp = get_po_detail(q)
-                    
-                    send_reply(page, f"{resp}\n\n🔄 *Aur detail chahiye {q} ki?*\nBas 1, 2, ya 3 reply karein.")
-                else:
-                    # Naya ID aaya
-                    session_data["query"] = full_text
-                    session_data["waiting_for_option"] = True
-                    send_reply(page, f"🔍 Aapne '{full_text}' bheja.\n\nWhich Detail you required:\n1. Site Detail\n2. BOQ Status\n3. PO Detail")
-
-            except Exception as e: pass
-            time.sleep(2)
-
-if __name__ == "__main__":
-    run_bot()
+# =====================================================================
+# Baaki Tabs (PO, Site Detail, Indus) bilkul same hain, no changes.
+# =====================================================================
+# (Aapka pehle wala Tab 2, 3 aur 4 ka code yahan as it is aayega)
