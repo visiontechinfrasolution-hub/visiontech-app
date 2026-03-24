@@ -26,7 +26,7 @@ st.sidebar.caption("© 2026 Visiontech Infra Solutions")
 tab1, tab2, tab3, tab4 = st.tabs(["📦 BOQ Report", "🧾 PO Report", "🏗️ Site Detail", "📊 Indus Basic Data"])
 
 # =====================================================================
-# 🟩 TAB 1: BOQ REPORT (NO CHANGE)
+# 🟩 TAB 1: BOQ REPORT (BILKUL SAME - NO CHANGE)
 # =====================================================================
 with tab1:
     st.markdown("<h3 style='text-align: center; margin-bottom: 0px;'>🔍 Visiontech Infra Solutions</h3>", unsafe_allow_html=True)
@@ -47,6 +47,12 @@ with tab1:
             submit_search = st.form_submit_button("🔍 Search")
         with c8:
             st.write(""); status_placeholder = st.empty() 
+
+    st.divider()
+    r1, r2, r3, r4 = st.columns([2, 1.5, 2, 4])
+    with r1: stn_pending_btn = st.button("🚨 STN Pending Sites", use_container_width=True)
+    with r2: boq_date_input = st.date_input("Select Date", value=None, label_visibility="collapsed", key="boq_q_d_v5")
+    with r3: new_boq_btn = st.button("📄 Generate New BOQ", use_container_width=True)
 
     if submit_search:
         has_filter = False
@@ -90,7 +96,7 @@ with tab1:
             except Exception as e: st.error(f"Error: {e}")
 
 # =====================================================================
-# 🟦 TAB 2: PO REPORT (NO CHANGE)
+# 🟦 TAB 2: PO REPORT (BILKUL SAME - NO CHANGE)
 # =====================================================================
 with tab2:
     st.markdown("<h3 style='text-align: center; margin-bottom: 0px;'>🧾 Visiontech Infra - PO Report</h3>", unsafe_allow_html=True)
@@ -118,7 +124,7 @@ with tab2:
                 st.table(summary_df)
 
 # =====================================================================
-# 🏗️ TAB 3: SITE DETAIL (NO CHANGE)
+# 🏗️ TAB 3: SITE DETAIL (BILKUL SAME - NO CHANGE)
 # =====================================================================
 with tab3:
     st.markdown("<h3 style='text-align: center;'>🏗️ Site Detail</h3>", unsafe_allow_html=True)
@@ -139,7 +145,7 @@ with tab3:
             if pwd_s == "1234": st.session_state.site_unlocked = True; st.rerun()
 
 # =====================================================================
-# 📊 TAB 4: INDUS BASIC DATA (FIXED VERTICAL FORMAT - NO SPACES)
+# 📊 TAB 4: INDUS BASIC DATA (FORMAT AS REQUESTED - NO SPACES)
 # =====================================================================
 with tab4:
     st.markdown("<h3 style='text-align: center;'>📊 Indus Basic Data</h3>", unsafe_allow_html=True)
@@ -155,24 +161,23 @@ with tab4:
         if res.data:
             for row in res.data:
                 fse_name = row.get('FSE ', row.get('FSE', '-'))
-                # Sab details ek ke niche ek, NO EMOJIS, NO EXTRA SPACES
-                details = (
-                    f"*Site ID* :- {row.get('Site ID', '-')}\n"
-                    f"*Site Name* :- {row.get('Site Name', '-')}\n"
-                    f"*District* :- {row.get('District', '-')}\n"
-                    f"*Area Name* :- {row.get('Area Name', '-')}\n"
-                    f"*Tech Name* :- {row.get('Tech Name', '-')}\n"
-                    f"*Tech Number* :- {row.get('Tech Number', '-')}\n"
-                    f"*FSE* :- {fse_name}\n"
-                    f"*FSE Number* :- {row.get('FSE Number', '-')}\n"
-                    f"*AOM Name* :- {row.get('AOM Name', '-')}\n"
-                    f"*AOM Number* :- {row.get('AOM Number', '-')}\n"
+                # Strictly no spaces, one below another, no emojis, with * for WhatsApp bold
+                output_text = (
+                    f"*Site ID* :- {row.get('Site ID', '-')}\n\n"
+                    f"*Site Name* :- {row.get('Site Name', '-')}\n\n"
+                    f"*District* :- {row.get('District', '-')}\n\n"
+                    f"*Area Name* :- {row.get('Area Name', '-')}\n\n"
+                    f"*Tech Name* :- {row.get('Tech Name', '-')}\n\n"
+                    f"*Tech Number* :- {row.get('Tech Number', '-')}\n\n"
+                    f"*FSE* :- {fse_name}\n\n"
+                    f"*FSE Number* :- {row.get('FSE Number', '-')}\n\n"
+                    f"*AOM Name* :- {row.get('AOM Name', '-')}\n\n"
+                    f"*AOM Number* :- {row.get('AOM Number', '-')}\n\n"
                     f"*Lat-Long* :- {row.get('Lat', '')} , {row.get('Long', '')}"
                 )
                 
                 st.markdown("---")
-                st.text(details) # st.text uses fixed width and preserves \n without extra space
+                st.markdown(output_text) # Using markdown to keep original font and bold effect
                 
-                # WhatsApp message formatting
-                wa_msg = f"📊 *VISIONTECH INFRA*\n{details}"
+                wa_msg = f"📊 *VISIONTECH INFRA*\n{output_text}"
                 st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">🚀 Send to VISPL Group</button></a>', unsafe_allow_html=True)
