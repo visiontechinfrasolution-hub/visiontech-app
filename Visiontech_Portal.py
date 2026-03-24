@@ -22,7 +22,7 @@ st.sidebar.caption("© 2026 Visiontech Infra Solutions")
 tab1, tab2, tab3, tab4 = st.tabs(["📦 BOQ Report", "🧾 PO Report", "🏗️ Site Detail", "📊 Indus Basic Data"])
 
 # =====================================================================
-# 🟩 TAB 1: BOQ REPORT (FIXED STN PENDING LOGIC)
+# 🟩 TAB 1: BOQ REPORT (FINAL FIXED LOGIC)
 # =====================================================================
 with tab1:
     st.markdown("<h3 style='text-align: center; margin-bottom: 0px;'>🔍 Visiontech Infra Solutions</h3>", unsafe_allow_html=True)
@@ -40,7 +40,7 @@ with tab1:
         with c7: 
             st.write(""); submit_search = st.form_submit_button("🔍 Search")
         with c8:
-            st.write(""); status_placeholder = st.empty() 
+            st.write(""); st.empty() 
 
     st.divider()
     r1, r2, r3, r4 = st.columns([2, 1.5, 2, 4])
@@ -57,7 +57,6 @@ with tab1:
     if submit_search or stn_pending_btn:
         query = supabase.table("BOQ Report").select("*").limit(50000)
         
-        # SEARCH LOGIC
         if not stn_pending_btn:
             if project_query: query = query.ilike("Project Number", f"%{project_query.strip()}%")
             if site_query: query = query.ilike("Site ID", f"%{site_query.strip()}%")
@@ -67,21 +66,22 @@ with tab1:
         if response.data:
             df = pd.DataFrame(response.data)
             
-            # --- STN PENDING SPECIFIC FILTERS ---
+            # --- STN PENDING LOGIC ---
             if stn_pending_btn:
-                # 1. Product = Capex, Issue From = Warehouse, Parent/Child = Parent
-                df = df[
-                    (df['Product'] == 'Capex') & 
-                    (df['Issue From'] == 'Warehouse') & 
-                    (df['Parent/Child'] == 'Parent')
-                ]
-                # 2. Convert Qty to numbers for filtering
+                # 1. Product=Capex, Issue From=Warehouse, Parent/Child=Parent
+                # 2. Qty A & B > 0, Qty C == 0
                 df['Qty A'] = pd.to_numeric(df['Qty A'], errors='coerce').fillna(0)
                 df['Qty B'] = pd.to_numeric(df['Qty B'], errors='coerce').fillna(0)
                 df['Qty C'] = pd.to_numeric(df['Qty C'], errors='coerce').fillna(0)
                 
-                # 3. Qty A & B > 0 AND Qty C == 0
-                df = df[(df['Qty A'] > 0) & (df['Qty B'] > 0) & (df['Qty C'] == 0)]
+                df = df[
+                    (df['Product'] == 'Capex') & 
+                    (df['Issue From'] == 'Warehouse') & 
+                    (df['Parent/Child'] == 'Parent') &
+                    (df['Qty A'] > 0) & 
+                    (df['Qty B'] > 0) & 
+                    (df['Qty C'] == 0)
+                ]
 
             # --- COMMON FORMATTING & MERGE ---
             qty_cols = ['Qty A', 'Qty B', 'Qty C']
@@ -102,6 +102,73 @@ with tab1:
             st.dataframe(df[final_cols], use_container_width=True, hide_index=True)
 
 # =====================================================================
-# 🟦 TABS 2, 3, 4 (EXISTING - NO CHANGES)
+# 🟦 TAB 2: PO REPORT (RE-RESTORED)
 # =====================================================================
-# (Yahan aapka PO, Site Detail aur Indus Data wala purana code aayega)
+with tab2:
+    st.markdown("<h3 style='text-align: center;'>🧾 PO Report</h3>", unsafe_allow_html=True)
+    if not st.session_state.get('po_unlocked', False):
+        if st.text_input("Password PO:", type="password", key="p_p") == "1234":
+            st.session_state.po_unlocked = True; st.rerun()
+    else:
+        with st.form("po_f"):
+            c1, c2, c3, c4 = st.columns(4)
+            with c1: s_po = st.text_input("📄 PO Number")
+            with c2: s_sh = st.text_input("🚚 Shipment No")
+            with c3: s_re = st.text_input("🧾 Receipt No")
+            with c4: st.write(""); sub_po = st.form_submit_button("🔍 Search PO")
+        if sub_po:
+            query = supabase.table("PO Report").select("*")
+            if s_po: query = query.eq("PO Number", int(s_po))
+            if s_sh: query = query.ilike("Shipment Number", f"%{s_sh}%")
+            if s_re: query = query.ilike("Receipt Number", f"%{s_re}%")
+            res = query.execute()
+            if res.data: st.dataframe(pd.DataFrame(res.data), use_container_width=True, hide_index=True)
+
+# =====================================================================
+# 🏗️ TAB 3: SITE DETAIL (VERTICAL + WHATSAPP)
+# =====================================================================
+with tab3:
+    st.markdown("<h3 style='text-align: center;'>🏗️ Site Detail</h3>", unsafe_allow_html=True)
+    if st.session_state.get('site_unlocked', False):
+        with st.form("sd_v5"):
+            s1, s2 = st.columns(2)
+            with s1: p_id = st.text_input("📁 Project ID")
+            with s2: site_id = st.text_input("📍 Site ID")
+            sub_sd = st.form_submit_button("🔍 Search")
+        if sub_sd:
+            query = supabase.table("Site Detail").select("*")
+            if p_id: query = query.ilike("Project Number", f"%{p_id}%")
+            if site_id: query = query.ilike("SITE ID", f"%{site_id}%")
+            res = query.execute()
+            if res.data:
+                for row in res.data:
+                    txt = f"*Project Number* :- {row.get('Project Number','-')}\n*SITE ID* :- {row.get('SITE ID','-')}\n*Site Name* :- {row.get('Site Name','-')}\n*District* :- {row.get('District','-')}\n*Lat-Long* :- {row.get('Latitude','')} , {row.get('Longitude','')}"
+                    st.markdown("---")
+                    st.text(txt)
+                    st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(txt)}"><button style="background-color: #25D366; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer;">🚀 Send to WhatsApp</button></a>', unsafe_allow_html=True)
+    else:
+        if st.text_input("Password Site:", type="password", key="s_p") == "1234": st.session_state.site_unlocked = True; st.rerun()
+
+# =====================================================================
+# 📊 TAB 4: INDUS BASIC DATA (VERTICAL + NO NONE)
+# =====================================================================
+with tab4:
+    st.markdown("<h3 style='text-align: center;'>📊 Indus Basic Data</h3>", unsafe_allow_html=True)
+    with st.form("ind_f"):
+        i1, i2, i3 = st.columns(3)
+        with i1: in_id = st.text_input("📍 Site ID", key="ind_id_in")
+        with i2: in_nm = st.text_input("🏢 Site Name", key="ind_nm_in")
+        with i3: in_cl = st.text_input("🗺️ Cluster", key="ind_cl_in")
+        sub_in = st.form_submit_button("🔍 Search Indus")
+    if sub_in:
+        query = supabase.table("Indus Data").select("*")
+        if in_id: query = query.ilike("Site ID", f"%{in_id}%")
+        if in_nm: query = query.ilike("Site Name", f"%{in_nm}%")
+        if in_cl: query = query.ilike("Cluster", f"%{in_cl}%")
+        res = query.execute()
+        if res.data:
+            for row in res.data:
+                ind_txt = f"*Site ID* :- {row.get('Site ID','-')}\n*Site Name* :- {row.get('Site Name','-')}\n*District* :- {row.get('District','-')}\n*Area Name* :- {row.get('Area Name','-')}\n*Tech Name* :- {row.get('Tech Name','-')}\n*Tech Number* :- {row.get('Tech Number','-')}\n*FSE* :- {row.get('FSE','-')}\n*FSE Number* :- {row.get('FSE Number','-')}\n*AOM Name* :- {row.get('AOM Name','-')}\n*AOM Number* :- {row.get('AOM Number','-')}\n*Lat-Long* :- {row.get('Lat','')} , {row.get('Long','')}"
+                st.markdown("---")
+                st.text(ind_txt)
+                st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(ind_txt)}"><button style="background-color: #25D366; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer;">🚀 Send to WhatsApp</button></a>', unsafe_allow_html=True)
