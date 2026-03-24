@@ -26,7 +26,7 @@ st.sidebar.caption("© 2026 Visiontech Infra Solutions")
 tab1, tab2, tab3, tab4 = st.tabs(["📦 BOQ Report", "🧾 PO Report", "🏗️ Site Detail", "📊 Indus Basic Data"])
 
 # =====================================================================
-# 🟩 TAB 1: BOQ REPORT (NO CHANGES MADE)
+# 🟩 TAB 1: BOQ REPORT (NO CHANGES)
 # =====================================================================
 with tab1:
     st.markdown("<h3 style='text-align: center; margin-bottom: 0px;'>🔍 Visiontech Infra Solutions</h3>", unsafe_allow_html=True)
@@ -74,7 +74,7 @@ with tab1:
             st.dataframe(df, use_container_width=True, hide_index=True)
 
 # =====================================================================
-# 🟦 TAB 2: PO REPORT (ADDED SHIPMENT & RECEIPT SEARCH)
+# 🟦 TAB 2: PO REPORT (NO CHANGES)
 # =====================================================================
 with tab2:
     st.markdown("<h3 style='text-align: center;'>🧾 PO Report</h3>", unsafe_allow_html=True)
@@ -105,7 +105,7 @@ with tab2:
                 st.table(summary)
 
 # =====================================================================
-# 🏗️ TAB 3: SITE DETAIL (NO CHANGES MADE)
+# 🏗️ TAB 3: SITE DETAIL (NO CHANGES)
 # =====================================================================
 with tab3:
     st.markdown("<h3 style='text-align: center;'>🏗️ Site Detail</h3>", unsafe_allow_html=True)
@@ -131,7 +131,7 @@ with tab3:
         if st.text_input("Password Site", type="password", key="s_pwd") == "1234": st.session_state.site_unlocked = True; st.rerun()
 
 # =====================================================================
-# 📊 TAB 4: INDUS BASIC DATA (ADDED SITE NAME & CLUSTER SEARCH)
+# 📊 TAB 4: INDUS BASIC DATA (FIXED COLUMN MAPPING)
 # =====================================================================
 with tab4:
     st.markdown("<h3 style='text-align: center;'>📊 Indus Basic Data</h3>", unsafe_allow_html=True)
@@ -151,7 +151,20 @@ with tab4:
         res = query.execute()
         if res.data:
             for row in res.data:
-                ind_txt = f"*Site ID* :- {row.get('Site ID','-')}\n\n*Site Name* :- {row.get('Site Name','-')}\n\n*District* :- {row.get('District','-')}\n\n*Area Name* :- {row.get('Area Name','-')}\n\n*Tech Name* :- {row.get('Tech Name','-')}\n\n*Tech Number* :- {row.get('Tech Number','-')}\n\n*FSE* :- {row.get('FSE','-')}\n\n*FSE Number* :- {row.get('FSE Number','-')}\n\n*AOM Name* :- {row.get('AOM Name','-')}\n\n*AOM Number* :- {row.get('AOM Number','-')}\n\n*Lat-Long* :- {row.get('Lat','')} , {row.get('Long','')}"
+                # FIXED COLUMN NAMES HERE
+                ind_txt = (
+                    f"*Site ID* :- {row.get('Site ID','-')}\n\n"
+                    f"*Site Name* :- {row.get('Site Name','-')}\n\n"
+                    f"*District* :- {row.get('District','-')}\n\n"
+                    f"*Area Name* :- {row.get('Area Name','-')}\n\n"
+                    f"*Tech Name* :- {row.get('Technician Name', row.get('Tech Name','-'))}\n\n"
+                    f"*Tech Number* :- {row.get('Technician Number', row.get('Tech Number','-'))}\n\n"
+                    f"*FSE* :- {row.get('FSE Name', row.get('FSE','-'))}\n\n"
+                    f"*FSE Number* :- {row.get('FSE Number','-')}\n\n"
+                    f"*AOM Name* :- {row.get('AOM Name','-')}\n\n"
+                    f"*AOM Number* :- {row.get('AOM Number','-')}\n\n"
+                    f"*Lat-Long* :- {row.get('Latitude', row.get('Lat',''))} , {row.get('Longitude', row.get('Long',''))}"
+                )
                 st.markdown("---")
                 st.markdown(ind_txt)
                 wa_ind = f"📊 *INDUS DATA*\n{ind_txt}"
