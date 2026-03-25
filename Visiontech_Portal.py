@@ -56,7 +56,6 @@ with tab1:
             else:
                 st.warning("Select Date!")
 
-    # LOGIC TO PERSIST SEARCH RESULTS
     if submit_search or stn_pending_btn or gen_new_boq:
         query = supabase.table("BOQ Report").select("*").limit(50000)
         
@@ -71,7 +70,6 @@ with tab1:
         if response.data:
             df_res = pd.DataFrame(response.data)
             
-            # Formatting Logic
             if 'Item Code' in df_res.columns:
                 df_res['Item Code'] = df_res['Item Code'].fillna('').astype(str).str.strip()
             qty_cols = ['Qty A', 'Qty B', 'Qty C']
@@ -93,10 +91,8 @@ with tab1:
                     df_res[col] = pd.to_numeric(df_res[col], errors='coerce').fillna(0).astype(int)
             df_res = df_res.fillna('').astype(str).replace(['None', 'nan', 'NULL', 'NaT'], '')
             
-            # SAVE TO SESSION STATE
             st.session_state['boq_df'] = df_res
 
-    # DISPLAY RESULTS FROM SESSION STATE
     if 'boq_df' in st.session_state:
         df = st.session_state['boq_df']
         final_cols = [c for c in mera_sequence if c in df.columns]
@@ -107,8 +103,9 @@ with tab1:
         
         p_val = df['Project Number'].iloc[0] if not df.empty else "NA"
         s_id = df['Site ID'].iloc[0] if not df.empty else "NA"
+        # Extract Site Name if exists in columns
+        s_name = df.get('Site Name', pd.Series(['-'])).iloc[0] if 'Site Name' in df.columns else "Site"
 
-        # 1. Download Excel
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             df[final_cols].to_excel(writer, index=False, sheet_name='BOQ_Report')
@@ -118,14 +115,19 @@ with tab1:
             st.download_button(label="📥 Download Excel", data=processed_data, file_name=f"{p_val}_{s_id}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
 
         with btn_col2:
-            # 2. WhatsApp Multi-line Message
-            wa_msg = f"📦 *BOQ REPORT: {p_val}*\n*Project Number* - {p_val}\n*Site ID* - {s_id}\n\n"
+            # --- SUPERB BOLD WHATSAPP FORMATTING ---
+            wa_msg = f"📦 *BOQ REPORT: {p_val}*\n"
+            wa_msg += f"*Project Number* - {p_val}\n"
+            wa_msg += f"*Site ID* - {s_id}\n"
+            wa_msg += f"*Site Name* - {s_name}\n\n"
+            
             for i, row in df.iterrows():
                 wa_msg += (
                     f"*{i+1}.*\n"
+                    f"*Transaction Type* - {row.get('Transaction Type', '-')}\n"
                     f"*BOQ Number* - {row.get('BOQ', '-')}\n"
-                    f"*Item Code* - {row.get('Item Code', '-')}\n"
-                    f"*Item Description* - {row.get('Item Description', '-')}\n"
+                    f"*Item Code* - {row.get('Item Code', '-')}\n\n"
+                    f"*Item Description* - {row.get('Item Description', '-')}\n\n"
                     f"*BOQ Qty* - {row.get('Qty A', '0')}\n"
                     f"*Dispatched Qty* - {row.get('Qty B', '0')}\n"
                     f"*STN Qty* - {row.get('Qty C', '0')}\n"
@@ -134,13 +136,15 @@ with tab1:
                     f"*Dispatched Date* - {row.get('Dispatch Date', '-')}\n"
                     f"*Transporter Name* - {row.get('Transporter', '-')}\n"
                     f"*TSP Name* - {row.get('TSP Partner Name', '-')}\n"
+                    f"*Issue From* - {row.get('Issue From', '-')}\n"
+                    f"*Source Of Fulfilment* - {row.get('Source Of Fulfilment', '-')}\n"
                     f"--------------------\n"
                 )
             
             st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}" target="_blank"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">🚀 Share Full Report on WhatsApp</button></a>', unsafe_allow_html=True)
 
 # =====================================================================
-# 🟦 TAB 2, 3, 4 (No Changes)
+# 🟦 TAB 2, 3, 4 (NO CHANGES)
 # =====================================================================
 with tab2:
     st.markdown("<h3 style='text-align: center;'>🧾 PO Report</h3>", unsafe_allow_html=True)
