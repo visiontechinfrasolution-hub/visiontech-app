@@ -56,7 +56,7 @@ with tab1:
             else:
                 st.warning("Select Date!")
 
-    # Search Logic
+    # LOGIC TO PERSIST SEARCH RESULTS
     if submit_search or stn_pending_btn or gen_new_boq:
         query = supabase.table("BOQ Report").select("*").limit(50000)
         
@@ -69,72 +69,75 @@ with tab1:
         
         response = query.execute()
         if response.data:
-            df = pd.DataFrame(response.data)
+            df_res = pd.DataFrame(response.data)
             
-            # Formatting (Existing Logic)
-            if 'Item Code' in df.columns:
-                df['Item Code'] = df['Item Code'].fillna('').astype(str).str.strip()
+            # Formatting Logic
+            if 'Item Code' in df_res.columns:
+                df_res['Item Code'] = df_res['Item Code'].fillna('').astype(str).str.strip()
             qty_cols = ['Qty A', 'Qty B', 'Qty C']
             for col in qty_cols:
-                if col in df.columns:
-                    df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
-            if 'Item Code' in df.columns:
-                df['TempGroupKey'] = df.apply(lambda x: x['Sr. No.'] if x['Item Code'] == '' else x['Item Code'], axis=1)
-                agg_dict = {col: 'sum' if col in qty_cols else 'first' for col in df.columns if col not in ['TempGroupKey', 'Item Code']}
-                df = df.groupby('TempGroupKey', as_index=False).agg(agg_dict)
-            if 'Sr. No.' in df.columns:
-                df['Sr. No.'] = pd.to_numeric(df['Sr. No.'], errors='coerce')
-                df = df.sort_values(by='Sr. No.')
+                if col in df_res.columns:
+                    df_res[col] = pd.to_numeric(df_res[col], errors='coerce').fillna(0)
+            if 'Item Code' in df_res.columns:
+                df_res['TempGroupKey'] = df_res.apply(lambda x: x['Sr. No.'] if x['Item Code'] == '' else x['Item Code'], axis=1)
+                agg_dict = {col: 'sum' if col in qty_cols else 'first' for col in df_res.columns if col not in ['TempGroupKey', 'Item Code']}
+                df_res = df_res.groupby('TempGroupKey', as_index=False).agg(agg_dict)
+            if 'Sr. No.' in df_res.columns:
+                df_res['Sr. No.'] = pd.to_numeric(df_res['Sr. No.'], errors='coerce')
+                df_res = df_res.sort_values(by='Sr. No.')
             for col in ['Dispatch Date', 'BOQ Date']:
-                if col in df.columns:
-                    df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime('%d-%b-%Y')
+                if col in df_res.columns:
+                    df_res[col] = pd.to_datetime(df_res[col], errors='coerce').dt.strftime('%d-%b-%Y')
             for col in qty_cols:
-                if col in df.columns:
-                    df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
-            df = df.fillna('').astype(str).replace(['None', 'nan', 'NULL', 'NaT'], '')
-            final_cols = [c for c in mera_sequence if c in df.columns]
-
-            # Display Table
-            st.dataframe(df[final_cols], use_container_width=True, hide_index=True)
-
-            # --- BUTTONS START HERE (Inside Data Logic) ---
-            st.markdown("### 📤 Export & Share")
-            btn_col1, btn_col2 = st.columns([1, 4])
+                if col in df_res.columns:
+                    df_res[col] = pd.to_numeric(df_res[col], errors='coerce').fillna(0).astype(int)
+            df_res = df_res.fillna('').astype(str).replace(['None', 'nan', 'NULL', 'NaT'], '')
             
-            p_val = df['Project Number'].iloc[0] if not df.empty else "NA"
-            s_id = df['Site ID'].iloc[0] if not df.empty else "NA"
+            # SAVE TO SESSION STATE
+            st.session_state['boq_df'] = df_res
 
-            # 1. Download Excel
-            output = io.BytesIO()
-            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                df[final_cols].to_excel(writer, index=False, sheet_name='BOQ_Report')
-            processed_data = output.getvalue()
+    # DISPLAY RESULTS FROM SESSION STATE
+    if 'boq_df' in st.session_state:
+        df = st.session_state['boq_df']
+        final_cols = [c for c in mera_sequence if c in df.columns]
+        st.dataframe(df[final_cols], use_container_width=True, hide_index=True)
+
+        st.markdown("### 📤 Export & Share")
+        btn_col1, btn_col2 = st.columns([1, 4])
+        
+        p_val = df['Project Number'].iloc[0] if not df.empty else "NA"
+        s_id = df['Site ID'].iloc[0] if not df.empty else "NA"
+
+        # 1. Download Excel
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            df[final_cols].to_excel(writer, index=False, sheet_name='BOQ_Report')
+        processed_data = output.getvalue()
+        
+        with btn_col1:
+            st.download_button(label="📥 Download Excel", data=processed_data, file_name=f"{p_val}_{s_id}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+
+        with btn_col2:
+            # 2. WhatsApp Multi-line Message
+            wa_msg = f"📦 *BOQ REPORT: {p_val}*\n*Project Number* - {p_val}\n*Site ID* - {s_id}\n\n"
+            for i, row in df.iterrows():
+                wa_msg += (
+                    f"*{i+1}.*\n"
+                    f"*BOQ Number* - {row.get('BOQ', '-')}\n"
+                    f"*Item Code* - {row.get('Item Code', '-')}\n"
+                    f"*Item Description* - {row.get('Item Description', '-')}\n"
+                    f"*BOQ Qty* - {row.get('Qty A', '0')}\n"
+                    f"*Dispatched Qty* - {row.get('Qty B', '0')}\n"
+                    f"*STN Qty* - {row.get('Qty C', '0')}\n"
+                    f"*Parent* - {row.get('Parent/Child', '-')}\n"
+                    f"*Line Status* - {row.get('Line Status', '-')}\n"
+                    f"*Dispatched Date* - {row.get('Dispatch Date', '-')}\n"
+                    f"*Transporter Name* - {row.get('Transporter', '-')}\n"
+                    f"*TSP Name* - {row.get('TSP Partner Name', '-')}\n"
+                    f"--------------------\n"
+                )
             
-            with btn_col1:
-                st.download_button(label="📥 Download Excel", data=processed_data, file_name=f"{p_val}_{s_id}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
-
-            with btn_col2:
-                # 2. WhatsApp Multi-line Message
-                wa_msg = f"📦 *BOQ REPORT: {p_val}*\n*Project Number* - {p_val}\n*Site ID* - {s_id}\n\n"
-                for i, row in df.iterrows():
-                    wa_msg += (
-                        f"*{i+1}.*\n"
-                        f"*BOQ Number* - {row.get('BOQ', '-')}\n"
-                        f"*Item Code* - {row.get('Item Code', '-')}\n"
-                        f"*Item Description* - {row.get('Item Description', '-')}\n"
-                        f"*BOQ Qty* - {row.get('Qty A', '0')}\n"
-                        f"*Dispatched Qty* - {row.get('Qty B', '0')}\n"
-                        f"*STN Qty* - {row.get('Qty C', '0')}\n"
-                        f"*Parent* - {row.get('Parent/Child', '-')}\n"
-                        f"*Line Status* - {row.get('Line Status', '-')}\n"
-                        f"*Dispatched Date* - {row.get('Dispatch Date', '-')}\n"
-                        f"*Transporter Name* - {row.get('Transporter', '-')}\n"
-                        f"*TSP Name* - {row.get('TSP Partner Name', '-')}\n"
-                        f"--------------------\n"
-                    )
-                
-                st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}" target="_blank"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">🚀 Share Full Report on WhatsApp</button></a>', unsafe_allow_html=True)
-            # --- BUTTONS END ---
+            st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}" target="_blank"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">🚀 Share Full Report on WhatsApp</button></a>', unsafe_allow_html=True)
 
 # =====================================================================
 # 🟦 TAB 2, 3, 4 (No Changes)
