@@ -70,13 +70,16 @@ with tab1:
         if response.data:
             df_res = pd.DataFrame(response.data)
             
-            # --- NAYI LOGIC: FETCH INDUS DATA FOR WHATSAPP ---
+            # --- FETCH INDUS DATA ---
             site_id_for_wa = df_res['Site ID'].iloc[0] if not df_res.empty else None
             indus_wa_block = ""
             if site_id_for_wa:
                 ind_res = supabase.table("Indus Data").select("*").ilike("Site ID", f"%{site_id_for_wa}%").execute()
                 if ind_res.data:
                     row_i = ind_res.data[0]
+                    # NAYI LINE: Fetching Lat and Long with a single space
+                    lat_v = row_i.get('Lat', '-')
+                    long_v = row_i.get('Long', '-')
                     indus_wa_block = (
                         f"\n📍 *INDUS SITE DATA*\n"
                         f"*Area Name* :- {row_i.get('Area Name','-')}\n"
@@ -86,20 +89,24 @@ with tab1:
                         f"*FSE Number* :- {row_i.get('FSE Number','-')}\n"
                         f"*AOM Name* :- {row_i.get('AOM Name','-')}\n"
                         f"*AOM Number* :- {row_i.get('AOM Number','-')}\n"
+                        f"*Lat Long* :- {lat_v} {long_v}\n"
                     )
             st.session_state['wa_indus_data'] = indus_wa_block
-            # -----------------------------------------------
 
             if 'Item Code' in df_res.columns:
                 df_res['Item Code'] = df_res['Item Code'].fillna('').astype(str).str.strip()
+            
             qty_cols = ['Qty A', 'Qty B', 'Qty C']
             for col in qty_cols:
                 if col in df_res.columns:
                     df_res[col] = pd.to_numeric(df_res[col], errors='coerce').fillna(0)
+            
             if 'Item Code' in df_res.columns:
                 df_res['TempGroupKey'] = df_res.apply(lambda x: x['Sr. No.'] if x['Item Code'] == '' else x['Item Code'], axis=1)
-                agg_dict = {col: 'sum' if col in qty_cols else 'first' for col in df_res.columns if col not in ['TempGroupKey', 'Item Code']}
+                # ERROR FIX: 'Item Code' added to agg_dict to prevent value loss
+                agg_dict = {col: 'sum' if col in qty_cols else 'first' for col in df_res.columns if col not in ['TempGroupKey']}
                 df_res = df_res.groupby('TempGroupKey', as_index=False).agg(agg_dict)
+            
             if 'Sr. No.' in df_res.columns:
                 df_res['Sr. No.'] = pd.to_numeric(df_res['Sr. No.'], errors='coerce')
                 df_res = df_res.sort_values(by='Sr. No.')
@@ -133,7 +140,6 @@ with tab1:
             st.download_button(label="📥 Download Excel", data=processed_data, file_name=f"{p_val}_{s_id}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
 
         with btn_col2:
-            # WhatsApp Message with Parent Filter and Indus Data
             wa_msg = f"📦 *BOQ REPORT: {p_val}*\n"
             wa_msg += f"*Project Number* - {p_val}\n"
             wa_msg += f"*Site ID* - {s_id}\n\n"
@@ -159,12 +165,11 @@ with tab1:
                 )
                 count += 1
             
-            # Append Indus Data at the end
             wa_msg += st.session_state.get('wa_indus_data', "")
             
             st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}" target="_blank"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">🚀 Share Full Report with Indus Data</button></a>', unsafe_allow_html=True)
 
-# --- TAB 2, 3, 4 (No Changes) ---
+# (Tab 2, 3, 4 NO CHANGES)
 with tab2:
     st.markdown("<h3 style='text-align: center;'>🧾 PO Report</h3>", unsafe_allow_html=True)
     if not st.session_state.get('po_unlocked', False):
