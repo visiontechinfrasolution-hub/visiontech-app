@@ -70,11 +70,6 @@ with tab1:
         if response.data:
             df = pd.DataFrame(response.data)
             
-            # --- NAYI LOGIC: Blank values handle karne ke liye ---
-            if 'Item Code' in df.columns:
-                df['Item Code'] = df['Item Code'].fillna('').astype(str).str.strip()
-            # ----------------------------------------------------
-
             if stn_pending_btn:
                 df = df[(df['Product'] == 'Capex') & (df['Issue From'] == 'Warehouse') & (df['Parent/Child'] == 'Parent')]
                 df['Qty A'] = pd.to_numeric(df['Qty A'], errors='coerce').fillna(0)
@@ -85,31 +80,38 @@ with tab1:
             qty_cols = ['Qty A', 'Qty B', 'Qty C']
             for col in qty_cols:
                 if col in df.columns:
-                    df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
-            
-            # --- UPDATED GROUPBY LOGIC (BLANKS KE LIYE UNIQUE) ---
+                    df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+
+            # --- SMART GROUPBY LOGIC (ONLY FOR NON-BLANK ITEM CODES) ---
             if 'Item Code' in df.columns:
-                # 'Sr. No.' ko use karke hum ensure karte hain ki blank item code merge na ho
-                groupby_key = 'Sr. No.' if 'Sr. No.' in df.columns else 'Item Code'
-                agg_dict = {col: 'sum' if col in qty_cols else 'first' for col in df.columns if col not in [groupby_key, 'Item Code']}
-                # Yahan Sr. No. aur Item Code dono le rahe hain taaki blank wali har line alag dikhe
-                df = df.groupby(['Sr. No.', 'Item Code'], as_index=False).agg(agg_dict)
+                df['Item Code'] = df['Item Code'].fillna('').astype(str).str.strip()
+                
+                # Logic: Agar Item Code blank hai toh usey unique ID (Sr. No.) do taaki wo merge na ho
+                df['TempGroupKey'] = df.apply(lambda x: x['Sr. No.'] if x['Item Code'] == '' else x['Item Code'], axis=1)
+                
+                agg_dict = {col: 'sum' if col in qty_cols else 'first' for col in df.columns if col not in ['TempGroupKey', 'Item Code']}
+                df = df.groupby('TempGroupKey', as_index=False).agg(agg_dict)
+            # ----------------------------------------------------------
             
             if 'Sr. No.' in df.columns:
                 df['Sr. No.'] = pd.to_numeric(df['Sr. No.'], errors='coerce')
                 df = df.sort_values(by='Sr. No.')
-            # ---------------------------------------------------
-            
+
             for col in ['Dispatch Date', 'BOQ Date']:
                 if col in df.columns:
                     df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime('%d-%b-%Y')
             
+            # Convert Qty to Int for clean display
+            for col in qty_cols:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
+
             df = df.fillna('').astype(str).replace(['None', 'nan', 'NULL', 'NaT'], '')
             final_cols = [c for c in mera_sequence if c in df.columns]
             st.dataframe(df[final_cols], use_container_width=True, hide_index=True)
 
 # =====================================================================
-# 🟦 TAB 2: PO REPORT
+# 🟦 TAB 2, 3, 4 (No Changes)
 # =====================================================================
 with tab2:
     st.markdown("<h3 style='text-align: center;'>🧾 PO Report</h3>", unsafe_allow_html=True)
@@ -129,9 +131,6 @@ with tab2:
             res = q.execute()
             if res.data: st.dataframe(pd.DataFrame(res.data), use_container_width=True, hide_index=True)
 
-# =====================================================================
-# 🏗️ TAB 3: SITE DETAIL
-# =====================================================================
 with tab3:
     st.markdown("<h3 style='text-align: center;'>🏗️ Site Detail</h3>", unsafe_allow_html=True)
     if not st.session_state.get('site_unlocked', False):
@@ -151,9 +150,6 @@ with tab3:
                         st.text(txt)
                         st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(txt)}"><button style="background-color: #25D366; color: white; border: none; padding: 8px 15px; border-radius: 5px;">🚀 WhatsApp</button></a>', unsafe_allow_html=True)
 
-# =====================================================================
-# 📊 TAB 4: INDUS BASIC DATA
-# =====================================================================
 with tab4:
     st.markdown("<h3 style='text-align: center;'>📊 Indus Basic Data</h3>", unsafe_allow_html=True)
     with st.form("ind_form"):
