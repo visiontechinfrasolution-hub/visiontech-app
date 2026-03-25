@@ -3,6 +3,7 @@ from supabase import create_client
 import pandas as pd
 from datetime import datetime
 import urllib.parse
+import io
 
 # --- 1. CONNECTION ---
 URL = "https://sckyflvukpmdqmdzjzhs.supabase.co"
@@ -47,7 +48,6 @@ with tab1:
     with r1: stn_pending_btn = st.button("🚨 STN Pending Sites", use_container_width=True)
     with r2: boq_date_pick = st.date_input("Select Date", value=None, label_visibility="collapsed", key="boq_q_d_v5")
     
-    # Generate New BOQ Logic (Direct Table)
     gen_new_boq = False
     with r3:
         if st.button("📄 Generate New BOQ", use_container_width=True):
@@ -70,28 +70,18 @@ with tab1:
         if response.data:
             df = pd.DataFrame(response.data)
             
-            if stn_pending_btn:
-                df = df[(df['Product'] == 'Capex') & (df['Issue From'] == 'Warehouse') & (df['Parent/Child'] == 'Parent')]
-                df['Qty A'] = pd.to_numeric(df['Qty A'], errors='coerce').fillna(0)
-                df['Qty B'] = pd.to_numeric(df['Qty B'], errors='coerce').fillna(0)
-                df['Qty C'] = pd.to_numeric(df['Qty C'], errors='coerce').fillna(0)
-                df = df[(df['Qty A'] > 0) & (df['Qty B'] > 0) & (df['Qty C'] == 0)]
-
+            if 'Item Code' in df.columns:
+                df['Item Code'] = df['Item Code'].fillna('').astype(str).str.strip()
+            
             qty_cols = ['Qty A', 'Qty B', 'Qty C']
             for col in qty_cols:
                 if col in df.columns:
                     df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
-            # --- SMART GROUPBY LOGIC (ONLY FOR NON-BLANK ITEM CODES) ---
             if 'Item Code' in df.columns:
-                df['Item Code'] = df['Item Code'].fillna('').astype(str).str.strip()
-                
-                # Logic: Agar Item Code blank hai toh usey unique ID (Sr. No.) do taaki wo merge na ho
                 df['TempGroupKey'] = df.apply(lambda x: x['Sr. No.'] if x['Item Code'] == '' else x['Item Code'], axis=1)
-                
                 agg_dict = {col: 'sum' if col in qty_cols else 'first' for col in df.columns if col not in ['TempGroupKey', 'Item Code']}
                 df = df.groupby('TempGroupKey', as_index=False).agg(agg_dict)
-            # ----------------------------------------------------------
             
             if 'Sr. No.' in df.columns:
                 df['Sr. No.'] = pd.to_numeric(df['Sr. No.'], errors='coerce')
@@ -101,14 +91,58 @@ with tab1:
                 if col in df.columns:
                     df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime('%d-%b-%Y')
             
-            # Convert Qty to Int for clean display
             for col in qty_cols:
                 if col in df.columns:
                     df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
 
             df = df.fillna('').astype(str).replace(['None', 'nan', 'NULL', 'NaT'], '')
             final_cols = [c for c in mera_sequence if c in df.columns]
+            
+            # --- Table Display ---
             st.dataframe(df[final_cols], use_container_width=True, hide_index=True)
+
+            # --- NAYI LOGIC: DOWNLOAD + WHATSAPP SHARE ---
+            st.divider()
+            s_col1, s_col2 = st.columns([1, 4])
+            
+            p_val = df['Project Number'].iloc[0] if not df.empty else "NA"
+            s_id = df['Site ID'].iloc[0] if not df.empty else "NA"
+            
+            # 1. Download Excel
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                df[final_cols].to_excel(writer, index=False, sheet_name='BOQ_Report')
+            processed_data = output.getvalue()
+            
+            with s_col1:
+                st.download_button(label="📥 Download Excel", data=processed_data, file_name=f"{p_val}_{s_id}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+
+            with s_col2:
+                # 2. WhatsApp Multi-line Message Formation
+                wa_header = f"📦 *BOQ REPORT: {p_val}*\n*Project Number* - {p_val}\n*Site ID* - {s_id}\n\n"
+                wa_body = ""
+                
+                for i, row in df.iterrows():
+                    wa_body += (
+                        f"*{i+1}.*\n"
+                        f"*BOQ Number* - {row.get('BOQ', '-')}\n"
+                        f"*Item Code* - {row.get('Item Code', '-')}\n"
+                        f"*Item Description* - {row.get('Item Description', '-')}\n"
+                        f"*BOQ Qty* - {row.get('Qty A', '0')}\n"
+                        f"*Dispatched Qty* - {row.get('Qty B', '0')}\n"
+                        f"*STN Qty* - {row.get('Qty C', '0')}\n"
+                        f"*Parent* - {row.get('Parent/Child', '-')}\n"
+                        f"*Line Status* - {row.get('Line Status', '-')}\n"
+                        f"*Dispatched Date* - {row.get('Dispatch Date', '-')}\n"
+                        f"*Transporter Name* - {row.get('Transporter', '-')}\n"
+                        f"*TSP Name* - {row.get('TSP Partner Name', '-')}\n"
+                        f"*Issue From* - {row.get('Issue From', '-')}\n"
+                        f"*Source Of Fulfilment* - {row.get('Source Of Fulfilment', '-')}\n"
+                        f"--------------------\n"
+                    )
+                
+                full_wa_msg = wa_header + wa_body
+                st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(full_wa_msg)}"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">🚀 Share Full Report on WhatsApp</button></a>', unsafe_allow_html=True)
 
 # =====================================================================
 # 🟦 TAB 2, 3, 4 (No Changes)
