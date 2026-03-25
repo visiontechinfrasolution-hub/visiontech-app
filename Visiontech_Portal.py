@@ -70,6 +70,26 @@ with tab1:
         if response.data:
             df_res = pd.DataFrame(response.data)
             
+            # --- NAYI LOGIC: FETCH INDUS DATA FOR WHATSAPP ---
+            site_id_for_wa = df_res['Site ID'].iloc[0] if not df_res.empty else None
+            indus_wa_block = ""
+            if site_id_for_wa:
+                ind_res = supabase.table("Indus Data").select("*").ilike("Site ID", f"%{site_id_for_wa}%").execute()
+                if ind_res.data:
+                    row_i = ind_res.data[0]
+                    indus_wa_block = (
+                        f"\n📍 *INDUS SITE DATA*\n"
+                        f"*Area Name* :- {row_i.get('Area Name','-')}\n"
+                        f"*Tech Name* :- {row_i.get('Tech Name','-')}\n"
+                        f"*Tech Number* :- {row_i.get('Tech Number','-')}\n"
+                        f"*FSE* :- {row_i.get('FSE','-')}\n"
+                        f"*FSE Number* :- {row_i.get('FSE Number','-')}\n"
+                        f"*AOM Name* :- {row_i.get('AOM Name','-')}\n"
+                        f"*AOM Number* :- {row_i.get('AOM Number','-')}\n"
+                    )
+            st.session_state['wa_indus_data'] = indus_wa_block
+            # -----------------------------------------------
+
             if 'Item Code' in df_res.columns:
                 df_res['Item Code'] = df_res['Item Code'].fillna('').astype(str).str.strip()
             qty_cols = ['Qty A', 'Qty B', 'Qty C']
@@ -103,8 +123,6 @@ with tab1:
         
         p_val = df['Project Number'].iloc[0] if not df.empty else "NA"
         s_id = df['Site ID'].iloc[0] if not df.empty else "NA"
-        # Extract Site Name if exists in columns
-        s_name = df.get('Site Name', pd.Series(['-'])).iloc[0] if 'Site Name' in df.columns else "Site"
 
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
@@ -115,37 +133,38 @@ with tab1:
             st.download_button(label="📥 Download Excel", data=processed_data, file_name=f"{p_val}_{s_id}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
 
         with btn_col2:
-            # --- SUPERB BOLD WHATSAPP FORMATTING ---
+            # WhatsApp Message with Parent Filter and Indus Data
             wa_msg = f"📦 *BOQ REPORT: {p_val}*\n"
             wa_msg += f"*Project Number* - {p_val}\n"
-            wa_msg += f"*Site ID* - {s_id}\n"
-            wa_msg += f"*Site Name* - {s_name}\n\n"
+            wa_msg += f"*Site ID* - {s_id}\n\n"
             
-            for i, row in df.iterrows():
+            df_whatsapp = df[df['Parent/Child'].astype(str).str.lower() == 'parent']
+            
+            count = 1
+            for i, row in df_whatsapp.iterrows():
                 wa_msg += (
-                    f"*{i+1}.*\n"
+                    f"*{count}.*\n"
                     f"*Transaction Type* - {row.get('Transaction Type', '-')}\n"
                     f"*BOQ Number* - {row.get('BOQ', '-')}\n"
-                    f"*Item Code* - {row.get('Item Code', '-')}\n\n"
-                    f"*Item Description* - {row.get('Item Description', '-')}\n\n"
+                    f"*Item Code* - {row.get('Item Code', '-')}\n"
+                    f"*Item Description* - {row.get('Item Description', '-')}\n"
                     f"*BOQ Qty* - {row.get('Qty A', '0')}\n"
                     f"*Dispatched Qty* - {row.get('Qty B', '0')}\n"
                     f"*STN Qty* - {row.get('Qty C', '0')}\n"
                     f"*Parent* - {row.get('Parent/Child', '-')}\n"
-                    f"*Line Status* - {row.get('Line Status', '-')}\n"
                     f"*Dispatched Date* - {row.get('Dispatch Date', '-')}\n"
                     f"*Transporter Name* - {row.get('Transporter', '-')}\n"
                     f"*TSP Name* - {row.get('TSP Partner Name', '-')}\n"
-                    f"*Issue From* - {row.get('Issue From', '-')}\n"
-                    f"*Source Of Fulfilment* - {row.get('Source Of Fulfilment', '-')}\n"
                     f"--------------------\n"
                 )
+                count += 1
             
-            st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}" target="_blank"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">🚀 Share Full Report on WhatsApp</button></a>', unsafe_allow_html=True)
+            # Append Indus Data at the end
+            wa_msg += st.session_state.get('wa_indus_data', "")
+            
+            st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}" target="_blank"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">🚀 Share Full Report with Indus Data</button></a>', unsafe_allow_html=True)
 
-# =====================================================================
-# 🟦 TAB 2, 3, 4 (NO CHANGES)
-# =====================================================================
+# --- TAB 2, 3, 4 (No Changes) ---
 with tab2:
     st.markdown("<h3 style='text-align: center;'>🧾 PO Report</h3>", unsafe_allow_html=True)
     if not st.session_state.get('po_unlocked', False):
