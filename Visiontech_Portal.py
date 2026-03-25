@@ -101,29 +101,25 @@ with tab1:
             # Table Display
             st.dataframe(df[final_cols], use_container_width=True, hide_index=True)
 
-            # --- NAYI SHARE LOGIC: WHATSAPP (SINGLE MSG) + EXCEL ---
+            # --- NAYI SHARE LOGIC: FIXED PLACEMENT ---
             st.divider()
             s_col1, s_col2 = st.columns([1, 4])
             
-            # Fetch common data for header
-            p_val = df['Project Number'].iloc[0] if not df.empty else "-"
-            s_id = df['Site ID'].iloc[0] if not df.empty else "-"
-            # Logic for Site Name (if available in your data)
-            s_nm = df.get('Site Name', pd.Series(['-'])).iloc[0] 
+            p_val = df['Project Number'].iloc[0] if not df.empty else "NA"
+            s_id = df['Site ID'].iloc[0] if not df.empty else "NA"
 
             # 1. Download Excel
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                df[final_cols].to_excel(writer, index=False, sheet_name='BOQ')
+                df[final_cols].to_excel(writer, index=False, sheet_name='BOQ_Report')
             processed_data = output.getvalue()
             
             with s_col1:
-                st.download_button(label="📥 Download Excel", data=processed_data, file_name=f"{p_val}_{s_id}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                st.download_button(label="📥 Download Excel", data=processed_data, file_name=f"{p_val}_{s_id}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
 
             with s_col2:
                 # 2. Building Single WhatsApp Message
                 wa_msg = f"📦 *BOQ REPORT: {p_val}*\n*Project Number* - {p_val}\n*Site ID* - {s_id}\n\n"
-                
                 for i, row in df.iterrows():
                     wa_msg += (
                         f"*{i+1}.*\n"
@@ -142,7 +138,7 @@ with tab1:
                         f"--------------------\n"
                     )
                 
-                st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">🚀 Share Full Table on WhatsApp</button></a>', unsafe_allow_html=True)
+                st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">🚀 Share Full Table on WhatsApp</button></a>', unsafe_allow_html=True)
 
 # =====================================================================
 # 🟦 TAB 2, 3, 4 (No Changes)
