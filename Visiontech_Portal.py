@@ -70,14 +70,15 @@ with tab1:
         if response.data:
             df_res = pd.DataFrame(response.data)
             
-            # --- FETCH INDUS DATA ---
+            # --- FETCH INDUS DATA FOR HEADER AND FOOTER ---
             site_id_for_wa = df_res['Site ID'].iloc[0] if not df_res.empty else None
             indus_wa_block = ""
+            site_name_from_indus = "-"
             if site_id_for_wa:
                 ind_res = supabase.table("Indus Data").select("*").ilike("Site ID", f"%{site_id_for_wa}%").execute()
                 if ind_res.data:
                     row_i = ind_res.data[0]
-                    # NAYI LINE: Fetching Lat and Long with a single space
+                    site_name_from_indus = row_i.get('Site Name', '-')
                     lat_v = row_i.get('Lat', '-')
                     long_v = row_i.get('Long', '-')
                     indus_wa_block = (
@@ -92,6 +93,7 @@ with tab1:
                         f"*Lat Long* :- {lat_v} {long_v}\n"
                     )
             st.session_state['wa_indus_data'] = indus_wa_block
+            st.session_state['wa_site_name'] = site_name_from_indus
 
             if 'Item Code' in df_res.columns:
                 df_res['Item Code'] = df_res['Item Code'].fillna('').astype(str).str.strip()
@@ -103,7 +105,6 @@ with tab1:
             
             if 'Item Code' in df_res.columns:
                 df_res['TempGroupKey'] = df_res.apply(lambda x: x['Sr. No.'] if x['Item Code'] == '' else x['Item Code'], axis=1)
-                # ERROR FIX: 'Item Code' added to agg_dict to prevent value loss
                 agg_dict = {col: 'sum' if col in qty_cols else 'first' for col in df_res.columns if col not in ['TempGroupKey']}
                 df_res = df_res.groupby('TempGroupKey', as_index=False).agg(agg_dict)
             
@@ -130,6 +131,7 @@ with tab1:
         
         p_val = df['Project Number'].iloc[0] if not df.empty else "NA"
         s_id = df['Site ID'].iloc[0] if not df.empty else "NA"
+        s_nm = st.session_state.get('wa_site_name', '-')
 
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
@@ -142,7 +144,8 @@ with tab1:
         with btn_col2:
             wa_msg = f"📦 *BOQ REPORT: {p_val}*\n"
             wa_msg += f"*Project Number* - {p_val}\n"
-            wa_msg += f"*Site ID* - {s_id}\n\n"
+            wa_msg += f"*Site ID* - {s_id}\n"
+            wa_msg += f"*Site Name* - {s_nm}\n\n"
             
             df_whatsapp = df[df['Parent/Child'].astype(str).str.lower() == 'parent']
             
@@ -167,7 +170,7 @@ with tab1:
             
             wa_msg += st.session_state.get('wa_indus_data', "")
             
-            st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}" target="_blank"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">🚀 Share Full Report with Indus Data</button></a>', unsafe_allow_html=True)
+            st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}" target="_blank"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">🚀 Share Full Report with Site Name</button></a>', unsafe_allow_html=True)
 
 # (Tab 2, 3, 4 NO CHANGES)
 with tab2:
