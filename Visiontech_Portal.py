@@ -70,6 +70,12 @@ with tab1:
         if response.data:
             df = pd.DataFrame(response.data)
             
+            # --- NAYI LINE: Blank Item Code aur Sr. No handle karne ke liye ---
+            if 'Item Code' in df.columns:
+                df = df[df['Item Code'].astype(str).str.strip() != '']
+                df = df.dropna(subset=['Item Code'])
+            # -------------------------------------------------------------
+
             if stn_pending_btn:
                 df = df[(df['Product'] == 'Capex') & (df['Issue From'] == 'Warehouse') & (df['Parent/Child'] == 'Parent')]
                 df['Qty A'] = pd.to_numeric(df['Qty A'], errors='coerce').fillna(0)
@@ -82,9 +88,18 @@ with tab1:
                 if col in df.columns:
                     df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
             
+            # --- UPDATED GROUPBY: Sr. No. ko include kiya hai taaki 5 lines 5 hi rahein ---
             if 'Item Code' in df.columns:
-                agg_dict = {col: 'sum' if col in qty_cols else 'first' for col in df.columns if col != 'Item Code'}
-                df = df.groupby('Item Code', as_index=False).agg(agg_dict)
+                # Groupby mein Sr. No. add karne se merge nahi hoga
+                groupby_cols = ['Sr. No.', 'Item Code'] if 'Sr. No.' in df.columns else ['Item Code']
+                agg_dict = {col: 'sum' if col in qty_cols else 'first' for col in df.columns if col not in groupby_cols}
+                df = df.groupby(groupby_cols, as_index=False).agg(agg_dict)
+            
+            # Numeric Sorting for Sr. No.
+            if 'Sr. No.' in df.columns:
+                df['Sr. No.'] = pd.to_numeric(df['Sr. No.'], errors='coerce')
+                df = df.sort_values(by='Sr. No.')
+            # -------------------------------------------------------------------------
             
             for col in ['Dispatch Date', 'BOQ Date']:
                 if col in df.columns:
