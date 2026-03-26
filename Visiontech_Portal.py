@@ -49,12 +49,11 @@ with tab1:
     with r2: boq_date_pick = st.date_input("Select Date", value=None, label_visibility="collapsed", key="boq_q_d_v5")
     
     gen_new_boq = False
-    with r3:
-        if st.button("📄 Generate New BOQ", use_container_width=True):
-            if boq_date_pick:
-                gen_new_boq = True
-            else:
-                st.warning("Select Date!")
+    if st.button("📄 Generate New BOQ", use_container_width=True):
+        if boq_date_pick:
+            gen_new_boq = True
+        else:
+            st.warning("Select Date!")
 
     if submit_search or stn_pending_btn or gen_new_boq:
         query = supabase.table("BOQ Report").select("*").limit(50000)
@@ -70,7 +69,7 @@ with tab1:
         if response.data:
             df_res = pd.DataFrame(response.data)
             
-            # --- FETCH INDUS DATA FOR HEADER AND FOOTER ---
+            # --- FETCH INDUS DATA ---
             site_id_for_wa = df_res['Site ID'].iloc[0] if not df_res.empty else None
             indus_wa_block = ""
             site_name_from_indus = "-"
@@ -103,10 +102,13 @@ with tab1:
                 if col in df_res.columns:
                     df_res[col] = pd.to_numeric(df_res[col], errors='coerce').fillna(0)
             
-            if 'Item Code' in df_res.columns:
-                df_res['TempGroupKey'] = df_res.apply(lambda x: x['Sr. No.'] if x['Item Code'] == '' else x['Item Code'], axis=1)
-                agg_dict = {col: 'sum' if col in qty_cols else 'first' for col in df_res.columns if col not in ['TempGroupKey']}
-                df_res = df_res.groupby('TempGroupKey', as_index=False).agg(agg_dict)
+            # --- NEW RULE: No Grouping for "Generate New BOQ" ---
+            if not gen_new_boq:
+                if 'Item Code' in df_res.columns:
+                    df_res['TempGroupKey'] = df_res.apply(lambda x: x['Sr. No.'] if x['Item Code'] == '' else x['Item Code'], axis=1)
+                    agg_dict = {col: 'sum' if col in qty_cols else 'first' for col in df_res.columns if col not in ['TempGroupKey']}
+                    df_res = df_res.groupby('TempGroupKey', as_index=False).agg(agg_dict)
+            # --------------------------------------------------
             
             if 'Sr. No.' in df_res.columns:
                 df_res['Sr. No.'] = pd.to_numeric(df_res['Sr. No.'], errors='coerce')
@@ -169,10 +171,9 @@ with tab1:
                 count += 1
             
             wa_msg += st.session_state.get('wa_indus_data', "")
-            
             st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}" target="_blank"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">🚀 Share Full Report with Site Name</button></a>', unsafe_allow_html=True)
 
-# (Tab 2, 3, 4 NO CHANGES)
+# (Tab 2, 3, 4 remain unchanged)
 with tab2:
     st.markdown("<h3 style='text-align: center;'>🧾 PO Report</h3>", unsafe_allow_html=True)
     if not st.session_state.get('po_unlocked', False):
