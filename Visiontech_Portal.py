@@ -47,21 +47,22 @@ with tab1:
     r1, r2, r3, r4 = st.columns([2, 1.5, 2, 4])
     with r1: stn_pending_btn = st.button("🚨 STN Pending Sites", use_container_width=True)
     
-    # Nayi Line: Date format set for display
-    with r2: boq_date_pick = st.date_input("Select Date", value=None, format="DD-Mon-YYYY", label_visibility="collapsed", key="boq_q_d_v5")
+    # FIX: Removed 'format' but kept the logic intact for filtering
+    with r2: boq_date_pick = st.date_input("Select Date", value=None, label_visibility="collapsed", key="boq_q_d_v5")
     
     gen_new_boq = False
-    if st.button("📄 Generate New BOQ", use_container_width=True):
-        if boq_date_pick:
-            gen_new_boq = True
-        else:
-            st.warning("Select Date!")
+    with r3:
+        if st.button("📄 Generate New BOQ", use_container_width=True):
+            if boq_date_pick:
+                gen_new_boq = True
+            else:
+                st.warning("Select Date!")
 
     if submit_search or stn_pending_btn or gen_new_boq:
         query = supabase.table("BOQ Report").select("*").limit(50000)
         
         if gen_new_boq:
-            # Error Fix: Supabase search requires YYYY-MM-DD but display is DD-Mon-YYYY
+            # Querying Database with correct format
             query = query.eq("BOQ Date", boq_date_pick.strftime('%Y-%m-%d'))
         elif not stn_pending_btn:
             if project_query: query = query.ilike("Project Number", f"%{project_query.strip()}%")
@@ -176,4 +177,60 @@ with tab1:
                 count += 1
             
             wa_msg += st.session_state.get('wa_indus_data', "")
-            st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}" target="_blank"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">🚀 Share Full Report with Site Name</button></a>', unsafe_allow_html=True)
+            st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}" target="_blank"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">🚀 Share Full Report</button></a>', unsafe_allow_html=True)
+
+# Tabs 2, 3, 4 NO CHANGES
+with tab2:
+    st.markdown("<h3 style='text-align: center;'>🧾 PO Report</h3>", unsafe_allow_html=True)
+    if not st.session_state.get('po_unlocked', False):
+        if st.text_input("Password PO:", type="password", key="p_lock") == "1234":
+            st.session_state.po_unlocked = True; st.rerun()
+    else:
+        with st.form("po_form"):
+            c1, c2, c3, c4 = st.columns(4)
+            with c1: s_po = st.text_input("📄 PO Number")
+            with c2: s_sh = st.text_input("🚚 Shipment No")
+            with c3: s_re = st.text_input("🧾 Receipt No")
+            with c4: st.write(""); sub_po = st.form_submit_button("🔍 Search PO")
+        if sub_po:
+            q = supabase.table("PO Report").select("*")
+            if s_po: q = q.eq("PO Number", int(s_po))
+            res = q.execute()
+            if res.data: st.dataframe(pd.DataFrame(res.data), use_container_width=True, hide_index=True)
+
+with tab3:
+    st.markdown("<h3 style='text-align: center;'>🏗️ Site Detail</h3>", unsafe_allow_html=True)
+    if not st.session_state.get('site_unlocked', False):
+        if st.text_input("Password Site:", type="password", key="s_lock") == "1234":
+            st.session_state.site_unlocked = True; st.rerun()
+    else:
+        with st.form("sd_form"):
+            s1, s2 = st.columns(2)
+            with s1: p_id = st.text_input("📁 Project ID")
+            with s2: site_id = st.text_input("📍 Site ID")
+            if st.form_submit_button("🔍 Search"):
+                res = supabase.table("Site Detail").select("*").ilike("SITE ID", f"%{site_id}%").execute()
+                if res.data:
+                    for row in res.data:
+                        txt = f"*Project Number* :- {row.get('Project Number','-')}\n*SITE ID* :- {row.get('SITE ID','-')}\n*Site Name* :- {row.get('Site Name','-')}\n*District* :- {row.get('District','-')}\n*Lat-Long* :- {row.get('Latitude','')} , {row.get('Longitude','')}"
+                        st.markdown("---")
+                        st.text(txt)
+                        st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(txt)}"><button style="background-color: #25D366; color: white; border: none; padding: 8px 15px; border-radius: 5px;">🚀 WhatsApp</button></a>', unsafe_allow_html=True)
+
+with tab4:
+    st.markdown("<h3 style='text-align: center;'>📊 Indus Basic Data</h3>", unsafe_allow_html=True)
+    with st.form("ind_form"):
+        i1, i2, i3 = st.columns(3)
+        with i1: in_id = st.text_input("📍 Site ID")
+        with i2: in_nm = st.text_input("🏢 Site Name")
+        with i3: in_cl = st.text_input("🗺️ Cluster")
+        if st.form_submit_button("🔍 Search Indus"):
+            q = supabase.table("Indus Data").select("*")
+            if in_id: q = q.ilike("Site ID", f"%{in_id}%")
+            res = q.execute()
+            if res.data:
+                for row in res.data:
+                    ind_txt = f"*Site ID* :- {row.get('Site ID','-')}\n*Site Name* :- {row.get('Site Name','-')}\n*District* :- {row.get('District','-')}\n*Area Name* :- {row.get('Area Name','-')}\n*Tech Name* :- {row.get('Tech Name','-')}\n*Tech Number* :- {row.get('Tech Number','-')}\n*FSE* :- {row.get('FSE','-')}\n*FSE Number* :- {row.get('FSE Number','-')}\n*AOM Name* :- {row.get('AOM Name','-')}\n*AOM Number* :- {row.get('AOM Number','-')}\n*Lat-Long* :- {row.get('Lat','')} , {row.get('Long','')}"
+                    st.markdown("---")
+                    st.text(ind_txt)
+                    st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(ind_txt)}"><button style="background-color: #25D366; color: white; border: none; padding: 8px 15px; border-radius: 5px;">🚀 WhatsApp</button></a>', unsafe_allow_html=True)
