@@ -12,6 +12,7 @@ KEY = "sb_publishable_rAiegSkKYvM0Z9n7sUAI1w_WTgm1S4I"
 supabase = create_client(URL, KEY)
 
 # Naya Project (Data & Finance Entry ke liye - Nayi details yahan bharein)
+# Dono projects alag rahenge
 NEW_URL = "https://your-new-project-id.supabase.co" 
 NEW_KEY = "your-new-anon-key-here"
 supabase_new = create_client(NEW_URL, NEW_KEY)
@@ -26,6 +27,7 @@ st.sidebar.divider()
 st.sidebar.caption("© 2026 Visiontech Infra Solutions")
 
 # --- 3. TABS ---
+# Humne 6 Tabs rakhe hain taaki naya kaam bhi isi app mein ho sake
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "📦 BOQ Report", "🧾 PO Report", "🏗️ Site Detail", 
     "📊 Indus Basic Data", "📁 Data Entry", "💰 Finance Entry"
@@ -155,7 +157,7 @@ with tab1:
             st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}" target="_blank"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">🚀 Share Full Report</button></a>', unsafe_allow_html=True)
 
 # =====================================================================
-# 🧾 TAB 2: PO REPORT (Fixed Columns & Error Handling)
+# 🧾 TAB 2: PO REPORT (Fixed BigInt / Numeric Error)
 # =====================================================================
 with tab2:
     st.markdown("<h3 style='text-align: center;'>🧾 PO Report Search</h3>", unsafe_allow_html=True)
@@ -174,21 +176,36 @@ with tab2:
         if sub_po:
             try:
                 q_po = supabase.table("PO Report").select("*")
-                if s_po.strip(): q_po = q_po.ilike("PO Number", f"%{s_po.strip()}%")
-                if s_sh.strip(): q_po = q_po.ilike("Shipment Number", f"%{s_sh.strip()}%")
-                if s_re.strip(): q_po = q_po.ilike("Receipt Number", f"%{s_re.strip()}%")
+                
+                # Check for PO Number (Handling BigInt Error)
+                if s_po.strip():
+                    if s_po.strip().isdigit():
+                        q_po = q_po.eq("PO Number", int(s_po.strip()))
+                    else:
+                        q_po = q_po.ilike("PO Number", f"%{s_po.strip()}%")
+                
+                # Check for Shipment Number (Handling BigInt Error)
+                if s_sh.strip():
+                    if s_sh.strip().isdigit():
+                        q_po = q_po.eq("Shipment Number", int(s_sh.strip()))
+                    else:
+                        q_po = q_po.ilike("Shipment Number", f"%{s_sh.strip()}%")
+                
+                # Check for Receipt Number
+                if s_re.strip():
+                    q_po = q_po.ilike("Receipt Number", f"%{s_re.strip()}%")
                 
                 res_po = q_po.execute()
                 if res_po.data:
                     df_po = pd.DataFrame(res_po.data)
                     st.dataframe(df_po, use_container_width=True, hide_index=True)
                 else:
-                    st.info("No PO data found.")
+                    st.info("No PO data found for the given search.")
             except Exception as e:
                 st.error(f"❌ API Error: {e}")
 
 # =====================================================================
-# 🏗️ TAB 3: SITE DETAIL
+# 🏗️ TAB 3: SITE DETAIL (Existing Logic)
 # =====================================================================
 with tab3:
     st.markdown("<h3 style='text-align: center;'>🏗️ Site Detail</h3>", unsafe_allow_html=True)
@@ -203,7 +220,7 @@ with tab3:
                     st.markdown(f"**Project**: {row.get('Project Number','-')} | **SITE ID**: {row.get('SITE ID','-')} | **Site Name**: {row.get('Site Name','-')}")
 
 # =====================================================================
-# 📊 TAB 4: INDUS BASIC DATA
+# 📊 TAB 4: INDUS BASIC DATA (Existing Logic)
 # =====================================================================
 with tab4:
     st.markdown("<h3 style='text-align: center;'>📊 Indus Basic Data</h3>", unsafe_allow_html=True)
@@ -217,7 +234,7 @@ with tab4:
         if res_ind.data: st.dataframe(pd.DataFrame(res_ind.data), use_container_width=True, hide_index=True)
 
 # =====================================================================
-# 📁 TAB 5: DATA ENTRY (New Project Connection)
+# 📁 TAB 5: DATA ENTRY (Naya Project)
 # =====================================================================
 with tab5:
     st.subheader("📁 Site Data Entry Form")
@@ -242,7 +259,7 @@ with tab5:
                     st.error(f"❌ Error: {e}")
 
 # =====================================================================
-# 💰 TAB 6: FINANCE ENTRY (Auto-Balance Logic)
+# 💰 TAB 6: FINANCE ENTRY (Naya Project - Auto Balance)
 # =====================================================================
 with tab6:
     st.subheader("💰 Finance & Billing Entry")
