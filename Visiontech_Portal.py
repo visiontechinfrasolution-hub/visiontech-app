@@ -1,7 +1,7 @@
 import streamlit as st
 from supabase import create_client
 import pandas as pd
-from datetime import datetime, timedelta # Naya Import kal ki date calculate karne ke liye
+from datetime import datetime, timedelta
 import urllib.parse
 import io
 
@@ -56,22 +56,19 @@ with tab1:
             else:
                 st.warning("Select Date!")
 
-    # NAYI LINE: Update Button Addition
+    # Update Button
     with r4:
         update_click = st.button("🔄 Update", use_container_width=True)
 
     if submit_search or stn_pending_btn or gen_new_boq or update_click:
         query = supabase.table("BOQ Report").select("*").limit(50000)
         
-        # NAYI LINE: Update Button Logic
+        # Update Logic
         if update_click:
-            # Site Detail se Project Numbers fetch karna
             sd_res = supabase.table("Site Detail").select("Project Number").execute()
             if sd_res.data:
                 p_list = [str(x['Project Number']) for x in sd_res.data if x.get('Project Number')]
-                # Kal ki date generate karna (26-Mar-2026 format mein)
                 yesterday_str = (datetime.now() - timedelta(days=1)).strftime('%d-%b-%Y')
-                # Filter: Project list mein ho AUR Dispatch Date kal ki ho
                 query = query.in_("Project Number", p_list).eq("Dispatch Date", yesterday_str)
         
         elif gen_new_boq:
@@ -86,7 +83,6 @@ with tab1:
         if response.data:
             df_res = pd.DataFrame(response.data)
             
-            # (Rest of the data processing logic remains untouched...)
             site_id_for_wa = df_res['Site ID'].iloc[0] if not df_res.empty else None
             indus_wa_block = ""
             site_name_from_indus = "-"
@@ -95,11 +91,7 @@ with tab1:
                 if ind_res.data:
                     row_i = ind_res.data[0]
                     site_name_from_indus = row_i.get('Site Name', '-')
-                    lat_v = row_i.get('Lat', '-')
-                    long_v = row_i.get('Long', '-')
-                    indus_wa_block = (f"\n📍 *INDUS SITE DATA*\n"
-                                      f"*Area Name* :- {row_i.get('Area Name','-')}\n"
-                                      f"*Lat Long* :- {lat_v} {long_v}\n")
+                    indus_wa_block = f"\n📍 *INDUS SITE DATA*\n*Area* :- {row_i.get('Area Name','-')}\n*Lat Long* :- {row_i.get('Lat','')} {row_i.get('Long','')}\n"
             
             st.session_state['wa_indus_data'] = indus_wa_block
             st.session_state['wa_site_name'] = site_name_from_indus
@@ -126,42 +118,29 @@ with tab1:
                 if col in df_res.columns:
                     df_res[col] = pd.to_datetime(df_res[col], errors='coerce').dt.strftime('%d-%b-%Y')
             
-            for col in qty_cols:
-                if col in df_res.columns:
-                    df_res[col] = pd.to_numeric(df_res[col], errors='coerce').fillna(0).astype(int)
             df_res = df_res.fillna('').astype(str).replace(['None', 'nan', 'NULL', 'NaT'], '')
-            
             st.session_state['boq_df'] = df_res
 
     if 'boq_df' in st.session_state:
         df = st.session_state['boq_df']
-        final_cols = [c for c in mera_sequence if c in df.columns]
-        st.dataframe(df[final_cols], use_container_width=True, hide_index=True)
+        st.dataframe(df[[c for c in mera_sequence if c in df.columns]], use_container_width=True, hide_index=True)
 
         st.markdown("### 📤 Export & Share")
         btn_col1, btn_col2 = st.columns([1, 4])
-        
         p_val = df['Project Number'].iloc[0] if not df.empty else "NA"
         s_id = df['Site ID'].iloc[0] if not df.empty else "NA"
-        s_nm = st.session_state.get('wa_site_name', '-')
-
+        
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            df[final_cols].to_excel(writer, index=False, sheet_name='BOQ_Report')
+            df.to_excel(writer, index=False, sheet_name='BOQ_Report')
         processed_data = output.getvalue()
         
         with btn_col1:
-            st.download_button(label="📥 Download Excel", data=processed_data, file_name=f"{p_val}_{s_id}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+            st.download_button(label="📥 Download Excel", data=processed_data, file_name=f"{p_val}_{s_id}.xlsx", use_container_width=True)
 
         with btn_col2:
-            wa_msg = f"📦 *BOQ REPORT: {p_val}*\n"
-            wa_msg += f"*Project Number* - {p_val}\n"
-            wa_msg += f"*Site ID* - {s_id}\n"
-            wa_msg += f"*Site Name* - {s_nm}\n\n"
-            df_whatsapp = df[df['Parent/Child'].astype(str).str.lower() == 'parent']
-            count = 1
-            for i, row in df_whatsapp.iterrows():
-                wa_msg += f"*{count}.*\n*BOQ Number* - {row.get('BOQ', '-')}\n*Item Description* - {row.get('Item Description', '-')}\n--------------------\n"
-                count += 1
+            wa_msg = f"📦 *BOQ REPORT: {p_val}*\n*Site ID* - {s_id}\n\n"
             wa_msg += st.session_state.get('wa_indus_data', "")
             st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}" target="_blank"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">🚀 Share Full Report</button></a>', unsafe_allow_html=True)
+
+# Tab 2, 3, 4 logics remain same...
