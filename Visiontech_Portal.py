@@ -6,9 +6,15 @@ import urllib.parse
 import io
 
 # --- 1. CONNECTION ---
+# Purana Project
 URL = "https://sckyflvukpmdqmdzjzhs.supabase.co"
 KEY = "sb_publishable_rAiegSkKYvM0Z9n7sUAI1w_WTgm1S4I" 
 supabase = create_client(URL, KEY)
+
+# Naya Project (Data & Finance Entry ke liye - Nayi details yahan bharein)
+NEW_URL = "https://your-new-project-id.supabase.co" 
+NEW_KEY = "your-new-anon-key-here"
+supabase_new = create_client(NEW_URL, NEW_KEY)
 
 # --- 2. UI SETUP ---
 st.set_page_config(page_title="Visiontech Infra Portal", layout="wide")
@@ -20,10 +26,13 @@ st.sidebar.divider()
 st.sidebar.caption("© 2026 Visiontech Infra Solutions")
 
 # --- 3. TABS ---
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📦 BOQ Report", "🧾 PO Report", "🏗️ Site Detail", "📊 Indus Basic Data", "📁 Data Entry", "💰 Finance Entry"])
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    "📦 BOQ Report", "🧾 PO Report", "🏗️ Site Detail", 
+    "📊 Indus Basic Data", "📁 Data Entry", "💰 Finance Entry"
+])
 
 # =====================================================================
-# 🟩 TAB 1: BOQ REPORT
+# 🟩 TAB 1: BOQ REPORT (Existing Logic - Unchanged)
 # =====================================================================
 with tab1:
     st.markdown("<h3 style='text-align: center; margin-bottom: 0px;'>🔍 Visiontech Infra Solutions</h3>", unsafe_allow_html=True)
@@ -146,7 +155,7 @@ with tab1:
             st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}" target="_blank"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">🚀 Share Full Report</button></a>', unsafe_allow_html=True)
 
 # =====================================================================
-# 🧾 TAB 2: PO REPORT (Fixed)
+# 🧾 TAB 2: PO REPORT (Fixed Columns & Error Handling)
 # =====================================================================
 with tab2:
     st.markdown("<h3 style='text-align: center;'>🧾 PO Report Search</h3>", unsafe_allow_html=True)
@@ -158,21 +167,25 @@ with tab2:
         with st.form("po_form_v5"):
             c1, c2, c3, c4 = st.columns(4)
             with c1: s_po = st.text_input("📄 PO Number")
-            with c2: s_sh = st.text_input("🚚 Shipment No")
-            with c3: s_re = st.text_input("🧾 Receipt No")
+            with c2: s_sh = st.text_input("🚚 Shipment Number")
+            with c3: s_re = st.text_input("🧾 Receipt Number")
             with c4: st.write(""); sub_po = st.form_submit_button("🔍 Search PO")
         
         if sub_po:
-            q_po = supabase.table("PO Report").select("*")
-            if s_po: q_po = q_po.ilike("PO Number", f"%{s_po.strip()}%")
-            if s_sh: q_po = q_po.ilike("Shipment Number", f"%{s_sh.strip()}%")
-            
-            res_po = q_po.execute()
-            if res_po.data:
-                df_po = pd.DataFrame(res_po.data)
-                st.dataframe(df_po, use_container_width=True, hide_index=True)
-            else:
-                st.info("No PO data found.")
+            try:
+                q_po = supabase.table("PO Report").select("*")
+                if s_po.strip(): q_po = q_po.ilike("PO Number", f"%{s_po.strip()}%")
+                if s_sh.strip(): q_po = q_po.ilike("Shipment Number", f"%{s_sh.strip()}%")
+                if s_re.strip(): q_po = q_po.ilike("Receipt Number", f"%{s_re.strip()}%")
+                
+                res_po = q_po.execute()
+                if res_po.data:
+                    df_po = pd.DataFrame(res_po.data)
+                    st.dataframe(df_po, use_container_width=True, hide_index=True)
+                else:
+                    st.info("No PO data found.")
+            except Exception as e:
+                st.error(f"❌ API Error: {e}")
 
 # =====================================================================
 # 🏗️ TAB 3: SITE DETAIL
@@ -202,3 +215,55 @@ with tab4:
     if sub_ind:
         res_ind = supabase.table("Indus Data").select("*").ilike("Site ID", f"%{in_id}%").execute()
         if res_ind.data: st.dataframe(pd.DataFrame(res_ind.data), use_container_width=True, hide_index=True)
+
+# =====================================================================
+# 📁 TAB 5: DATA ENTRY (New Project Connection)
+# =====================================================================
+with tab5:
+    st.subheader("📁 Site Data Entry Form")
+    with st.form("site_entry_form", clear_on_submit=True):
+        c1, c2 = st.columns(2)
+        with c1:
+            p_no_in = st.text_input("Project Number")
+            s_id_in = st.text_input("Site ID")
+        with c2:
+            d_dt_in = st.date_input("Dispatch Date", value=datetime.now())
+            qty_in = st.number_input("Qty A", min_value=0, step=1)
+        
+        if st.form_submit_button("🚀 Save Data"):
+            if p_no_in and s_id_in:
+                try:
+                    supabase_new.table("Site_Data_Entry").insert({
+                        "Project Number": p_no_in, "Site ID": s_id_in, 
+                        "Dispatch Date": d_dt_in.strftime('%d-%b-%Y'), "Qty A": qty_in
+                    }).execute()
+                    st.success("✅ Saved to New Project!")
+                except Exception as e:
+                    st.error(f"❌ Error: {e}")
+
+# =====================================================================
+# 💰 TAB 6: FINANCE ENTRY (Auto-Balance Logic)
+# =====================================================================
+with tab6:
+    st.subheader("💰 Finance & Billing Entry")
+    with st.form("fin_form", clear_on_submit=True):
+        f1, f2 = st.columns(2)
+        with f1:
+            fin_p_no = st.text_input("Project Number (Finance)")
+            t_bill = st.number_input("Team Billing", min_value=0)
+        with f2:
+            t_paid = st.number_input("Team Paid Amt", min_value=0)
+            fin_dt = st.date_input("Entry Date", value=datetime.now())
+            
+        if st.form_submit_button("💵 Record Finance"):
+            if fin_p_no:
+                v_bal = t_bill - t_paid
+                try:
+                    supabase_new.table("Finance_Entry").insert({
+                        "Project Number": fin_p_no, "Team Billing": t_bill,
+                        "Team Paid Amt": t_paid, "VIS Balance": v_bal,
+                        "Date": fin_dt.strftime('%d-%b-%Y')
+                    }).execute()
+                    st.success(f"✅ Saved! Auto-Balance: ₹{v_bal}")
+                except Exception as e:
+                    st.error(f"❌ Error: {e}")
