@@ -46,8 +46,6 @@ with tab1:
     st.divider()
     r1, r2, r3, r4 = st.columns([2, 1.5, 2, 4])
     with r1: stn_pending_btn = st.button("🚨 STN Pending Sites", use_container_width=True)
-    
-    # FIX: Removed 'format' but kept the logic intact for filtering
     with r2: boq_date_pick = st.date_input("Select Date", value=None, label_visibility="collapsed", key="boq_q_d_v5")
     
     gen_new_boq = False
@@ -62,8 +60,9 @@ with tab1:
         query = supabase.table("BOQ Report").select("*").limit(50000)
         
         if gen_new_boq:
-            # Querying Database with correct format
-            query = query.eq("BOQ Date", boq_date_pick.strftime('%Y-%m-%d'))
+            # NAYI LINE: Format change to match database string exactly (e.g. 25-Mar-2026)
+            formatted_date_str = boq_date_pick.strftime('%d-%b-%Y')
+            query = query.eq("BOQ Date", formatted_date_str)
         elif not stn_pending_btn:
             if project_query: query = query.ilike("Project Number", f"%{project_query.strip()}%")
             if site_query: query = query.ilike("Site ID", f"%{site_query.strip()}%")
@@ -116,12 +115,9 @@ with tab1:
             if 'Sr. No.' in df_res.columns:
                 df_res['Sr. No.'] = pd.to_numeric(df_res['Sr. No.'], errors='coerce')
                 df_res = df_res.sort_values(by='Sr. No.')
-            
-            # DISPLAY FORMAT FIX: 26-Mar-2026
             for col in ['Dispatch Date', 'BOQ Date']:
                 if col in df_res.columns:
                     df_res[col] = pd.to_datetime(df_res[col], errors='coerce').dt.strftime('%d-%b-%Y')
-            
             for col in qty_cols:
                 if col in df_res.columns:
                     df_res[col] = pd.to_numeric(df_res[col], errors='coerce').fillna(0).astype(int)
@@ -177,9 +173,9 @@ with tab1:
                 count += 1
             
             wa_msg += st.session_state.get('wa_indus_data', "")
-            st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}" target="_blank"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">🚀 Share Full Report</button></a>', unsafe_allow_html=True)
+            st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}" target="_blank"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">🚀 Share Full Report with Site Name</button></a>', unsafe_allow_html=True)
 
-# Tabs 2, 3, 4 NO CHANGES
+# (Tabs 2, 3, 4 NO CHANGES)
 with tab2:
     st.markdown("<h3 style='text-align: center;'>🧾 PO Report</h3>", unsafe_allow_html=True)
     if not st.session_state.get('po_unlocked', False):
