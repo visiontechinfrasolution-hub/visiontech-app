@@ -62,22 +62,18 @@ with tab1:
     if submit_search or stn_pending_btn or gen_new_boq or update_click:
         query = supabase.table("BOQ Report").select("*").limit(50000)
         
-        # --- FIXED UPDATE BUTTON LOGIC ---
+        # --- REVISED UPDATE LOGIC WITH ERROR HANDLING ---
         if update_click:
-            # select("*") use kiya taaki specific column name parsing error bypass ho jaye
-            sd_res = supabase.table("Site Detail").select("*").execute()
-            if sd_res.data:
-                # Python level par unique project numbers nikalna
-                p_list = list(set([str(x.get('Project Number', '')).strip() for x in sd_res.data if x.get('Project Number')]))
-                
-                if p_list:
-                    # Current Date is 27-Mar-2026, Yesterday is 26-Mar-2026
-                    yesterday_str = (datetime.now() - timedelta(days=1)).strftime('%d-%b-%Y')
-                    # Sirf wahi BOQ fetch honge jo is list mein hain aur kal dispatch huye hain
-                    query = query.in_("Project Number", p_list).eq("Dispatch Date", yesterday_str)
-                else:
-                    st.warning("Site Detail mein koi valid Project Number nahi mila.")
-        
+            try:
+                sd_res = supabase.table("Site Detail").select("*").execute()
+                if sd_res.data:
+                    p_list = list(set([str(x.get('Project Number', '')).strip() for x in sd_res.data if x.get('Project Number')]))
+                    if p_list:
+                        yesterday_str = (datetime.now() - timedelta(days=1)).strftime('%d-%b-%Y')
+                        query = query.in_("Project Number", p_list).eq("Dispatch Date", yesterday_str)
+            except Exception as e:
+                st.error(f"API Error: {e}")
+
         elif gen_new_boq:
             formatted_date_str = boq_date_pick.strftime('%d-%b-%Y')
             query = query.eq("BOQ Date", formatted_date_str)
@@ -90,7 +86,6 @@ with tab1:
         if response.data:
             df_res = pd.DataFrame(response.data)
             
-            # --- Indus Data Logic (Existing) ---
             site_id_for_wa = df_res['Site ID'].iloc[0] if not df_res.empty else None
             indus_wa_block = ""
             if site_id_for_wa:
@@ -100,18 +95,14 @@ with tab1:
                     indus_wa_block = f"\n📍 *INDUS SITE DATA*\n*Area* :- {row_i.get('Area Name','-')}\n*Lat Long* :- {row_i.get('Lat','')} {row_i.get('Long','')}\n"
             st.session_state['wa_indus_data'] = indus_wa_block
 
-            # Qty Numeric handling
-            qty_cols = ['Qty A', 'Qty B', 'Qty C']
-            for col in qty_cols:
+            for col in ['Qty A', 'Qty B', 'Qty C']:
                 if col in df_res.columns:
                     df_res[col] = pd.to_numeric(df_res[col], errors='coerce').fillna(0)
             
-            # Sort by Sr. No.
             if 'Sr. No.' in df_res.columns:
                 df_res['Sr. No.'] = pd.to_numeric(df_res['Sr. No.'], errors='coerce')
                 df_res = df_res.sort_values(by='Sr. No.')
 
-            # Date Formatting for Display
             for col in ['Dispatch Date', 'BOQ Date']:
                 if col in df_res.columns:
                     df_res[col] = pd.to_datetime(df_res[col], errors='coerce').dt.strftime('%d-%b-%Y')
@@ -141,7 +132,6 @@ with tab1:
             wa_msg += st.session_state.get('wa_indus_data', "")
             st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}" target="_blank"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">🚀 Share Full Report</button></a>', unsafe_allow_html=True)
 
-# --- TABS 2, 3, 4 (Original Logic) ---
 with tab2:
     st.markdown("<h3 style='text-align: center;'>🧾 PO Report</h3>", unsafe_allow_html=True)
     if not st.session_state.get('po_unlocked', False):
