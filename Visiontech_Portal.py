@@ -56,19 +56,26 @@ with tab1:
             else:
                 st.warning("Select Date!")
 
+    # Nayi Line: Update Button
     with r4:
         update_click = st.button("🔄 Update", use_container_width=True)
 
     if submit_search or stn_pending_btn or gen_new_boq or update_click:
         query = supabase.table("BOQ Report").select("*").limit(50000)
         
+        # FIX: Update logic matching Project ID (from Site Detail) to Project Number (in BOQ Report)
         if update_click:
-            sd_res = supabase.table("Site Detail").select("Project Number").execute()
+            sd_res = supabase.table("Site Detail").select("Project ID").execute()
             if sd_res.data:
-                p_list = [str(x['Project Number']) for x in sd_res.data if x.get('Project Number') is not None]
+                p_list = [str(x['Project ID']) for x in sd_res.data if x.get('Project ID') is not None]
                 if p_list:
                     yesterday_str = (datetime.now() - timedelta(days=1)).strftime('%d-%b-%Y')
                     query = query.in_("Project Number", p_list).eq("Dispatch Date", yesterday_str)
+                else:
+                    st.warning("No valid Project IDs found in Site Detail.")
+            else:
+                st.error("Could not fetch Site Detail data.")
+                
         elif gen_new_boq:
             formatted_date_str = boq_date_pick.strftime('%d-%b-%Y')
             query = query.eq("BOQ Date", formatted_date_str)
@@ -92,7 +99,7 @@ with tab1:
                     site_name_from_indus = row_i.get('Site Name', '-')
                     lat_v = row_i.get('Lat', '-')
                     long_v = row_i.get('Long', '-')
-                    indus_wa_block = f"\n📍 *INDUS SITE DATA*\n*Area Name* :- {row_i.get('Area Name','-')}\n*Lat Long* :- {lat_v} {long_v}\n"
+                    indus_wa_block = f"\n📍 *INDUS SITE DATA*\n*Area* :- {row_i.get('Area Name','-')}\n*Lat Long* :- {lat_v} {long_v}\n"
             
             st.session_state['wa_indus_data'] = indus_wa_block
             st.session_state['wa_site_name'] = site_name_from_indus
@@ -105,6 +112,7 @@ with tab1:
                 if col in df_res.columns:
                     df_res[col] = pd.to_numeric(df_res[col], errors='coerce').fillna(0)
             
+            # RULE: No Grouping for Update or New BOQ
             if not gen_new_boq and not update_click:
                 if 'Item Code' in df_res.columns:
                     df_res['TempGroupKey'] = df_res.apply(lambda x: x['Sr. No.'] if x['Item Code'] == '' else x['Item Code'], axis=1)
@@ -145,4 +153,52 @@ with tab1:
             wa_msg += st.session_state.get('wa_indus_data', "")
             st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}" target="_blank"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">🚀 Share Full Report</button></a>', unsafe_allow_html=True)
 
-# Tabs 2, 3, 4 logics remain same...
+# --- TABS 2, 3, 4 (UNCHANGED) ---
+with tab2:
+    st.markdown("<h3 style='text-align: center;'>🧾 PO Report</h3>", unsafe_allow_html=True)
+    if not st.session_state.get('po_unlocked', False):
+        if st.text_input("Password PO:", type="password", key="p_lock") == "1234":
+            st.session_state.po_unlocked = True; st.rerun()
+    else:
+        with st.form("po_form"):
+            c1, c2, c3, c4 = st.columns(4)
+            with c1: s_po = st.text_input("📄 PO Number")
+            with c2: s_sh = st.text_input("🚚 Shipment No")
+            with c3: s_re = st.text_input("🧾 Receipt No")
+            with c4: st.write(""); sub_po = st.form_submit_button("🔍 Search PO")
+        if sub_po:
+            q = supabase.table("PO Report").select("*")
+            if s_po: q = q.eq("PO Number", int(s_po))
+            res = q.execute()
+            if res.data: st.dataframe(pd.DataFrame(res.data), use_container_width=True, hide_index=True)
+
+with tab3:
+    st.markdown("<h3 style='text-align: center;'>🏗️ Site Detail</h3>", unsafe_allow_html=True)
+    if not st.session_state.get('site_unlocked', False):
+        if st.text_input("Password Site:", type="password", key="s_lock") == "1234":
+            st.session_state.site_unlocked = True; st.rerun()
+    else:
+        with st.form("sd_form"):
+            s1, s2 = st.columns(2)
+            with s1: p_id = st.text_input("📁 Project ID")
+            with s2: site_id = st.text_input("📍 Site ID")
+            if st.form_submit_button("🔍 Search"):
+                res = supabase.table("Site Detail").select("*").ilike("SITE ID", f"%{site_id}%").execute()
+                if res.data:
+                    for row in res.data:
+                        txt = f"*Project ID* :- {row.get('Project ID','-')}\n*SITE ID* :- {row.get('SITE ID','-')}\n*Site Name* :- {row.get('Site Name','-')}"
+                        st.markdown("---")
+                        st.text(txt)
+
+with tab4:
+    st.markdown("<h3 style='text-align: center;'>📊 Indus Basic Data</h3>", unsafe_allow_html=True)
+    with st.form("ind_form"):
+        i1, i2, i3 = st.columns(3)
+        with i1: in_id = st.text_input("📍 Site ID", key="ind_id_v5")
+        with i2: in_nm = st.text_input("🏢 Site Name", key="ind_nm_v5")
+        with i3: st.write(""); sub_ind = st.form_submit_button("🔍 Search Indus")
+    if sub_ind:
+        q = supabase.table("Indus Data").select("*")
+        if in_id: q = q.ilike("Site ID", f"%{in_id}%")
+        res = q.execute()
+        if res.data: st.dataframe(pd.DataFrame(res.data), use_container_width=True, hide_index=True)
