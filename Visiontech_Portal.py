@@ -1,7 +1,7 @@
 import streamlit as st
 from supabase import create_client
 import pandas as pd
-from datetime import datetime, timedelta # Naya Import kal ki date ke liye
+from datetime import datetime, timedelta # Naya Import kal ki date calculate karne ke liye
 import urllib.parse
 import io
 
@@ -44,7 +44,7 @@ with tab1:
             st.write(""); st.empty() 
 
     st.divider()
-    r1, r2, r3, r4 = st.columns([2, 1.5, 2, 2]) # r4 column resize kiya button ke liye
+    r1, r2, r3, r4 = st.columns([2, 1.5, 2, 2])
     with r1: stn_pending_btn = st.button("🚨 STN Pending Sites", use_container_width=True)
     with r2: boq_date_pick = st.date_input("Select Date", value=None, label_visibility="collapsed", key="boq_q_d_v5")
     
@@ -56,19 +56,22 @@ with tab1:
             else:
                 st.warning("Select Date!")
 
-    # NAYI LINE: Update Button Logic
+    # NAYI LINE: Update Button Addition
     with r4:
         update_click = st.button("🔄 Update", use_container_width=True)
 
     if submit_search or stn_pending_btn or gen_new_boq or update_click:
         query = supabase.table("BOQ Report").select("*").limit(50000)
         
-        # NAYI LINE: Update Logic filter
+        # NAYI LINE: Update Button Logic
         if update_click:
+            # Site Detail se Project Numbers fetch karna
             sd_res = supabase.table("Site Detail").select("Project Number").execute()
             if sd_res.data:
                 p_list = [str(x['Project Number']) for x in sd_res.data if x.get('Project Number')]
+                # Kal ki date generate karna (26-Mar-2026 format mein)
                 yesterday_str = (datetime.now() - timedelta(days=1)).strftime('%d-%b-%Y')
+                # Filter: Project list mein ho AUR Dispatch Date kal ki ho
                 query = query.in_("Project Number", p_list).eq("Dispatch Date", yesterday_str)
         
         elif gen_new_boq:
@@ -83,7 +86,7 @@ with tab1:
         if response.data:
             df_res = pd.DataFrame(response.data)
             
-            # --- FETCH INDUS DATA ---
+            # (Rest of the data processing logic remains untouched...)
             site_id_for_wa = df_res['Site ID'].iloc[0] if not df_res.empty else None
             indus_wa_block = ""
             site_name_from_indus = "-"
@@ -94,11 +97,10 @@ with tab1:
                     site_name_from_indus = row_i.get('Site Name', '-')
                     lat_v = row_i.get('Lat', '-')
                     long_v = row_i.get('Long', '-')
-                    indus_wa_block = (
-                        f"\n📍 *INDUS SITE DATA*\n"
-                        f"*Area Name* :- {row_i.get('Area Name','-')}\n"
-                        f"*Lat Long* :- {lat_v} {long_v}\n"
-                    )
+                    indus_wa_block = (f"\n📍 *INDUS SITE DATA*\n"
+                                      f"*Area Name* :- {row_i.get('Area Name','-')}\n"
+                                      f"*Lat Long* :- {lat_v} {long_v}\n")
+            
             st.session_state['wa_indus_data'] = indus_wa_block
             st.session_state['wa_site_name'] = site_name_from_indus
 
@@ -110,7 +112,6 @@ with tab1:
                 if col in df_res.columns:
                     df_res[col] = pd.to_numeric(df_res[col], errors='coerce').fillna(0)
             
-            # NO GROUPING FOR UPDATE OR NEW BOQ
             if not gen_new_boq and not update_click:
                 if 'Item Code' in df_res.columns:
                     df_res['TempGroupKey'] = df_res.apply(lambda x: x['Sr. No.'] if x['Item Code'] == '' else x['Item Code'], axis=1)
@@ -120,9 +121,11 @@ with tab1:
             if 'Sr. No.' in df_res.columns:
                 df_res['Sr. No.'] = pd.to_numeric(df_res['Sr. No.'], errors='coerce')
                 df_res = df_res.sort_values(by='Sr. No.')
+
             for col in ['Dispatch Date', 'BOQ Date']:
                 if col in df_res.columns:
                     df_res[col] = pd.to_datetime(df_res[col], errors='coerce').dt.strftime('%d-%b-%Y')
+            
             for col in qty_cols:
                 if col in df_res.columns:
                     df_res[col] = pd.to_numeric(df_res[col], errors='coerce').fillna(0).astype(int)
@@ -158,9 +161,7 @@ with tab1:
             df_whatsapp = df[df['Parent/Child'].astype(str).str.lower() == 'parent']
             count = 1
             for i, row in df_whatsapp.iterrows():
-                wa_msg += f"*{count}.*\n*BOQ* - {row.get('BOQ', '-')}\n*Desc* - {row.get('Item Description', '-')}\n--------------------\n"
+                wa_msg += f"*{count}.*\n*BOQ Number* - {row.get('BOQ', '-')}\n*Item Description* - {row.get('Item Description', '-')}\n--------------------\n"
                 count += 1
             wa_msg += st.session_state.get('wa_indus_data', "")
             st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}" target="_blank"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">🚀 Share Full Report</button></a>', unsafe_allow_html=True)
-
-# TAB 2, 3, 4 purana logic...
