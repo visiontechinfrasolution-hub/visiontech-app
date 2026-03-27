@@ -62,10 +62,10 @@ with tab1:
     if submit_search or stn_pending_btn or gen_new_boq or update_click:
         query = supabase.table("BOQ Report").select("*").limit(50000)
         
-        # --- REVISED UPDATE LOGIC WITH ERROR HANDLING ---
+        # --- FIXED UPDATE LOGIC WITH TABLE NAME 'Site Data' ---
         if update_click:
             try:
-                sd_res = supabase.table("Site Detail").select("*").execute()
+                sd_res = supabase.table("Site Data").select("*").execute()
                 if sd_res.data:
                     p_list = list(set([str(x.get('Project Number', '')).strip() for x in sd_res.data if x.get('Project Number')]))
                     if p_list:
@@ -161,7 +161,7 @@ with tab3:
             with s1: p_id_sd = st.text_input("📁 Project Number Search")
             with s2: site_id_sd = st.text_input("📍 Site ID Search")
             if st.form_submit_button("🔍 Search Detail"):
-                res = supabase.table("Site Detail").select("*").ilike("SITE ID", f"%{site_id_sd}%").execute()
+                res = supabase.table("Site Data").select("*").ilike("SITE ID", f"%{site_id_sd}%").execute()
                 if res.data:
                     for row in res.data:
                         txt = f"*Project* :- {row.get('Project Number','-')}\n*SITE ID* :- {row.get('SITE ID','-')}\n*Site Name* :- {row.get('Site Name','-')}"
