@@ -62,7 +62,6 @@ with tab1:
     if submit_search or stn_pending_btn or gen_new_boq or update_click:
         query = supabase.table("BOQ Report").select("*").limit(50000)
         
-        # --- FIXED UPDATE LOGIC WITH TABLE NAME 'Site Data' ---
         if update_click:
             try:
                 sd_res = supabase.table("Site Data").select("*").execute()
@@ -86,6 +85,19 @@ with tab1:
         if response.data:
             df_res = pd.DataFrame(response.data)
             
+            # --- START FIXED LOGIC ---
+            qty_cols = ['Qty A', 'Qty B', 'Qty C']
+            for col in qty_cols:
+                if col in df_res.columns:
+                    df_res[col] = pd.to_numeric(df_res[col], errors='coerce').fillna(0).astype(int)
+
+            if not gen_new_boq:
+                if 'Item Code' in df_res.columns:
+                    df_res['TempGroupKey'] = df_res.apply(lambda x: x['Sr. No.'] if str(x['Item Code']).strip() == '' else x['Item Code'], axis=1)
+                    agg_dict = {col: 'sum' if col in qty_cols else 'first' for col in df_res.columns if col not in ['TempGroupKey']}
+                    df_res = df_res.groupby('TempGroupKey', as_index=False).agg(agg_dict)
+            # --- END FIXED LOGIC ---
+
             site_id_for_wa = df_res['Site ID'].iloc[0] if not df_res.empty else None
             indus_wa_block = ""
             if site_id_for_wa:
@@ -95,10 +107,6 @@ with tab1:
                     indus_wa_block = f"\n📍 *INDUS SITE DATA*\n*Area* :- {row_i.get('Area Name','-')}\n*Lat Long* :- {row_i.get('Lat','')} {row_i.get('Long','')}\n"
             st.session_state['wa_indus_data'] = indus_wa_block
 
-            for col in ['Qty A', 'Qty B', 'Qty C']:
-                if col in df_res.columns:
-                    df_res[col] = pd.to_numeric(df_res[col], errors='coerce').fillna(0)
-            
             if 'Sr. No.' in df_res.columns:
                 df_res['Sr. No.'] = pd.to_numeric(df_res['Sr. No.'], errors='coerce')
                 df_res = df_res.sort_values(by='Sr. No.')
@@ -112,7 +120,8 @@ with tab1:
 
     if 'boq_df' in st.session_state:
         df = st.session_state['boq_df']
-        st.dataframe(df[[c for c in mera_sequence if c in df.columns]], use_container_width=True, hide_index=True)
+        final_cols = [c for c in mera_sequence if c in df.columns]
+        st.dataframe(df[final_cols], use_container_width=True, hide_index=True)
 
         st.markdown("### 📤 Export & Share")
         btn_col1, btn_col2 = st.columns([1, 4])
