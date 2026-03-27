@@ -62,15 +62,15 @@ with tab1:
     if submit_search or stn_pending_btn or gen_new_boq or update_click:
         query = supabase.table("BOQ Report").select("*").limit(50000)
         
-        # --- FIXED UPDATE LOGIC ---
+        # --- FIXED UPDATE BUTTON LOGIC ---
         if update_click:
-            sd_res = supabase.table("Site Detail").select("*").execute()
+            sd_res = supabase.table("Site Detail").select("Project Number").execute()
             if sd_res.data:
-                p_list = [str(x.get('Project Number', '')).strip() for x in sd_res.data if x.get('Project Number')]
+                p_list = list(set([str(x['Project Number']).strip() for x in sd_res.data if x.get('Project Number')]))
                 if p_list:
                     yesterday_str = (datetime.now() - timedelta(days=1)).strftime('%d-%b-%Y')
                     query = query.in_("Project Number", p_list).eq("Dispatch Date", yesterday_str)
-
+        
         elif gen_new_boq:
             formatted_date_str = boq_date_pick.strftime('%d-%b-%Y')
             query = query.eq("BOQ Date", formatted_date_str)
@@ -83,7 +83,7 @@ with tab1:
         if response.data:
             df_res = pd.DataFrame(response.data)
             
-            # (Your existing Indus Data Fetching Logic)
+            # --- Indus Data Handling ---
             site_id_for_wa = df_res['Site ID'].iloc[0] if not df_res.empty else None
             indus_wa_block = ""
             if site_id_for_wa:
@@ -91,14 +91,19 @@ with tab1:
                 if ind_res.data:
                     row_i = ind_res.data[0]
                     indus_wa_block = f"\n📍 *INDUS SITE DATA*\n*Area* :- {row_i.get('Area Name','-')}\n*Lat Long* :- {row_i.get('Lat','')} {row_i.get('Long','')}\n"
-            
             st.session_state['wa_indus_data'] = indus_wa_block
 
-            # Qty and Date Formatting
+            # Numeric & Date Formatting
             for col in ['Qty A', 'Qty B', 'Qty C']:
                 if col in df_res.columns:
                     df_res[col] = pd.to_numeric(df_res[col], errors='coerce').fillna(0)
             
+            if not gen_new_boq and not update_click:
+                if 'Item Code' in df_res.columns:
+                    df_res['TempGroupKey'] = df_res.apply(lambda x: x['Sr. No.'] if x['Item Code'] == '' else x['Item Code'], axis=1)
+                    agg_dict = {col: 'sum' if col in qty_cols else 'first' for col in df_res.columns if col not in ['TempGroupKey']}
+                    df_res = df_res.groupby('TempGroupKey', as_index=False).agg(agg_dict)
+
             for col in ['Dispatch Date', 'BOQ Date']:
                 if col in df_res.columns:
                     df_res[col] = pd.to_datetime(df_res[col], errors='coerce').dt.strftime('%d-%b-%Y')
@@ -110,4 +115,4 @@ with tab1:
         df = st.session_state['boq_df']
         st.dataframe(df[[c for c in mera_sequence if c in df.columns]], use_container_width=True, hide_index=True)
 
-# Share Logic and other Tabs remain exactly as in your original file...
+# Tabs 2, 3, 4 logics remain same...
