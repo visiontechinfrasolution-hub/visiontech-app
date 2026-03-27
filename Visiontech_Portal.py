@@ -62,19 +62,15 @@ with tab1:
     if submit_search or stn_pending_btn or gen_new_boq or update_click:
         query = supabase.table("BOQ Report").select("*").limit(50000)
         
+        # --- FIXED UPDATE LOGIC ---
         if update_click:
-            # Corrected Column Name and Cleaning Logic
             sd_res = supabase.table("Site Detail").select("Project Number").execute()
             if sd_res.data:
-                p_list = [str(x['Project Number']).strip() for x in sd_res.data if x.get('Project Number')]
+                p_list = list(set([str(x['Project Number']).strip() for x in sd_res.data if x.get('Project Number')]))
                 if p_list:
                     yesterday_str = (datetime.now() - timedelta(days=1)).strftime('%d-%b-%Y')
                     query = query.in_("Project Number", p_list).eq("Dispatch Date", yesterday_str)
-                else:
-                    st.warning("No Project Numbers found.")
-            else:
-                st.error("Site Detail data fetch failed.")
-
+        
         elif gen_new_boq:
             formatted_date_str = boq_date_pick.strftime('%d-%b-%Y')
             query = query.eq("BOQ Date", formatted_date_str)
@@ -87,7 +83,7 @@ with tab1:
         if response.data:
             df_res = pd.DataFrame(response.data)
             
-            # --- FETCH INDUS DATA ---
+            # (Fetching Indus Data as per your original logic)
             site_id_for_wa = df_res['Site ID'].iloc[0] if not df_res.empty else None
             indus_wa_block = ""
             site_name_from_indus = "-"
@@ -96,7 +92,7 @@ with tab1:
                 if ind_res.data:
                     row_i = ind_res.data[0]
                     site_name_from_indus = row_i.get('Site Name', '-')
-                    indus_wa_block = f"\n📍 *INDUS SITE DATA*\n*Area* :- {row_i.get('Area Name','-')}\n*Lat Long* :- {row_i.get('Lat','')} {row_i.get('Long','')}\n"
+                    indus_wa_block = f"\n📍 *INDUS SITE DATA*\n*Area Name* :- {row_i.get('Area Name','-')}\n*Lat Long* :- {row_i.get('Lat','')} {row_i.get('Long','')}\n"
             
             st.session_state['wa_indus_data'] = indus_wa_block
             st.session_state['wa_site_name'] = site_name_from_indus
@@ -175,10 +171,10 @@ with tab3:
     else:
         with st.form("sd_form"):
             s1, s2 = st.columns(2)
-            with s1: p_id = st.text_input("📁 Project Number Search")
-            with s2: site_id = st.text_input("📍 Site ID Search")
+            with s1: p_id_sd = st.text_input("📁 Project Number Search")
+            with s2: site_id_sd = st.text_input("📍 Site ID Search")
             if st.form_submit_button("🔍 Search Detail"):
-                res = supabase.table("Site Detail").select("*").ilike("SITE ID", f"%{site_id}%").execute()
+                res = supabase.table("Site Detail").select("*").ilike("SITE ID", f"%{site_id_sd}%").execute()
                 if res.data:
                     for row in res.data:
                         txt = f"*Project* :- {row.get('Project Number','-')}\n*SITE ID* :- {row.get('SITE ID','-')}\n*Site Name* :- {row.get('Site Name','-')}"
