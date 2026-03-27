@@ -56,21 +56,19 @@ with tab1:
             else:
                 st.warning("Select Date!")
 
-    # Update Button
     with r4:
         update_click = st.button("🔄 Update", use_container_width=True)
 
     if submit_search or stn_pending_btn or gen_new_boq or update_click:
         query = supabase.table("BOQ Report").select("*").limit(50000)
         
-        # Update Logic
         if update_click:
             sd_res = supabase.table("Site Detail").select("Project Number").execute()
             if sd_res.data:
-                p_list = [str(x['Project Number']) for x in sd_res.data if x.get('Project Number')]
-                yesterday_str = (datetime.now() - timedelta(days=1)).strftime('%d-%b-%Y')
-                query = query.in_("Project Number", p_list).eq("Dispatch Date", yesterday_str)
-        
+                p_list = [str(x['Project Number']) for x in sd_res.data if x.get('Project Number') is not None]
+                if p_list:
+                    yesterday_str = (datetime.now() - timedelta(days=1)).strftime('%d-%b-%Y')
+                    query = query.in_("Project Number", p_list).eq("Dispatch Date", yesterday_str)
         elif gen_new_boq:
             formatted_date_str = boq_date_pick.strftime('%d-%b-%Y')
             query = query.eq("BOQ Date", formatted_date_str)
@@ -83,6 +81,7 @@ with tab1:
         if response.data:
             df_res = pd.DataFrame(response.data)
             
+            # --- FETCH INDUS DATA ---
             site_id_for_wa = df_res['Site ID'].iloc[0] if not df_res.empty else None
             indus_wa_block = ""
             site_name_from_indus = "-"
@@ -91,7 +90,9 @@ with tab1:
                 if ind_res.data:
                     row_i = ind_res.data[0]
                     site_name_from_indus = row_i.get('Site Name', '-')
-                    indus_wa_block = f"\n📍 *INDUS SITE DATA*\n*Area* :- {row_i.get('Area Name','-')}\n*Lat Long* :- {row_i.get('Lat','')} {row_i.get('Long','')}\n"
+                    lat_v = row_i.get('Lat', '-')
+                    long_v = row_i.get('Long', '-')
+                    indus_wa_block = f"\n📍 *INDUS SITE DATA*\n*Area Name* :- {row_i.get('Area Name','-')}\n*Lat Long* :- {lat_v} {long_v}\n"
             
             st.session_state['wa_indus_data'] = indus_wa_block
             st.session_state['wa_site_name'] = site_name_from_indus
@@ -123,7 +124,8 @@ with tab1:
 
     if 'boq_df' in st.session_state:
         df = st.session_state['boq_df']
-        st.dataframe(df[[c for c in mera_sequence if c in df.columns]], use_container_width=True, hide_index=True)
+        final_cols = [c for c in mera_sequence if c in df.columns]
+        st.dataframe(df[final_cols], use_container_width=True, hide_index=True)
 
         st.markdown("### 📤 Export & Share")
         btn_col1, btn_col2 = st.columns([1, 4])
@@ -143,4 +145,4 @@ with tab1:
             wa_msg += st.session_state.get('wa_indus_data', "")
             st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}" target="_blank"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">🚀 Share Full Report</button></a>', unsafe_allow_html=True)
 
-# Tab 2, 3, 4 logics remain same...
+# Tabs 2, 3, 4 logics remain same...
