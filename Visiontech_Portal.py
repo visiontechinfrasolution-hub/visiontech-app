@@ -20,7 +20,7 @@ st.sidebar.divider()
 st.sidebar.caption("© 2026 Visiontech Infra Solutions")
 
 # --- 3. TABS ---
-tab1, tab2, tab3, tab4 = st.tabs(["📦 BOQ Report", "🧾 PO Report", "🏗️ Site Detail", "📊 Indus Basic Data"])
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📦 BOQ Report", "🧾 PO Report", "🏗️ Site Detail", "📊 Indus Basic Data", "📁 Data Entry", "💰 Finance Entry"])
 
 # =====================================================================
 # 🟩 TAB 1: BOQ REPORT
@@ -85,7 +85,6 @@ with tab1:
         if response.data:
             df_res = pd.DataFrame(response.data)
             
-            # --- START FIXED LOGIC ---
             qty_cols = ['Qty A', 'Qty B', 'Qty C']
             for col in qty_cols:
                 if col in df_res.columns:
@@ -101,7 +100,6 @@ with tab1:
                     df_res = df_res.groupby('TempGroupKey', as_index=False).agg(agg_dict)
             
             st.session_state['display_cols'] = display_sequence
-            # --- END FIXED LOGIC ---
 
             site_id_for_wa = df_res['Site ID'].iloc[0] if not df_res.empty and 'Site ID' in df_res.columns else None
             indus_wa_block = ""
@@ -146,4 +144,61 @@ with tab1:
             wa_msg = f"📦 *BOQ REPORT: {p_val}*\n*Site ID* - {s_id}\n\n"
             wa_msg += st.session_state.get('wa_indus_data', "")
             st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}" target="_blank"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">🚀 Share Full Report</button></a>', unsafe_allow_html=True)
-# ... Baaki PO/Site/Indus tabs same rahenge.
+
+# =====================================================================
+# 🧾 TAB 2: PO REPORT (Fixed)
+# =====================================================================
+with tab2:
+    st.markdown("<h3 style='text-align: center;'>🧾 PO Report Search</h3>", unsafe_allow_html=True)
+    if not st.session_state.get('po_unlocked', False):
+        if st.text_input("Password PO:", type="password", key="p_lock_v5") == "1234":
+            st.session_state.po_unlocked = True
+            st.rerun()
+    else:
+        with st.form("po_form_v5"):
+            c1, c2, c3, c4 = st.columns(4)
+            with c1: s_po = st.text_input("📄 PO Number")
+            with c2: s_sh = st.text_input("🚚 Shipment No")
+            with c3: s_re = st.text_input("🧾 Receipt No")
+            with c4: st.write(""); sub_po = st.form_submit_button("🔍 Search PO")
+        
+        if sub_po:
+            q_po = supabase.table("PO Report").select("*")
+            if s_po: q_po = q_po.ilike("PO Number", f"%{s_po.strip()}%")
+            if s_sh: q_po = q_po.ilike("Shipment Number", f"%{s_sh.strip()}%")
+            
+            res_po = q_po.execute()
+            if res_po.data:
+                df_po = pd.DataFrame(res_po.data)
+                st.dataframe(df_po, use_container_width=True, hide_index=True)
+            else:
+                st.info("No PO data found.")
+
+# =====================================================================
+# 🏗️ TAB 3: SITE DETAIL
+# =====================================================================
+with tab3:
+    st.markdown("<h3 style='text-align: center;'>🏗️ Site Detail</h3>", unsafe_allow_html=True)
+    with st.form("sd_form_v5"):
+        s1, s2 = st.columns(2)
+        with s1: p_id_sd = st.text_input("📁 Project Number Search")
+        with s2: site_id_sd = st.text_input("📍 Site ID Search")
+        if st.form_submit_button("🔍 Search Detail"):
+            res_sd = supabase.table("Site Data").select("*").ilike("SITE ID", f"%{site_id_sd}%").execute()
+            if res_sd.data:
+                for row in res_sd.data:
+                    st.markdown(f"**Project**: {row.get('Project Number','-')} | **SITE ID**: {row.get('SITE ID','-')} | **Site Name**: {row.get('Site Name','-')}")
+
+# =====================================================================
+# 📊 TAB 4: INDUS BASIC DATA
+# =====================================================================
+with tab4:
+    st.markdown("<h3 style='text-align: center;'>📊 Indus Basic Data</h3>", unsafe_allow_html=True)
+    with st.form("ind_form_v5"):
+        i1, i2, i3 = st.columns(3)
+        with i1: in_id = st.text_input("📍 Site ID")
+        with i2: in_nm = st.text_input("🏢 Site Name")
+        with i3: st.write(""); sub_ind = st.form_submit_button("🔍 Search Indus")
+    if sub_ind:
+        res_ind = supabase.table("Indus Data").select("*").ilike("Site ID", f"%{in_id}%").execute()
+        if res_ind.data: st.dataframe(pd.DataFrame(res_ind.data), use_container_width=True, hide_index=True)
