@@ -34,8 +34,13 @@ with tab1:
     st.markdown("<h3 style='text-align: center; margin-bottom: 0px;'>🔍 Visiontech Infra Solutions</h3>", unsafe_allow_html=True)
     mera_sequence = ['Sr. No.', 'Site ID', 'Product', 'Transaction Type', 'Issue From', 'Project Number', 'BOQ', 'Item Code', 'Item Description', 'Qty A', 'Qty B', 'Qty C', 'Dispatch Date', 'Parent/Child', 'Line Status', 'Transporter', 'TSP Partner Name', 'LR Number', 'Vehicle Number', 'Challan Number', 'BOQ Date', 'Department', 'Item Category', 'Source Of Fulfilment']
 
-    with st.form("search_form"):
+   # 1. Clear Functionality ke liye keys initialize karein (form ke upar)
+    if 'cleared' not in st.session_state:
+        st.session_state.cleared = False
+
+    with st.form("search_form", clear_on_submit=st.session_state.cleared):
         c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([1.1, 1.0, 1.1, 1.0, 1.1, 1.1, 1.2, 0.1])
+        
         with c1: project_query = st.text_input("📁 Project No.", key="boq_p_v5")
         with c2: site_query = st.text_input("📍 Site ID", key="boq_s_v5")
         with c3: boq_query = st.text_input("📄 BOQ", key="boq_b_v5")
@@ -44,13 +49,17 @@ with tab1:
         with c6: tsp_partner = st.selectbox("🤝 TSP Partner", ["", "visiontech", "Partner A", "Partner B", "Partner C", "Ericsson", "Nokia"], key="boq_tsp_v5")
         
         with c7:
-            st.write("") # Spacing
+            st.write("") 
             col_btn1, col_btn2 = st.columns(2)
             with col_btn1:
                 submit_search = st.form_submit_button("🔍 Search")
+                if submit_search:
+                    st.session_state.cleared = False # Search ke waqt clear nahi karna
             with col_btn2:
                 if st.form_submit_button("🗑️ Clear"):
+                    st.session_state.cleared = True # Agli baar form clear ho jayega
                     st.session_state.pop('boq_df', None)
+                    st.session_state.pop('wa_site_name', None)
                     st.rerun()
         with c8: st.empty()
 
