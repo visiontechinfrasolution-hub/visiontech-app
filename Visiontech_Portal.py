@@ -199,7 +199,6 @@ with tab3:
             if res_sd.data:
                 for row in res_sd.data:
                     st.markdown(f"**Project**: {row.get('Project Number','-')} | **SITE ID**: {row.get('SITE ID','-')} | **Site Name**: {row.get('Site Name','-')}")
-
 # =====================================================================
 # 📊 TAB 4: INDUS BASIC DATA
 # =====================================================================
