@@ -148,10 +148,26 @@ with tab1:
             st.download_button(label="📥 Download Excel", data=processed_data, file_name=f"{p_val}_{s_id}.xlsx", use_container_width=True)
 
         with btn_col2:
-            wa_msg = f"📦 *BOQ REPORT: {p_val}*\n*Site ID* - {s_id}\n\n"
+            wa_msg = f"📦 *BOQ REPORT: {p_val}*\n*Site ID* - {s_id}\n"
             wa_msg += st.session_state.get('wa_indus_data', "")
-            st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}" target="_blank"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">🚀 Share Full Report</button></a>', unsafe_allow_html=True)
+            
+            # --- NAYA: BOQ Items Detail with Parent/Child Logic ---
+            wa_msg += "\n*📝 Material Details:*\n"
+            
+            # DataFrame (df) ke har row ko loop karke message mein add kar rahe hain
+            for index, row in df.iterrows():
+                item_desc = row.get('Item Description', '-')
+                qty = row.get('Qty A', '0')
+                pc_status = str(row.get('Parent/Child', '')).strip().title()
+                
+                # Logic of Parent: Parent item ko bold aur alag bullet se highlight kiya hai
+                if pc_status == 'Parent':
+                    wa_msg += f"🔹 *{item_desc}* - Qty: {qty} (Parent)\n"
+                else:
+                    wa_msg += f"  ▫️ {item_desc} - Qty: {qty}\n"
+            # --- END NAYA SECTION ---
 
+            st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}" target="_blank"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">🚀 Share Full Report</button></a>', unsafe_allow_html=True)
 # =====================================================================
 # 🧾 TAB 2: PO REPORT (Original Code with BigInt Fix & Summary Table)
 # =====================================================================
