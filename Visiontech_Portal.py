@@ -148,16 +148,14 @@ with tab1:
             st.download_button(label="📥 Download Excel", data=processed_data, file_name=f"{p_val}_{s_id}.xlsx", use_container_width=True)
 
         with btn_col2:
-            # --- 1. Header Details ---
+            # 1. Header Details (Project, Site ID, Site Name)
+            s_name = st.session_state.get('wa_site_name', '-')
             wa_msg = f"📦 *BOQ REPORT* : {p_val}\n"
             wa_msg += f"*Project Number* - {p_val}\n"
             wa_msg += f"*Site ID* - {s_id}\n"
+            wa_msg += f"*Site Name* - {s_name}\n\n"
             
-            # Site Name agar available ho toh
-            site_nm = df['Site Name'].iloc[0] if 'Site Name' in df.columns else "-"
-            wa_msg += f"*Site Name* - {s_name}\n\n" # 🟢 Ab yahan Site Name aayega
-            
-            # --- 2. BOQ Items Loop (Numbered Format) ---
+            # 2. BOQ Items Loop (Numbered Format 1, 2, 3...)
             for index, row in df.iterrows():
                 wa_msg += f"{index + 1}.\n"
                 wa_msg += f"*Transaction Type* - {row.get('Transaction Type', '-')}\n"
@@ -173,12 +171,17 @@ with tab1:
                 wa_msg += f"*TSP Name* - {row.get('TSP Partner Name', '-')}\n"
                 wa_msg += "--------------------\n"
             
-            # --- 3. Indus Site Data (Vertical Format) ---
+            # 3. Indus Site Data (Vertical Format) jo session state se aa raha hai
             wa_msg += st.session_state.get('wa_indus_data', "")
 
-            # URL Encode and Button
-            st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}" target="_blank"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">🚀 Share Full Report</button></a>', unsafe_allow_html=True)
-# =====================================================================
+            # WhatsApp Send Button (Encodied URL)
+            st.markdown(f'''
+                <a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}" target="_blank">
+                    <button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">
+                        🚀 Share Full Report
+                    </button>
+                </a>
+            ''', unsafe_allow_html=True)
 # 🧾 TAB 2: PO REPORT (Original Code with BigInt Fix & Summary Table)
 # =====================================================================
 with tab2:
