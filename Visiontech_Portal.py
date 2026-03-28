@@ -155,7 +155,7 @@ with tab1:
             
             # Site Name agar available ho toh
             site_nm = df['Site Name'].iloc[0] if 'Site Name' in df.columns else "-"
-            wa_msg += f"*Site Name* - {site_nm}\n\n"
+            wa_msg += f"*Site Name* - {s_name}\n\n" # 🟢 Ab yahan Site Name aayega
             
             # --- 2. BOQ Items Loop (Numbered Format) ---
             for index, row in df.iterrows():
