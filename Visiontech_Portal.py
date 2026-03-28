@@ -162,7 +162,7 @@ with tab1:
                 
                 # Logic of Parent: Parent item ko bold aur alag bullet se highlight kiya hai
                 if pc_status == 'Parent':
-                    wa_msg += f"🔹 *{item_desc}* - Qty: {qty} (Parent)\n"
+                    wa_msg += f"🔹 {item_desc} - Qty: {qty} (Parent)\n"
                 else:
                     wa_msg += f"  ▫️ {item_desc} - Qty: {qty}\n"
             # --- END NAYA SECTION ---
