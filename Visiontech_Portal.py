@@ -153,11 +153,65 @@ with tab1:
             st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}" target="_blank"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">🚀 Share Full Report</button></a>', unsafe_allow_html=True)
 
 # =====================================================================
-# 🧾 TAB 2: PO REPORT (Existing Logic)
+# 🧾 TAB 2: PO REPORT (Original Code with BigInt Fix & Summary Table)
 # =====================================================================
 with tab2:
-    # (Existing PO logic - unchanged)
-    pass
+    st.markdown("<h3 style='text-align: center;'>🧾 PO Report Search</h3>", unsafe_allow_html=True)
+    if not st.session_state.get('po_unlocked', False):
+        if st.text_input("Password PO:", type="password", key="p_lock_v5") == "1234":
+            st.session_state.po_unlocked = True
+            st.rerun()
+    else:
+        with st.form("po_form_v5"):
+            c1, c2, c3, c4 = st.columns(4)
+            with c1: s_po = st.text_input("📄 PO Number")
+            with c2: s_sh = st.text_input("🚚 Shipment Number")
+            with c3: s_re = st.text_input("🧾 Receipt Number")
+            with c4: st.write(""); sub_po = st.form_submit_button("🔍 Search PO")
+        
+        if sub_po:
+            try:
+                q_po = supabase.table("PO Report").select("*")
+                
+                # Check for PO Number (Handling BigInt Error)
+                if s_po.strip():
+                    if s_po.strip().isdigit(): 
+                        q_po = q_po.eq("PO Number", int(s_po.strip()))
+                    else: 
+                        q_po = q_po.ilike("PO Number", f"%{s_po.strip()}%")
+                
+                # Check for Shipment Number (Handling BigInt Error)
+                if s_sh.strip():
+                    if s_sh.strip().isdigit(): 
+                        q_po = q_po.eq("Shipment Number", int(s_sh.strip()))
+                    else: 
+                        q_po = q_po.ilike("Shipment Number", f"%{s_sh.strip()}%")
+                
+                # Check for Receipt Number
+                if s_re.strip(): 
+                    q_po = q_po.ilike("Receipt Number", f"%{s_re.strip()}%")
+                
+                res_po = q_po.execute()
+                
+                if res_po.data:
+                    df_po = pd.DataFrame(res_po.data)
+                    
+                    # 1. Main Table (Full Details)
+                    st.write("📋 **Full Details**")
+                    st.dataframe(df_po, use_container_width=True, hide_index=True)
+                    
+                    st.divider()
+                    
+                    # 2. Unique Summary Table (Left Side, No Duplicates)
+                    st.write("📌 **Unique Summary**")
+                    col_l, col_r = st.columns([0.4, 0.6])
+                    with col_l:
+                        sum_df = df_po[['PO Number', 'Shipment Number', 'Receipt Number']].drop_duplicates()
+                        st.dataframe(sum_df, use_container_width=True, hide_index=True)
+                else: 
+                    st.info("No PO data found.")
+            except Exception as e: 
+                st.error(f"❌ Error: {e}")
 
 # =====================================================================
 # 🏗️ TAB 3: SITE DETAIL (Existing Logic)
