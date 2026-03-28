@@ -31,6 +31,38 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📦 BOQ Report", "🧾 PO Report
 # 🟩 TAB 1: BOQ REPORT
 # =====================================================================
 with tab1:
+    # --- NAYA: CUSTOM SCROLLBAR STYLE ---
+    st.markdown("""
+        <style>
+            /* Pure table container ka scrollbar bada karne ke liye */
+            div[data-testid="stDataTableBody"]::-webkit-scrollbar {
+                width: 14px;      /* Vertical scrollbar ki choudai */
+                height: 14px;     /* Horizontal scrollbar ki oonchai */
+            }
+            div[data-testid="stDataTableBody"]::-webkit-scrollbar-track {
+                background: #f1f1f1; 
+                border-radius: 10px;
+            }
+            div[data-testid="stDataTableBody"]::-webkit-scrollbar-thumb {
+                background: #888; 
+                border-radius: 10px;
+                border: 2px solid #f1f1f1; /* Space deta hai taaki pakadne mein aasani ho */
+            }
+            div[data-testid="stDataTableBody"]::-webkit-scrollbar-thumb:hover {
+                background: #555; /* Mouse le jaane par color dark ho jayega */
+            }
+            
+            /* Agar aap standard dataframe use kar rahe hain toh uske liye bhi: */
+            .stDataFrame div::-webkit-scrollbar {
+                width: 14px !important;
+                height: 14px !important;
+            }
+            .stDataFrame div::-webkit-scrollbar-thumb {
+                background-color: #007bff !important; /* Blue color taaki alag dikhe */
+                border-radius: 10px !important;
+            }
+        </style>
+    """, unsafe_allow_html=True)    
     st.markdown("<h3 style='text-align: center; margin-bottom: 0px;'>🔍 Visiontech Infra Solutions</h3>", unsafe_allow_html=True)
     mera_sequence = ['Sr. No.', 'Site ID', 'Product', 'Transaction Type', 'Issue From', 'Project Number', 'BOQ', 'Item Code', 'Item Description', 'Qty A', 'Qty B', 'Qty C', 'Dispatch Date', 'Parent/Child', 'Line Status', 'Transporter', 'TSP Partner Name', 'LR Number', 'Vehicle Number', 'Challan Number', 'BOQ Date', 'Department', 'Item Category', 'Source Of Fulfilment']
 
