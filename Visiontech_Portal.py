@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import urllib.parse
 import io
 from geopy.distance import geodesic
+from geopy.geocoders import Nominatim
 
 # --- 1. CONNECTION ---
 URL = "https://sckyflvukpmdqmdzjzhs.supabase.co"
@@ -125,22 +126,25 @@ with tab4:
 
     with st.expander("🛠️ Create New Route Plan", expanded=False):
         c1, c2 = st.columns(2)
-        with c1: start_coords = st.text_input("🏠 Start Location (Lat, Long)", placeholder="e.g. 18.52, 73.85")
-        with c2: end_coords = st.text_input("🏁 End Location (Lat, Long)", placeholder="e.g. 19.07, 72.87")
+        # 🟢 NAYA: Ab aap City ka naam (Pune) bhi daal sakte hain
+        with c1: start_coords = st.text_input("🏠 Start Location (City or Lat, Long)", placeholder="e.g. Pune or 18.52, 73.85")
+        with c2: end_coords = st.text_input("🏁 End Location (City or Lat, Long)", placeholder="e.g. Mumbai or 19.07, 72.87")
         
         st.write("---")
-        add_sid = st.text_input("📍 Add Indus Site ID")
-        if st.button("➕ Add +"):
-            if add_sid:
-                # ❌ Pehle ye tha: select("Site ID", "Lat", "Long") jiski wajah se API error aaya
-                # ✅ Nayi Line: Ise select("*") kar diya gaya hai, bilkul upar wale working logic ki tarah
-                s_res = supabase.table("Indus Data").select("*").ilike("Site ID", f"%{add_sid.strip()}%").execute()
-                
-                if s_res.data:
-                    st.session_state.route_list.append(s_res.data[0])
-                    st.success(f"Site {add_sid} added!")
-                else:
-                    st.error("Site ID not found!")
+        
+        # 🟢 NAYA: Form use kiya taaki 'Add' dabane ke baad box automatically CLEAR ho jaye
+        with st.form("add_site_form", clear_on_submit=True):
+            add_sid = st.text_input("📍 Add Indus Site ID")
+            submit_add = st.form_submit_button("➕ Add +")
+            
+            if submit_add:
+                if add_sid:
+                    s_res = supabase.table("Indus Data").select("*").ilike("Site ID", f"%{add_sid.strip()}%").execute()
+                    if s_res.data:
+                        st.session_state.route_list.append(s_res.data[0])
+                        st.success(f"Site {add_sid} added!")
+                    else:
+                        st.error("Site ID not found!")
 
         if st.session_state.route_list:
             st.write("**Current Sites:** " + ", ".join([s['Site ID'] for s in st.session_state.route_list]))
@@ -153,9 +157,23 @@ with tab4:
             st.warning("Please provide Start, End locations and at least one Site ID.")
         else:
             try:
-                curr_p = [float(x.strip()) for x in start_coords.split(',')]
-                end_p = [float(x.strip()) for x in end_coords.split(',')]
+                # 🟢 NAYA: City name ko Coordinates mein badalne ka logic
+                geolocator = Nominatim(user_agent="vis_route_planner")
                 
+                def get_lat_lon(loc_input):
+                    if ',' in loc_input and any(char.isdigit() for char in loc_input):
+                        return [float(x.strip()) for x in loc_input.split(',')]
+                    else:
+                        location = geolocator.geocode(loc_input)
+                        if location:
+                            return [location.latitude, location.longitude]
+                        else:
+                            raise ValueError(f"Location '{loc_input}' nahi mili. Kripya correct spelling ya Lat,Long daalein.")
+
+                curr_p = get_lat_lon(start_coords)
+                end_p = get_lat_lon(end_coords)
+                
+                # Baaki ka logic same hai
                 unvisited = st.session_state.route_list.copy()
                 final_path = []
                 
@@ -173,11 +191,12 @@ with tab4:
                 
                 st.table(pd.DataFrame(route_data))
                 
+                # 🟢 NAYA: Google Maps /dir/ API (Multi-stop link perfectly kaam karega)
                 coords_str = "/".join([start_coords] + [f"{s['Lat']},{s['Long']}" for s in final_path] + [end_coords])
-                gmaps_route = f"https://www.google.com/maps?q=lat,long{coords_str}"
+                gmaps_route = f"https://www.google.com/maps/dir/{coords_str}"
                 st.markdown(f'<a href="{gmaps_route}" target="_blank"><button style="width:100%; background-color:#4285F4; color:white; border:none; padding:10px; border-radius:5px; font-weight:bold; cursor:pointer;">🗺️ Open Full Route in Maps</button></a>', unsafe_allow_html=True)
             except Exception as e:
-                st.error(f"Error: Ensure Lat/Long format is '18.52, 73.85'. Detail: {e}")
+                st.error(f"Error: {e}")
 
 # =====================================================================
 # 📁 TAB 5 & 6 (Data Entry & Finance)
