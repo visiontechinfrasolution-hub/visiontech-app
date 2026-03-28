@@ -42,7 +42,17 @@ with tab1:
         with c4: dispatch_date_inp = st.date_input("📅 Date", value=None, key="boq_d_v5")
         with c5: transporter = st.selectbox("🚚 Transporter", ["", "visiontech", "Safexpress", "Delhivery", "VRL Logistics", "TCI Express", "Gati"], key="boq_t_v5")
         with c6: tsp_partner = st.selectbox("🤝 TSP Partner", ["", "visiontech", "Partner A", "Partner B", "Partner C", "Ericsson", "Nokia"], key="boq_tsp_v5")
-        with c7: submit_search = st.form_submit_button("🔍 Search")
+        with c7: 
+            st.write("")
+            col_s1, col_s2 = st.columns(2)
+            with col_s1:
+                submit_search = st.form_submit_button("🔍 Search")
+            with col_s2:
+                # Naya Clear Button
+                if st.form_submit_button("🗑️ Clear"):
+                    if 'boq_df' in st.session_state:
+                        del st.session_state['boq_df']
+                    st.rerun()
         with c8: st.empty() 
 
     st.divider()
