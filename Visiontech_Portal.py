@@ -28,7 +28,7 @@ st.sidebar.caption("© 2026 Visiontech Infra Solutions")
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📦 BOQ Report", "🧾 PO Report", "🏗️ Site Detail", "📊 Indus Basic Data", "📁 Data Entry", "💰 Finance Entry"])
 
 # =====================================================================
-# 🟩 TAB 1: BOQ REPORT (Original & Untouched Code)
+# 🟩 TAB 1: BOQ REPORT (Original Logic Fixed)
 # =====================================================================
 with tab1:
     st.markdown("<h3 style='text-align: center; margin-bottom: 0px;'>🔍 Visiontech Infra Solutions</h3>", unsafe_allow_html=True)
@@ -56,10 +56,8 @@ with tab1:
     gen_new_boq = False
     with r3:
         if st.button("📄 Generate New BOQ", use_container_width=True):
-            if boq_date_pick:
-                gen_new_boq = True
-            else:
-                st.warning("Select Date!")
+            if boq_date_pick: gen_new_boq = True
+            else: st.warning("Select Date!")
 
     with r4:
         update_click = st.button("🔄 Update", use_container_width=True)
@@ -77,7 +75,6 @@ with tab1:
                         query = query.in_("Project Number", p_list).eq("Dispatch Date", yesterday_str)
             except Exception as e:
                 st.error(f"API Error: {e}")
-
         elif gen_new_boq:
             formatted_date_str = boq_date_pick.strftime('%d-%b-%Y')
             query = query.eq("BOQ Date", formatted_date_str)
@@ -89,8 +86,6 @@ with tab1:
         response = query.execute()
         if response.data:
             df_res = pd.DataFrame(response.data)
-            
-            # --- START FIXED LOGIC ---
             qty_cols = ['Qty A', 'Qty B', 'Qty C']
             for col in qty_cols:
                 if col in df_res.columns:
@@ -106,16 +101,20 @@ with tab1:
                     df_res = df_res.groupby('TempGroupKey', as_index=False).agg(agg_dict)
             
             st.session_state['display_cols'] = display_sequence
-            # --- END FIXED LOGIC ---
 
+            # --- INDUS DATA FETCH (SITE NAME FIX) ---
             site_id_for_wa = df_res['Site ID'].iloc[0] if not df_res.empty and 'Site ID' in df_res.columns else None
             indus_wa_block = ""
+            current_site_name = "-"
             if site_id_for_wa:
                 ind_res = supabase.table("Indus Data").select("*").ilike("Site ID", f"%{site_id_for_wa}%").execute()
                 if ind_res.data:
                     row_i = ind_res.data[0]
-                    indus_wa_block = f"\n📍 *INDUS SITE DATA*\n*Area* :- {row_i.get('Area Name','-')}\n*Lat Long* :- {row_i.get('Lat','')} {row_i.get('Long','')}\n"
+                    current_site_name = row_i.get('Site Name', '-')
+                    indus_wa_block = f"\n📍 *INDUS SITE DATA*\n*Area* :- {row_i.get('Area Name','-')}\n*Tech Name* :- {row_i.get('Tech Name','-')}\n*Tech Number* :- {row_i.get('Tech Number','-')}\n*FSE* :- {row_i.get('FSE','-')}\n*FSE Number* :- {row_i.get('FSE Number','-')}\n*AOM Name* :- {row_i.get('AOM Name','-')}\n*AOM Number* :- {row_i.get('AOM Number','-')}\n*Lat Long* :- {row_i.get('Lat','')} {row_i.get('Long','')}\n"
+            
             st.session_state['wa_indus_data'] = indus_wa_block
+            st.session_state['wa_site_name'] = current_site_name
 
             if 'Sr. No.' in df_res.columns:
                 df_res['Sr. No.'] = pd.to_numeric(df_res['Sr. No.'], errors='coerce')
@@ -128,6 +127,7 @@ with tab1:
             df_res = df_res.fillna('').astype(str).replace(['None', 'nan', 'NULL', 'NaT'], '')
             st.session_state['boq_df'] = df_res
 
+    # --- DISPLAY & EXPORT ---
     if 'boq_df' in st.session_state:
         df = st.session_state['boq_df']
         current_cols = st.session_state.get('display_cols', mera_sequence)
@@ -137,63 +137,7 @@ with tab1:
         st.markdown("### 📤 Export & Share")
         btn_col1, btn_col2 = st.columns([1, 4])
         p_val = df['Project Number'].iloc[0] if not df.empty and 'Project Number' in df.columns else "NA"
-        s_id = df['Site ID'].iloc[0] if not df.empty and 'Site ID' in df.columns else "NA"
-        
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            df.to_excel(writer, index=False, sheet_name='BOQ_Report')
-        processed_data = output.getvalue()
-        
-        with btn_col1:
-            st.download_button(label="📥 Download Excel", data=processed_data, file_name=f"{p_val}_{s_id}.xlsx", use_container_width=True)
-
-      st.markdown("### 📤 Export & Share")
-        btn_col1, btn_col2 = st.columns([1, 4])
-        p_val = df['Project Number'].iloc[0] if not df.empty and 'Project Number' in df.columns else "NA"
-        s_id = df['Site ID'].iloc[0] if not df.empty and 'Site ID' in df.columns else "NA"
-        
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            df.to_excel(writer, index=False, sheet_name='BOQ_Report')
-        processed_data = output.getvalue()
-        
-        with btn_col1:
-            st.download_button(label="📥 Download Excel", data=processed_data, file_name=f"{p_val}_{s_id}.xlsx", use_container_width=True)
-
-        with btn_col2:
-            # Sorting Fix: Taaki 1, 2, 3 sequence mein aaye
-            df_sorted = df.copy()
-            if 'Sr. No.' in df_sorted.columns:
-                df_sorted['Sr. No.'] = pd.to_numeric(df_sorted['Sr. No.'], errors='coerce')
-                df_sorted = df_sorted.sort_values(by='Sr. No.')
-            
-            df_sorted = df_sorted.reset_index(drop=True)
-            s_name = st.session_state.get('wa_site_name', '-')
-            
-            wa_msg = f"📦 *BOQ REPORT* : {p_val}\n"
-            wa_msg += f"*Project Number* - {p_val}\n"
-            wa_msg += f"*Site ID* - {s_id}\n"
-            wa_msg += f"*Site Name* - {s_name}\n\n"
-            
-            for index, row in df_sorted.iterrows():
-                wa_msg += f"{index + 1}.\n"
-                wa_msg += f"*Transaction Type* - {row.get('Transaction Type', '-')}\n"
-                wa_msg += f"*BOQ Number* - {row.get('BOQ', '-')}\n"
-                wa_msg += f"*Item Code* - {row.get('Item Code', '-')}\n"
-                wa_msg += f"*Item Description* - {row.get('Item Description', '-')}\n"
-                wa_msg += f"*BOQ Qty* - {row.get('Qty A', '0')}\n"
-                wa_msg += f"*Dispatched Qty* - {row.get('Qty B', '0')}\n"
-                wa_msg += f"*STN Qty* - {row.get('Qty C', '0')}\n"
-                wa_msg += f"*Parent* - {row.get('Parent/Child', '-')}\n"
-                wa_msg += f"*Dispatched Date* - {row.get('Dispatch Date', '-')}\n"
-                wa_msg += f"*Transporter Name* - {row.get('Transporter', '-')}\n"
-                wa_msg += f"*TSP Name* - {row.get('TSP Partner Name', '-')}\n"
-                wa_msg += "--------------------\n"
-            
-            wa_msg += st.session_state.get('wa_indus_data', "")
-            
-            st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}" target="_blank"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">🚀 Share Full Report</button></a>', unsafe_allow_html=True)
-# 🧾 TAB 2: PO REPORT (Original Code with BigInt Fix & Summary Table)
+        s_id = df['Site ID'].iloc[0] if not df.empty and 'Site ID' in df.columns
 # =====================================================================
 with tab2:
     st.markdown("<h3 style='text-align: center;'>🧾 PO Report Search</h3>", unsafe_allow_html=True)
