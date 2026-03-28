@@ -32,6 +32,7 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📦 BOQ Report", "🧾 PO Report
 with tab1:
     st.markdown("<h3 style='text-align: center; margin-bottom: 0px;'>🔍 Visiontech Infra Solutions</h3>", unsafe_allow_html=True)
     mera_sequence = ['Sr. No.', 'Site ID', 'Product', 'Transaction Type', 'Issue From', 'Project Number', 'BOQ', 'Item Code', 'Item Description', 'Qty A', 'Qty B', 'Qty C', 'Dispatch Date', 'Parent/Child', 'Line Status', 'Transporter', 'TSP Partner Name', 'LR Number', 'Vehicle Number', 'Challan Number', 'BOQ Date', 'Department', 'Item Category', 'Source Of Fulfilment']
+    
     with st.form("search_form"):
         c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([1.1, 1.0, 1.1, 1.0, 1.1, 1.1, 0.8, 1.0])
         with c1: project_query = st.text_input("📁 Project No.", key="boq_p_v5")
@@ -82,7 +83,7 @@ with tab4:
             
             # 2. Ab Vertical Detail with Call Buttons & Direction
             st.subheader("📌 Vertical Site Details")
-            row_in = res_ind.data[0] # Pehla result le rahe hain vertical detail ke liye
+            row_in = res_ind.data[0]
 
             def call_html(label, name, num):
                 if num and str(num).strip() not in ['-', '', 'None', 'nan']:
@@ -98,7 +99,6 @@ with tab4:
             with v2:
                 st.markdown(call_html("👨‍💼 **AOM Name**", row_in.get('AOM Name','-'), row_in.get('AOM Number','-')), unsafe_allow_html=True)
                 
-                # --- LAT/LONG SECTION WITH DIRECTION BUTTON ---
                 lat = row_in.get('Lat', '')
                 lon = row_in.get('Long', '')
                 
@@ -156,14 +156,12 @@ with tab4:
                 unvisited = st.session_state.route_list.copy()
                 final_path = []
                 
-                # Optimized logic: Nearest Neighbor
                 while unvisited:
                     next_s = min(unvisited, key=lambda x: geodesic(curr_p, (float(x['Lat']), float(x['Long']))).km)
                     final_path.append(next_s)
                     curr_p = (float(next_s['Lat']), float(next_s['Long']))
                     unvisited.remove(next_s)
                 
-                # Display Sequence Table
                 route_data = []
                 route_data.append({"Serial No": "0", "Task": "START", "Site ID": "Home/Office", "Location": start_coords})
                 for i, s in enumerate(final_path, 1):
@@ -172,19 +170,38 @@ with tab4:
                 
                 st.table(pd.DataFrame(route_data))
                 
-                # Google Maps Multi-stop link
                 coords_str = "/".join([start_coords] + [f"{s['Lat']},{s['Long']}" for s in final_path] + [end_coords])
                 gmaps_route = f"https://www.google.com/maps?q=lat,long{coords_str}"
                 st.markdown(f'<a href="{gmaps_route}" target="_blank"><button style="width:100%; background-color:#4285F4; color:white; border:none; padding:10px; border-radius:5px; font-weight:bold; cursor:pointer;">🗺️ Open Full Route in Maps</button></a>', unsafe_allow_html=True)
             except Exception as e:
                 st.error(f"Error: Ensure Lat/Long format is '18.52, 73.85'. Detail: {e}")
+
 # =====================================================================
 # 📁 TAB 5 & 6 (Data Entry & Finance)
 # =====================================================================
 with tab5:
-    # (Existing Data Entry logic - unchanged)
-    pass
+    st.subheader("📁 Site Data Entry Form")
+    with st.form("site_entry_form", clear_on_submit=True):
+        c1, c2 = st.columns(2)
+        with c1: p_no_in = st.text_input("Project Number"); s_id_in = st.text_input("Site ID")
+        with c2: d_dt_in = st.date_input("Dispatch Date", value=datetime.now()); qty_in = st.number_input("Qty A", min_value=0, step=1)
+        if st.form_submit_button("🚀 Save Data"):
+            if p_no_in and s_id_in:
+                try: 
+                    supabase_new.table("Site_Data_Entry").insert({"Project Number": p_no_in, "Site ID": s_id_in, "Dispatch Date": d_dt_in.strftime('%d-%b-%Y'), "Qty A": qty_in}).execute()
+                    st.success("✅ Saved!")
+                except Exception as e: st.error(f"❌ Error: {e}")
 
 with tab6:
-    # (Existing Finance logic - unchanged)
-    pass
+    st.subheader("💰 Finance & Billing Entry")
+    with st.form("fin_form", clear_on_submit=True):
+        f1, f2 = st.columns(2)
+        with f1: fin_p_no = st.text_input("Project Number (Finance)"); t_bill = st.number_input("Team Billing", min_value=0)
+        with f2: t_paid = st.number_input("Team Paid Amt", min_value=0); fin_dt = st.date_input("Entry Date", value=datetime.now())
+        if st.form_submit_button("💵 Record Finance"):
+            if fin_p_no:
+                v_bal = t_bill - t_paid
+                try: 
+                    supabase_new.table("Finance_Entry").insert({"Project Number": fin_p_no, "Team Billing": t_bill, "Team Paid Amt": t_paid, "VIS Balance": v_bal, "Date": fin_dt.strftime('%d-%b-%Y')}).execute()
+                    st.success(f"✅ Saved! Balance: {v_bal}")
+                except Exception as e: st.error(f"❌ Error: {e}")
