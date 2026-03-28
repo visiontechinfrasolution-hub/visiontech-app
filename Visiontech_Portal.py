@@ -52,7 +52,7 @@ with tab1:
                 if st.form_submit_button("🗑️ Clear"):
                     st.session_state.pop('boq_df', None)
                     st.rerun()
-          with c8: st.empty() 
+         with c8: st.empty() 
 
     st.divider()
     r1, r2, r3, r4 = st.columns([2, 1.5, 2, 2])
