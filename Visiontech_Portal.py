@@ -132,7 +132,10 @@ with tab4:
         add_sid = st.text_input("📍 Add Indus Site ID")
         if st.button("➕ Add +"):
             if add_sid:
-                s_res = supabase.table("Indus Data").select("Site ID", "Lat", "Long").ilike("Site ID", f"%{add_sid.strip()}%").execute()
+                # ❌ Pehle ye tha: select("Site ID", "Lat", "Long") jiski wajah se API error aaya
+                # ✅ Nayi Line: Ise select("*") kar diya gaya hai, bilkul upar wale working logic ki tarah
+                s_res = supabase.table("Indus Data").select("*").ilike("Site ID", f"%{add_sid.strip()}%").execute()
+                
                 if s_res.data:
                     st.session_state.route_list.append(s_res.data[0])
                     st.success(f"Site {add_sid} added!")
