@@ -147,16 +147,26 @@ with tab1:
         with btn_col1:
             st.download_button(label="📥 Download Excel", data=processed_data, file_name=f"{p_val}_{s_id}.xlsx", use_container_width=True)
 
-        with btn_col2:
-            # 1. Header Details (Project, Site ID, Site Name)
+       with btn_col2:
+            # 1. Header Details (Sorting and Site Name Fix)
+            # Ensure index is sorted so items appear as 1, 2, 3...
+            df_sorted = df.copy()
+            if 'Sr. No.' in df_sorted.columns:
+                df_sorted['Sr. No.'] = pd.to_numeric(df_sorted['Sr. No.'], errors='coerce')
+                df_sorted = df_sorted.sort_values(by='Sr. No.')
+            
+            # Fetching Site Name from Session State
             s_name = st.session_state.get('wa_site_name', '-')
+            
             wa_msg = f"📦 *BOQ REPORT* : {p_val}\n"
             wa_msg += f"*Project Number* - {p_val}\n"
             wa_msg += f"*Site ID* - {s_id}\n"
             wa_msg += f"*Site Name* - {s_name}\n\n"
             
-            # 2. BOQ Items Loop (Numbered Format 1, 2, 3...)
-            for index, row in df.iterrows():
+            # 2. BOQ Items Loop (Numbered Format with Sorted Data)
+            # reset_index(drop=True) ensures numbering starts from 1 correctly
+            df_sorted = df_sorted.reset_index(drop=True)
+            for index, row in df_sorted.iterrows():
                 wa_msg += f"{index + 1}.\n"
                 wa_msg += f"*Transaction Type* - {row.get('Transaction Type', '-')}\n"
                 wa_msg += f"*BOQ Number* - {row.get('BOQ', '-')}\n"
@@ -171,10 +181,10 @@ with tab1:
                 wa_msg += f"*TSP Name* - {row.get('TSP Partner Name', '-')}\n"
                 wa_msg += "--------------------\n"
             
-            # 3. Indus Site Data (Vertical Format) jo session state se aa raha hai
+            # 3. Indus Site Data (Vertical Format)
             wa_msg += st.session_state.get('wa_indus_data', "")
 
-            # WhatsApp Send Button (Encodied URL)
+            # WhatsApp Send Button
             st.markdown(f'''
                 <a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}" target="_blank">
                     <button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">
