@@ -43,15 +43,15 @@ with tab1:
         with c5: transporter = st.selectbox("🚚 Transporter", ["", "visiontech", "Safexpress", "Delhivery", "VRL Logistics", "TCI Express", "Gati"], key="boq_t_v5")
         with c6: tsp_partner = st.selectbox("🤝 TSP Partner", ["", "visiontech", "Partner A", "Partner B", "Partner C", "Ericsson", "Nokia"], key="boq_tsp_v5")
         with c7: 
-             st.write("") # Spacing ke liye
-             # Buttons ko horizontal lane ke liye columns ka ratio change kiya
-             sc1, sc2 = st.columns([1, 1])
-             with sc1:
-                 submit_search = st.form_submit_button("🔍 Search")
-             with sc2:
-                 if st.form_submit_button("🗑️ Clear"):
-                     st.session_state.pop('boq_df', None)
-                     st.rerun()
+            st.write("") # Spacing ke liye
+            # Buttons ko horizontal lane ke liye columns ka ratio change kiya
+            sc1, sc2 = st.columns([1, 1])
+            with sc1:
+                submit_search = st.form_submit_button("🔍 Search")
+            with sc2:
+                if st.form_submit_button("🗑️ Clear"):
+                    st.session_state.pop('boq_df', None)
+                    st.rerun()
          with c8: st.empty() 
 
     st.divider()
