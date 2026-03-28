@@ -35,24 +35,24 @@ with tab1:
     mera_sequence = ['Sr. No.', 'Site ID', 'Product', 'Transaction Type', 'Issue From', 'Project Number', 'BOQ', 'Item Code', 'Item Description', 'Qty A', 'Qty B', 'Qty C', 'Dispatch Date', 'Parent/Child', 'Line Status', 'Transporter', 'TSP Partner Name', 'LR Number', 'Vehicle Number', 'Challan Number', 'BOQ Date', 'Department', 'Item Category', 'Source Of Fulfilment']
 
     with st.form("search_form"):
-        c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([1.1, 1.0, 1.1, 1.0, 1.1, 1.1, 0.8, 1.0])
+        c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([1.1, 1.0, 1.1, 1.0, 1.1, 1.1, 1.2, 0.1])
         with c1: project_query = st.text_input("📁 Project No.", key="boq_p_v5")
         with c2: site_query = st.text_input("📍 Site ID", key="boq_s_v5")
         with c3: boq_query = st.text_input("📄 BOQ", key="boq_b_v5")
         with c4: dispatch_date_inp = st.date_input("📅 Date", value=None, key="boq_d_v5")
         with c5: transporter = st.selectbox("🚚 Transporter", ["", "visiontech", "Safexpress", "Delhivery", "VRL Logistics", "TCI Express", "Gati"], key="boq_t_v5")
         with c6: tsp_partner = st.selectbox("🤝 TSP Partner", ["", "visiontech", "Partner A", "Partner B", "Partner C", "Ericsson", "Nokia"], key="boq_tsp_v5")
-        with c7: 
-            st.write("") # Spacing ke liye
-            # Buttons ko horizontal lane ke liye columns ka ratio change kiya
-            sc1, sc2 = st.columns([1, 1])
-            with sc1:
+        
+        with c7:
+            st.write("") # Spacing
+            col_btn1, col_btn2 = st.columns(2)
+            with col_btn1:
                 submit_search = st.form_submit_button("🔍 Search")
-            with sc2:
+            with col_btn2:
                 if st.form_submit_button("🗑️ Clear"):
                     st.session_state.pop('boq_df', None)
                     st.rerun()
-         with c8: st.empty() 
+        with c8: st.empty()
 
     st.divider()
     r1, r2, r3, r4 = st.columns([2, 1.5, 2, 2])
@@ -64,10 +64,12 @@ with tab1:
         if st.button("📄 Generate New BOQ", use_container_width=True):
             if boq_date_pick: gen_new_boq = True
             else: st.warning("Select Date!")
-    with r4: update_click = st.button("🔄 Update", use_container_width=True)
+    with r4: 
+        update_click = st.button("🔄 Update", use_container_width=True)
 
     if submit_search or stn_pending_btn or gen_new_boq or update_click:
         query = supabase.table("BOQ Report").select("*").limit(50000)
+        
         if update_click:
             try:
                 sd_res = supabase.table("Site Data").select("*").execute()
@@ -76,7 +78,8 @@ with tab1:
                     if p_list:
                         yesterday_str = (datetime.now() - timedelta(days=1)).strftime('%d-%b-%Y')
                         query = query.in_("Project Number", p_list).eq("Dispatch Date", yesterday_str)
-            except Exception as e: st.error(f"API Error: {e}")
+            except Exception as e: 
+                st.error(f"API Error: {e}")
         elif gen_new_boq:
             formatted_date_str = boq_date_pick.strftime('%d-%b-%Y')
             query = query.eq("BOQ Date", formatted_date_str)
@@ -93,7 +96,8 @@ with tab1:
                 if col in df_res.columns:
                     df_res[col] = pd.to_numeric(df_res[col], errors='coerce').fillna(0).astype(int)
 
-            if update_click: display_sequence = ['Project Number', 'Dispatch Date']
+            if update_click: 
+                display_sequence = ['Project Number', 'Dispatch Date']
             else:
                 display_sequence = mera_sequence
                 if 'Item Code' in df_res.columns:
@@ -103,6 +107,7 @@ with tab1:
             
             st.session_state['display_cols'] = display_sequence
 
+            # --- FETCH SITE NAME & INDUS DATA ---
             site_id_for_wa = df_res['Site ID'].iloc[0] if not df_res.empty and 'Site ID' in df_res.columns else None
             indus_wa_block = ""
             current_site_name = "-"
@@ -112,6 +117,7 @@ with tab1:
                     row_i = ind_res.data[0]
                     current_site_name = row_i.get('Site Name', '-')
                     indus_wa_block = f"\n📍 *INDUS SITE DATA*\n*Area* :- {row_i.get('Area Name','-')}\n*Tech Name* :- {row_i.get('Tech Name','-')}\n*Tech Number* :- {row_i.get('Tech Number','-')}\n*FSE* :- {row_i.get('FSE','-')}\n*FSE Number* :- {row_i.get('FSE Number','-')}\n*AOM Name* :- {row_i.get('AOM Name','-')}\n*AOM Number* :- {row_i.get('AOM Number','-')}\n*Lat Long* :- {row_i.get('Lat','')} {row_i.get('Long','')}\n"
+            
             st.session_state['wa_indus_data'] = indus_wa_block
             st.session_state['wa_site_name'] = current_site_name
 
@@ -119,7 +125,9 @@ with tab1:
                 df_res['Sr. No.'] = pd.to_numeric(df_res['Sr. No.'], errors='coerce')
                 df_res = df_res.sort_values(by='Sr. No.')
             for col in ['Dispatch Date', 'BOQ Date']:
-                if col in df_res.columns: df_res[col] = pd.to_datetime(df_res[col], errors='coerce').dt.strftime('%d-%b-%Y')
+                if col in df_res.columns: 
+                    df_res[col] = pd.to_datetime(df_res[col], errors='coerce').dt.strftime('%d-%b-%Y')
+            
             df_res = df_res.fillna('').astype(str).replace(['None', 'nan', 'NULL', 'NaT'], '')
             st.session_state['boq_df'] = df_res
 
@@ -142,15 +150,18 @@ with tab1:
         
         with btn_col1:
             st.download_button(label="📥 Download Excel", data=processed_data, file_name=f"{p_val}_{s_id}.xlsx", use_container_width=True)
+        
         with btn_col2:
             df_sorted = df.copy()
             if 'Sr. No.' in df_sorted.columns:
                 df_sorted['Sr. No.'] = pd.to_numeric(df_sorted['Sr. No.'], errors='coerce')
                 df_sorted = df_sorted.sort_values(by='Sr. No.')
             df_sorted = df_sorted.reset_index(drop=True)
+            
             wa_msg = f"📦 *BOQ REPORT* : {p_val}\n*Project Number* - {p_val}\n*Site ID* - {s_id}\n*Site Name* - {s_name}\n\n"
             for index, row in df_sorted.iterrows():
                 wa_msg += f"{index + 1}.\n*Transaction Type* - {row.get('Transaction Type', '-')}\n*BOQ Number* - {row.get('BOQ', '-')}\n*Item Code* - {row.get('Item Code', '-')}\n*Item Description* - {row.get('Item Description', '-')}\n*BOQ Qty* - {row.get('Qty A', '0')}\n*Dispatched Qty* - {row.get('Qty B', '0')}\n*STN Qty* - {row.get('Qty C', '0')}\n*Parent* - {row.get('Parent/Child', '-')}\n*Dispatched Date* - {row.get('Dispatch Date', '-')}\n*Transporter Name* - {row.get('Transporter', '-')}\n*TSP Name* - {row.get('TSP Partner Name', '-')}\n--------------------\n"
+            
             wa_msg += st.session_state.get('wa_indus_data', "")
             st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}" target="_blank"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">🚀 Share Full Report</button></a>', unsafe_allow_html=True)
 
