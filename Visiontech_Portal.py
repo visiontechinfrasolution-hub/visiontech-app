@@ -60,7 +60,7 @@ with tab3:
     pass
 
 # =====================================================================
-# 📊 TAB 4: INDUS BASIC DATA (Fixed Vertical Display & Call Buttons)
+# 📊 TAB 4: INDUS BASIC DATA (Fixed Vertical Display, Call & Direction)
 # =====================================================================
 with tab4:
     st.markdown("<h3 style='text-align: center;'>📊 Indus Basic Data</h3>", unsafe_allow_html=True)
@@ -79,7 +79,7 @@ with tab4:
             
             st.divider()
             
-            # 2. Ab Vertical Detail with Call Buttons
+            # 2. Ab Vertical Detail with Call Buttons & Direction
             st.subheader("📌 Vertical Site Details")
             row_in = res_ind.data[0] # Pehla result le rahe hain vertical detail ke liye
 
@@ -96,7 +96,22 @@ with tab4:
             
             with v2:
                 st.markdown(call_html("👨‍💼 **AOM Name**", row_in.get('AOM Name','-'), row_in.get('AOM Number','-')), unsafe_allow_html=True)
-                st.markdown(f"📍 **Lat/Long** :- {row_in.get('Lat','-')} / {row_in.get('Long','-')}")
+                
+                # --- LAT/LONG SECTION WITH DIRECTION BUTTON ---
+                lat = row_in.get('Lat', '')
+                lon = row_in.get('Long', '')
+                
+                if lat and lon and str(lat).strip() not in ['-', '', 'None', 'nan']:
+                    maps_url = f"https://www.google.com/maps?q={lat},{lon}"
+                    st.markdown(
+                        f"📍 **Lat/Long** :- {lat} / {lon} "
+                        f'<a href="{maps_url}" target="_blank">'
+                        f'<button style="background-color:#EA4335;color:white;border:none;padding:2px 10px;border-radius:5px;cursor:pointer;font-weight:bold;">📍 Direction</button>'
+                        f'</a>', 
+                        unsafe_allow_html=True
+                    )
+                else:
+                    st.markdown(f"📍 **Lat/Long** :- {lat if lat else '-'} / {lon if lon else '-'}")
         else:
             st.info("No Indus data found for this Site ID.")
 
