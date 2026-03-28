@@ -147,15 +147,27 @@ with tab1:
         with btn_col1:
             st.download_button(label="📥 Download Excel", data=processed_data, file_name=f"{p_val}_{s_id}.xlsx", use_container_width=True)
 
-       with btn_col2:
-            # 1. Header Details (Sorting and Site Name Fix)
-            # Ensure index is sorted so items appear as 1, 2, 3...
+      st.markdown("### 📤 Export & Share")
+        btn_col1, btn_col2 = st.columns([1, 4])
+        p_val = df['Project Number'].iloc[0] if not df.empty and 'Project Number' in df.columns else "NA"
+        s_id = df['Site ID'].iloc[0] if not df.empty and 'Site ID' in df.columns else "NA"
+        
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            df.to_excel(writer, index=False, sheet_name='BOQ_Report')
+        processed_data = output.getvalue()
+        
+        with btn_col1:
+            st.download_button(label="📥 Download Excel", data=processed_data, file_name=f"{p_val}_{s_id}.xlsx", use_container_width=True)
+
+        with btn_col2:
+            # Sorting Fix: Taaki 1, 2, 3 sequence mein aaye
             df_sorted = df.copy()
             if 'Sr. No.' in df_sorted.columns:
                 df_sorted['Sr. No.'] = pd.to_numeric(df_sorted['Sr. No.'], errors='coerce')
                 df_sorted = df_sorted.sort_values(by='Sr. No.')
             
-            # Fetching Site Name from Session State
+            df_sorted = df_sorted.reset_index(drop=True)
             s_name = st.session_state.get('wa_site_name', '-')
             
             wa_msg = f"📦 *BOQ REPORT* : {p_val}\n"
@@ -163,9 +175,6 @@ with tab1:
             wa_msg += f"*Site ID* - {s_id}\n"
             wa_msg += f"*Site Name* - {s_name}\n\n"
             
-            # 2. BOQ Items Loop (Numbered Format with Sorted Data)
-            # reset_index(drop=True) ensures numbering starts from 1 correctly
-            df_sorted = df_sorted.reset_index(drop=True)
             for index, row in df_sorted.iterrows():
                 wa_msg += f"{index + 1}.\n"
                 wa_msg += f"*Transaction Type* - {row.get('Transaction Type', '-')}\n"
@@ -181,17 +190,9 @@ with tab1:
                 wa_msg += f"*TSP Name* - {row.get('TSP Partner Name', '-')}\n"
                 wa_msg += "--------------------\n"
             
-            # 3. Indus Site Data (Vertical Format)
             wa_msg += st.session_state.get('wa_indus_data', "")
-
-            # WhatsApp Send Button
-            st.markdown(f'''
-                <a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}" target="_blank">
-                    <button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">
-                        🚀 Share Full Report
-                    </button>
-                </a>
-            ''', unsafe_allow_html=True)
+            
+            st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}" target="_blank"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">🚀 Share Full Report</button></a>', unsafe_allow_html=True)
 # 🧾 TAB 2: PO REPORT (Original Code with BigInt Fix & Summary Table)
 # =====================================================================
 with tab2:
