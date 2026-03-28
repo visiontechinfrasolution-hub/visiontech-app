@@ -4,6 +4,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 import urllib.parse
 import io
+from geopy.distance import geodesic
 
 # --- 1. CONNECTION ---
 URL = "https://sckyflvukpmdqmdzjzhs.supabase.co"
@@ -60,7 +61,7 @@ with tab3:
     pass
 
 # =====================================================================
-# 📊 TAB 4: INDUS BASIC DATA (Fixed Vertical Display, Call & Direction)
+# 📊 TAB 4: INDUS BASIC DATA (Fixed Vertical Display, Call & Route Plan)
 # =====================================================================
 with tab4:
     st.markdown("<h3 style='text-align: center;'>📊 Indus Basic Data</h3>", unsafe_allow_html=True)
@@ -115,6 +116,68 @@ with tab4:
         else:
             st.info("No Indus data found for this Site ID.")
 
+    # --- NAYA SECTION: ROUTE PLANNER ---
+    st.divider()
+    st.subheader("🧭 Route Plan")
+
+    if 'route_list' not in st.session_state:
+        st.session_state.route_list = []
+
+    with st.expander("🛠️ Create New Route Plan", expanded=False):
+        c1, c2 = st.columns(2)
+        with c1: start_coords = st.text_input("🏠 Start Location (Lat, Long)", placeholder="e.g. 18.52, 73.85")
+        with c2: end_coords = st.text_input("🏁 End Location (Lat, Long)", placeholder="e.g. 19.07, 72.87")
+        
+        st.write("---")
+        add_sid = st.text_input("📍 Add Indus Site ID")
+        if st.button("➕ Add +"):
+            if add_sid:
+                s_res = supabase.table("Indus Data").select("Site ID", "Lat", "Long").ilike("Site ID", f"%{add_sid.strip()}%").execute()
+                if s_res.data:
+                    st.session_state.route_list.append(s_res.data[0])
+                    st.success(f"Site {add_sid} added!")
+                else:
+                    st.error("Site ID not found!")
+
+        if st.session_state.route_list:
+            st.write("**Current Sites:** " + ", ".join([s['Site ID'] for s in st.session_state.route_list]))
+            if st.button("🗑️ Clear List"):
+                st.session_state.route_list = []
+                st.rerun()
+
+    if st.button("🚀 Calculate Best Route", use_container_width=True):
+        if not start_coords or not end_coords or not st.session_state.route_list:
+            st.warning("Please provide Start, End locations and at least one Site ID.")
+        else:
+            try:
+                curr_p = [float(x.strip()) for x in start_coords.split(',')]
+                end_p = [float(x.strip()) for x in end_coords.split(',')]
+                
+                unvisited = st.session_state.route_list.copy()
+                final_path = []
+                
+                # Optimized logic: Nearest Neighbor
+                while unvisited:
+                    next_s = min(unvisited, key=lambda x: geodesic(curr_p, (float(x['Lat']), float(x['Long']))).km)
+                    final_path.append(next_s)
+                    curr_p = (float(next_s['Lat']), float(next_s['Long']))
+                    unvisited.remove(next_s)
+                
+                # Display Sequence Table
+                route_data = []
+                route_data.append({"Serial No": "0", "Task": "START", "Site ID": "Home/Office", "Location": start_coords})
+                for i, s in enumerate(final_path, 1):
+                    route_data.append({"Serial No": str(i), "Task": "Visit", "Site ID": s['Site ID'], "Location": f"{s['Lat']}, {s['Long']}"})
+                route_data.append({"Serial No": str(len(final_path)+1), "Task": "END", "Site ID": "Destination", "Location": end_coords})
+                
+                st.table(pd.DataFrame(route_data))
+                
+                # Google Maps Multi-stop link
+                coords_str = "/".join([start_coords] + [f"{s['Lat']},{s['Long']}" for s in final_path] + [end_coords])
+                gmaps_route = f"https://www.google.com/maps?q=lat,long{coords_str}"
+                st.markdown(f'<a href="{gmaps_route}" target="_blank"><button style="width:100%; background-color:#4285F4; color:white; border:none; padding:10px; border-radius:5px; font-weight:bold; cursor:pointer;">🗺️ Open Full Route in Maps</button></a>', unsafe_allow_html=True)
+            except Exception as e:
+                st.error(f"Error: Ensure Lat/Long format is '18.52, 73.85'. Detail: {e}")
 # =====================================================================
 # 📁 TAB 5 & 6 (Data Entry & Finance)
 # =====================================================================
