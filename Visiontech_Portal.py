@@ -198,7 +198,10 @@ with tab3:
             res_sd = supabase.table("Site Data").select("*").ilike("SITE ID", f"%{site_id_sd}%").execute()
             if res_sd.data:
                 for row in res_sd.data:
-                    st.markdown(f"**Project**: {row.get('Project Number','-')} | **SITE ID**: {row.get('SITE ID','-')} | **Site Name**: {row.get('Site Name','-')}")
+                    st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}" target="_blank"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">🚀 Share Full Report</button></a>', unsafe_allow_html=True)
+            
+        except Exception as e:
+            st.error(f"Error in BOQ Tab: {e}")
 # =====================================================================
 # 📊 TAB 4: INDUS BASIC DATA
 # =====================================================================
