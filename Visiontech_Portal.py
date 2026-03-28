@@ -265,17 +265,23 @@ with tab4:
                 if not curr_p or not end_p: st.error("Check Start/End location name.")
                 else:
                     unvisited = st.session_state.route_list.copy(); final_path = []
-                    while unvisited:
-                        next_s = min(unvisited, key=lambda x: geodesic(curr_p, (float(x['Lat']), float(x['Long']))).km)
-                        final_path.append(next_s); curr_p = (float(next_s['Lat']), float(next_s['Long'])); unvisited.remove(next_s)
-                    route_data = [{"Serial No": "0", "Task": "START", "Site ID": "Home/Office", "Location": start_coords}]
-                    for i, s in enumerate(final_path, 1): route_data.append({"Serial No": str(i), "Task": "Visit", "Site ID": s['Site ID'], "Location": f"{s['Lat']}, {s['Long']}"})
-                    route_data.append({"Serial No": str(len(final_path)+1), "Task": "END", "Site ID": "Destination", "Location": end_coords})
-                    st.table(pd.DataFrame(route_data))
-                    coords_str = "/".join([start_coords] + [f"{s['Lat']},{s['Long']}" for s in final_path] + [end_coords])
-                    gmaps_route = f"https://www.google.com/maps?q=lat,long{coords_str}"
-                    st.markdown(f'<a href="{gmaps_route}" target="_blank"><button style="width:100%; background-color:#4285F4; color:white; border:none; padding:10px; border-radius:5px; font-weight:bold; cursor:pointer;">🗺️ Open Full Route in Maps</button></a>', unsafe_allow_html=True)
-            except Exception as e: st.error(f"Error: {e}")
+                    # Optimized logic: Nearest Neighbor with NoneType Check
+                while unvisited:
+                    # Sirf unhi sites ko check karega jinka Lat/Long available hai
+                    valid_sites = [s for s in unvisited if s.get('Lat') and s.get('Long')]
+                    
+                    if not valid_sites:
+                        # Agar baaki sites mein Lat/Long nahi hai, toh unhe skip karke loop khatam karega
+                        break
+                        
+                    next_s = min(valid_sites, key=lambda x: geodesic(curr_p, (float(x['Lat']), float(x['Long']))).km)
+                    final_path.append(next_s)
+                    curr_p = (float(next_s['Lat']), float(next_s['Long']))
+                    unvisited.remove(next_s)
+                
+                # Jo sites skip hui (bin Lat/Long wali), unhe end mein notify karein
+                if unvisited:
+                    st.warning(f"Kuch sites skip kar di gayin kyunki unka Lat/Long missing tha: {', '.join([s['Site ID'] for s in unvisited])}")
 
 # =====================================================================
 # 📁 TAB 5 & 6 (Data Entry & Finance)
