@@ -25,7 +25,8 @@ st.sidebar.divider()
 st.sidebar.caption("© 2026 Visiontech Infra Solutions")
 
 # --- 3. TABS ---
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📦 BOQ Report", "🧾 PO Report", "🏗️ Site Detail", "📊 Indus Basic Data", "📁 Data Entry", "💰 Finance Entry"])
+# MAINE YAHAN WCC TRACKER KO TAB MEIN ADD KIYA HAI
+tab1, tab2, tab3, tab4, tab_wcc, tab5, tab6 = st.tabs(["📦 BOQ Report", "🧾 PO Report", "🏗️ Site Detail", "📊 Indus Basic Data", "📡 WCC Tracker", "📁 Data Entry", "💰 Finance Entry"])
 
 # =====================================================================
 # 🟩 TAB 1: BOQ REPORT
@@ -340,8 +341,26 @@ with tab4:
                     gmaps_route = f"https://www.google.com/maps?q=lat,long{coords_str}"
                     st.markdown(f'<a href="{gmaps_route}" target="_blank"><button style="width:100%; background-color:#4285F4; color:white; border:none; padding:10px; border-radius:5px; font-weight:bold; cursor:pointer;">🗺️ Open Full Route in Maps</button></a>', unsafe_allow_html=True)
             except Exception as e: st.error(f"Error: {e}")
-# ================= 4. 📡 WCC TRACKER =================
-elif menu == "📡 WCC Tracker":
+
+# =====================================================================
+# 📡 TAB 5: WCC TRACKER
+# =====================================================================
+with tab_wcc:
+    # --- HELPER FUNCTIONS FOR WCC TRACKER ---
+    def fetch_table(table_name):
+        try:
+            res = supabase.table(table_name).select("*").execute()
+            return res.data
+        except Exception as e: 
+            st.error(f"Error fetching data: {e}")
+            return []
+
+    def insert_row(table_name, data):
+        return supabase.table(table_name).insert(data).execute()
+
+    def update_row(table_name, row_id, data):
+        return supabase.table(table_name).update(data).eq("id", row_id).execute()
+
     st.title("📡 WCC Status Tracker")
 
     # --- 1. PASSWORD PROTECTION ---
