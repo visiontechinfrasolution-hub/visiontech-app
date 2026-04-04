@@ -305,7 +305,7 @@ with tab4:
             except Exception as e: st.error(f"Error: {e}")
 
 # =====================================================================
-# 📡 TAB 5: WCC TRACKER (FIXED WHATSAPP TAB ISSUE)
+# 📡 TAB 5: WCC TRACKER (JS FORCE SAME WINDOW)
 # =====================================================================
 with tab_wcc:
     def fetch_wcc():
@@ -326,7 +326,7 @@ with tab_wcc:
     if "wcc_role" not in st.session_state: st.session_state.wcc_role = None
 
     if not st.session_state.wcc_role:
-        pwd = st.text_input("Enter Password:", type="password", key="wcc_pwd_v17")
+        pwd = st.text_input("Enter Password:", type="password", key="wcc_pwd_v19")
         if st.button("🔓 Unlock Folder"):
             if pwd == "Vision@321": st.session_state.wcc_role = "requester"
             elif pwd == "Account@321": st.session_state.wcc_role = "accountant"
@@ -342,14 +342,14 @@ with tab_wcc:
         @st.dialog("📝 WCC Details Form", width="large")
         def wcc_modal(row_data=None):
             is_edit = row_data is not None
-            with st.form("wcc_form_v17"):
+            with st.form("wcc_form_v19"):
                 if role == "requester":
                     c1, c2 = st.columns(2)
                     v_proj = c1.text_input("Project", value=str(row_data.get("Project", "")) if is_edit else "")
                     v_pid = c2.text_input("Project ID *", value=str(row_data.get("Project ID", "")) if is_edit else "", disabled=is_edit)
                     c3, c4 = st.columns(2)
                     v_sid = c3.text_input("Site ID", value=str(row_data.get("Site ID", "")) if is_edit else "")
-                    v_snm = c4.text_input("Site Name", value=str(row.get("Site Name", "")) if is_edit else "")
+                    v_snm = c4.text_input("Site Name", value=str(row_data.get("Site Name", "")) if is_edit else "")
                     c5, c6 = st.columns(2)
                     v_po = c5.text_input("PO Number", value=str(row_data.get("PO Number", "")) if is_edit else "")
                     d_val = datetime.now().date()
@@ -425,9 +425,14 @@ with tab_wcc:
                             f"Mayur Patil\n"
                             f"7350533473"
                         )
-                        # FIX: Using wa.me instead of api.whatsapp.com to reduce tab opening
                         url = f"https://wa.me/?text={urllib.parse.quote(msg)}"
-                        b2.markdown(f"[💬]({url})")
+                        
+                        # --- SAME TAB REDIRECT FIX ---
+                        st.markdown(f"""
+                            <a href="javascript:void(0);" onclick="window.location.href='{url}';" style="text-decoration:none;">
+                                <div style="background-color:#25D366; color:white; padding:5px 10px; border-radius:4px; font-size:12px; font-weight:bold; text-align:center;">💬 WA</div>
+                            </a>
+                        """, unsafe_allow_html=True)
 
                 c[1].write(i+1); c[2].write(row.get('Project','')); c[3].write(row.get('Project ID',''))
                 c[4].write(f"**{row.get('Site ID','')}**"); c[5].write(row.get('Site Name',''))
