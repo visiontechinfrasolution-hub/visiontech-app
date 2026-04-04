@@ -305,7 +305,7 @@ with tab4:
             except Exception as e: st.error(f"Error: {e}")
 
 # =====================================================================
-# 📡 TAB 5: WCC TRACKER (FIXED DUPLICATE KEY ERROR)
+# 📡 TAB 5: WCC TRACKER (STRICT PRIMARY KEY LOGIC)
 # =====================================================================
 with tab_wcc:
     def fetch_wcc():
@@ -314,15 +314,12 @@ with tab_wcc:
             return res.data
         except: return []
 
-    # --- FIX: Strict Update Logic ---
-    def save_wcc_data(payload, rid=None):
+    # --- FIX: UPSERT LOGIC (Project ID primary key ke liye) ---
+    def save_wcc_data(payload):
         try:
-            if rid:
-                # Agar ID maujood hai toh sirf wahi row update hogi
-                return supabase.table("WCC Status").update(payload).eq("id", rid).execute()
-            else:
-                # Naya record insert hoga
-                return supabase.table("WCC Status").insert(payload).execute()
+            # .upsert() use karne se agar Project ID match karega toh update hoga, 
+            # warna naya insert hoga. Isse Duplicate error nahi aayega.
+            return supabase.table("WCC Status").upsert(payload).execute()
         except Exception as e:
             st.error(f"❌ Database Error: {e}")
             return None
@@ -332,7 +329,7 @@ with tab_wcc:
     if "wcc_role" not in st.session_state: st.session_state.wcc_role = None
 
     if not st.session_state.wcc_role:
-        pwd = st.text_input("Enter Password:", type="password", key="wcc_pwd_final_fix_v9")
+        pwd = st.text_input("Enter Password:", type="password", key="wcc_pwd_pk_v1")
         if st.button("🔓 Unlock Folder"):
             if pwd == "Vision@321": st.session_state.wcc_role = "requester"
             elif pwd == "Account@321": st.session_state.wcc_role = "accountant"
@@ -347,20 +344,20 @@ with tab_wcc:
 
         @st.dialog("📝 WCC Details Form", width="large")
         def wcc_modal(row=None):
-            with st.form("wcc_form_v9"):
-                # ID ko sahi se pakadna sabse zaruri hai edit ke liye
-                current_db_id = row.get('id') if row else None
-                
+            with st.form("wcc_form_pk_v1"):
+                # Project ID primary key hai isliye iska hona zaruri hai
                 if role == "requester":
                     c1, c2 = st.columns(2)
                     v_proj = c1.text_input("Project", value=str(row.get("Project", "")) if row else "")
-                    v_pid = c2.text_input("Project ID", value=str(row.get("Project ID", "")) if row else "")
+                    # Project ID edit ke waqt change nahi hona chahiye (kyuki ye Primary Key hai)
+                    v_pid = c2.text_input("Project ID *", value=str(row.get("Project ID", "")) if row else "", disabled=(row is not None))
+                    
                     c3, c4 = st.columns(2)
                     v_sid = c3.text_input("Site ID", value=str(row.get("Site ID", "")) if row else "")
                     v_snm = c4.text_input("Site Name", value=str(row.get("Site Name", "")) if row else "")
+                    
                     c5, c6 = st.columns(2)
                     v_po = c5.text_input("PO Number", value=str(row.get("PO Number", "")) if row else "")
-                    
                     d_val = datetime.now().date()
                     if row and row.get("Reqeust Date"):
                         try: d_val = pd.to_datetime(row.get("Reqeust Date")).date()
@@ -377,20 +374,27 @@ with tab_wcc:
                     v_sts = c9.selectbox("WCC Status", s_opts, index=s_opts.index(row.get("WCC Status", "Creation Pending")) if row and row.get("WCC Status") in s_opts else 0)
                     v_wno = row.get("WCC Number") if row else None 
                 else:
-                    st.warning(f"Editing Site: {row.get('Site ID')}")
+                    # Accountant Mode
+                    st.warning(f"Updating WCC Number for Project ID: {row.get('Project ID')}")
+                    v_pid = row.get('Project ID')
                     v_wno = st.text_input("Enter WCC Number", value=str(row.get("WCC Number", "")) if row else "")
 
                 if st.form_submit_button("💾 Save Changes", use_container_width=True):
+                    if not v_pid:
+                        st.error("Project ID is mandatory!")
+                        return
+
                     def clean_numeric(val):
                         if not val or str(val).strip() in ["", "None", "nan"]: return None
                         num_only = ''.join(filter(str.isdigit, str(val)))
                         return num_only if num_only != "" else None
 
-                    payload = {"WCC Number": clean_numeric(v_wno)}
+                    # Payload build
+                    payload = {"Project ID": v_pid, "WCC Number": clean_numeric(v_wno)}
+                    
                     if role == "requester":
                         payload.update({
                             "Project": v_proj.strip() if v_proj else None, 
-                            "Project ID": v_pid.strip() if v_pid else None, 
                             "Site ID": v_sid.strip() if v_sid else None, 
                             "Site Name": v_snm.strip() if v_snm else None, 
                             "PO Number": clean_numeric(v_po), 
@@ -398,8 +402,8 @@ with tab_wcc:
                             "Photo": v_pht, "JMS": v_jms, "WCC Status": v_sts
                         })
                     
-                    # Yahan rid mein current_db_id ja raha hai taaki UPDATE ho, INSERT nahi
-                    res = save_wcc_data(payload, current_db_id)
+                    # .upsert() logic call
+                    res = save_wcc_data(payload)
                     if res:
                         st.success("✅ Saved Successfully!")
                         st.rerun()
@@ -410,22 +414,19 @@ with tab_wcc:
 
         col_act1, col_act2, col_act3 = st.columns([1.5, 1.5, 1])
         with col_act1:
-            if role == "requester":
-                if st.button("➕ Add New Site Request", type="primary", use_container_width=True):
-                    wcc_modal()
+            if role == "requester" and st.button("➕ Add New", type="primary", use_container_width=True):
+                wcc_modal()
         with col_act2:
             if not df_wcc.empty:
                 output = io.BytesIO()
                 with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                    df_wcc.to_excel(writer, index=False, sheet_name='WCC_Report')
-                st.download_button(label="📥 Download Excel", data=output.getvalue(), file_name="WCC_Report.xlsx", use_container_width=True)
+                    df_wcc.to_excel(writer, index=False)
+                st.download_button(label="📥 Download Excel", data=output.getvalue(), file_name="WCC_Tracker.xlsx", use_container_width=True)
         with col_act3:
             if not df_wcc.empty:
-                # Site ID list for selection
-                s_list = df_wcc['Site ID'].tolist()
-                sel_s = st.selectbox("✏️ Edit", ["-- Select --"] + s_list, label_visibility="collapsed")
-                if sel_s != "-- Select --":
-                    e_row = next(item for item in raw_data if item["Site ID"] == sel_s)
+                sel_pid = st.selectbox("✏️ Edit Project ID", ["-- Select --"] + df_wcc['Project ID'].tolist(), label_visibility="collapsed")
+                if sel_pid != "-- Select --":
+                    e_row = next(item for item in raw_data if item["Project ID"] == sel_pid)
                     if st.button("📝 Open Form", use_container_width=True):
                         wcc_modal(e_row)
 
@@ -442,7 +443,7 @@ with tab_wcc:
             
             html_t = '<div class="wcc-scroll"><table class="wcc-table"><tr><th>Sr.</th><th>Project</th><th>Project ID</th><th>Site ID</th><th>Site Name</th><th>PO No</th><th>Date</th><th>Photo</th><th>JMS</th><th>WCC No</th><th>Status</th><th>WA</th></tr>'
             for i, row in df_wcc.iterrows():
-                wa_msg = f"Hello Prkash Ji,\nKindly raise WCC urgently...\n\n*Project ID* :- {row.get('Project ID')}\n*Site ID* :- {row.get('Site ID')}"
+                wa_msg = f"Hello Prkash Ji,\nRaise WCC urgently...\n\n*Project ID* :- {row.get('Project ID')}\n*Site ID* :- {row.get('Site ID')}"
                 wa_url = f"https://wa.me/?text={urllib.parse.quote(wa_msg)}"
                 wa_btn = f'<a href="{wa_url}" target="_blank" class="btn-wa">💬 WA</a>' if role == 'requester' else '-'
                 html_t += f"<tr><td>{i+1}</td><td>{row.get('Project','')}</td><td>{row.get('Project ID','')}</td><td><b>{row.get('Site ID','')}</b></td><td>{row.get('Site Name','')}</td><td>{row.get('PO Number','')}</td><td>{row.get('Reqeust Date','')}</td><td>{row.get('Photo','')}</td><td>{row.get('JMS','')}</td><td style='color:red; font-weight:bold;'>{row.get('WCC Number','-')}</td><td>{row.get('WCC Status','')}</td><td>{wa_btn}</td></tr>"
