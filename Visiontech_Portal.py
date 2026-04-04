@@ -305,7 +305,7 @@ with tab4:
             except Exception as e: st.error(f"Error: {e}")
 
 # =====================================================================
-# 📡 TAB 5: WCC TRACKER (FIXED WHATSAPP FORMAT)
+# 📡 TAB 5: WCC TRACKER (WITH EXCEL DOWNLOAD)
 # =====================================================================
 with tab_wcc:
     def fetch_wcc():
@@ -329,7 +329,7 @@ with tab_wcc:
     if "wcc_role" not in st.session_state: st.session_state.wcc_role = None
 
     if not st.session_state.wcc_role:
-        pwd = st.text_input("Enter Password to Unlock Folder:", type="password", key="wcc_pwd_final_wa")
+        pwd = st.text_input("Enter Password to Unlock Folder:", type="password", key="wcc_pwd_excel_v1")
         if st.button("🔓 Unlock Folder"):
             if pwd == "Vision@321": st.session_state.wcc_role = "requester"
             elif pwd == "Account@321": st.session_state.wcc_role = "accountant"
@@ -344,7 +344,7 @@ with tab_wcc:
 
         @st.dialog("📝 WCC Details Form", width="large")
         def wcc_modal(row=None):
-            with st.form("wcc_form_final_wa"):
+            with st.form("wcc_form_excel_v1"):
                 current_id = row.get('id') if row else None
                 if role == "requester":
                     c1, c2 = st.columns(2)
@@ -360,14 +360,15 @@ with tab_wcc:
                         try: d_val = pd.to_datetime(row.get("Reqeust Date")).date()
                         except: d_val = datetime.now().date()
                     v_dt = st.date_input("Request Date", value=d_val)
+                    
                     st.markdown("### Status Tracking")
                     c7, c8, c9 = st.columns(3)
                     p_opts = ["Pending", "Available on Portal"]
-                    v_pht = c7.selectbox("Photo", p_opts, index=p_opts.index(row.get("Photo")) if row and row.get("Photo") in p_opts else 0)
+                    v_pht = c7.selectbox("Photo *", p_opts, index=p_opts.index(row.get("Photo", "Available on Portal")) if row and row.get("Photo") in p_opts else 1)
                     j_opts = ["Pending", "Available on Portal", "Create by You"]
-                    v_jms = c8.selectbox("JMS", j_opts, index=j_opts.index(row.get("JMS")) if row and row.get("JMS") in j_opts else 0)
+                    v_jms = c8.selectbox("JMS *", j_opts, index=j_opts.index(row.get("JMS", "Create by You")) if row and row.get("JMS") in j_opts else 2)
                     s_opts = ["Creation Pending", "Pending for Approval", "Proceed", "Rejected", "Cancel"]
-                    v_sts = c9.selectbox("WCC Status", s_opts, index=s_opts.index(row.get("WCC Status")) if row and row.get("WCC Status") in s_opts else 0)
+                    v_sts = c9.selectbox("WCC Status *", s_opts, index=s_opts.index(row.get("WCC Status", "Creation Pending")) if row and row.get("WCC Status") in s_opts else 0)
                     v_wno = row.get("WCC Number") if row else None 
                 else:
                     st.warning(f"Accountant Mode: Site {row.get('Site ID')}")
@@ -390,25 +391,44 @@ with tab_wcc:
                     res = save_wcc_data(payload, current_id)
                     if res: st.rerun()
 
-        # --- UI BUTTONS ---
+        # --- UI ACTION BUTTONS ---
         raw_data = fetch_wcc()
         df_wcc = pd.DataFrame(raw_data) if raw_data else pd.DataFrame()
-        col_act1, col_act2 = st.columns([2, 1])
+
+        col_act1, col_act2, col_act3 = st.columns([1.5, 1.5, 1])
+        
         with col_act1:
             if role == "requester":
-                if st.button("➕ Add New Site Request", type="primary"): wcc_modal()
+                if st.button("➕ Add New Site Request", type="primary", use_container_width=True):
+                    wcc_modal()
+        
         with col_act2:
             if not df_wcc.empty:
-                selected_site = st.selectbox("✏️ Edit Site", ["-- Select --"] + df_wcc['Site ID'].tolist(), label_visibility="collapsed")
-                if selected_site != "-- Select --":
-                    edit_row = next(item for item in raw_data if item["Site ID"] == selected_site)
-                    if st.button("📝 Open Edit Form"): wcc_modal(edit_row)
+                # --- EXCEL DOWNLOAD LOGIC ---
+                output = io.BytesIO()
+                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                    df_wcc.to_excel(writer, index=False, sheet_name='WCC_Status_Report')
+                excel_data = output.getvalue()
+                st.download_button(
+                    label="📥 Download WCC Report",
+                    data=excel_data,
+                    file_name=f"WCC_Report_{datetime.now().strftime('%d_%b_%Y')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
+                )
 
-        # --- TABLE VIEW ---
+        with col_act3:
+            if not df_wcc.empty:
+                selected_site = st.selectbox("✏️ Edit", ["-- Edit --"] + df_wcc['Site ID'].tolist(), label_visibility="collapsed")
+                if selected_site != "-- Edit --":
+                    edit_row = next(item for item in raw_data if item["Site ID"] == selected_site)
+                    if st.button("📝 Open Form", use_container_width=True):
+                        wcc_modal(edit_row)
+
         if not df_wcc.empty:
             st.markdown("""
                 <style>
-                .wcc-scroll { width: 100%; overflow-x: auto; border: 1px solid #ddd; border-radius: 8px; }
+                .wcc-scroll { width: 100%; overflow-x: auto; border: 1px solid #ddd; border-radius: 8px; margin-top: 10px; }
                 .wcc-table { width: 100%; border-collapse: collapse; min-width: 1500px; font-family: sans-serif; }
                 .wcc-table th { background-color: #008DDA; color: white; padding: 12px; text-align: left; }
                 .wcc-table td { padding: 10px; border-bottom: 1px solid #eee; font-size: 13px; }
@@ -419,7 +439,6 @@ with tab_wcc:
             html_table = '<div class="wcc-scroll"><table class="wcc-table"><tr><th>Sr.</th><th>Project</th><th>Project ID</th><th>Site ID</th><th>Site Name</th><th>PO No</th><th>Date</th><th>Photo</th><th>JMS</th><th>WCC No</th><th>Status</th><th>WA</th></tr>'
             
             for i, row in df_wcc.iterrows():
-                # --- DYNAMIC WHATSAPP FORMAT ---
                 wa_msg = (
                     f"Hello Prkash Ji,\n"
                     f"Below Site WCC Request sent to you kindly raise WCC urgently and comfirm on Website.\n"
@@ -433,8 +452,8 @@ with tab_wcc:
                     f"*WCC Number* :- {row.get('WCC Number', 'None')}\n"
                     f"*WCC Status* :- {row.get('WCC Status', 'None')}\n\n"
                     f"In case of any document or detail required please call to me or whatsaap to me but raise wcc in 1st priority.\n\n"
-                    f"Photo :- Required Bydefault - {row.get('Photo', 'Available on Portal')}\n"
-                    f"JMS :- requried bydefalt - {row.get('JMS', 'Create by You')}"
+                    f"Photo :- Required Bydefault - Available on Portal\n"
+                    f"JMS :- requried bydefalt - Create by You"
                 )
                 wa_url = f"https://wa.me/?text={urllib.parse.quote(wa_msg)}"
                 wa_btn = f'<a href="{wa_url}" target="_blank" class="btn-wa">💬 WA</a>' if role == 'requester' else '-'
