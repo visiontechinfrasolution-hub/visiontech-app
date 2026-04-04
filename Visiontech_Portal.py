@@ -305,7 +305,7 @@ with tab4:
             except Exception as e: st.error(f"Error: {e}")
 
 # =====================================================================
-# 📡 TAB 5: WCC TRACKER (LAVISH UI FIXED - 0% LOGIC CHANGE)
+# 📡 TAB 5: WCC TRACKER (STYLISH UI - 0% LOGIC CHANGE)
 # =====================================================================
 with tab_wcc:
     def fetch_wcc():
@@ -326,7 +326,7 @@ with tab_wcc:
     if "wcc_role" not in st.session_state: st.session_state.wcc_role = None
 
     if not st.session_state.wcc_role:
-        pwd = st.text_input("Enter Password:", type="password", key="wcc_pwd_v23_lavish")
+        pwd = st.text_input("Enter Password:", type="password", key="wcc_pwd_v24_style")
         if st.button("🔓 Unlock Folder"):
             if pwd == "Vision@321": st.session_state.wcc_role = "requester"
             elif pwd == "Account@321": st.session_state.wcc_role = "accountant"
@@ -342,7 +342,7 @@ with tab_wcc:
         @st.dialog("📝 WCC Details Form", width="large")
         def wcc_modal(row_data=None):
             is_edit = row_data is not None
-            with st.form("wcc_form_v23"):
+            with st.form("wcc_form_v24"):
                 if role == "requester":
                     c1, c2 = st.columns(2)
                     v_proj = c1.text_input("Project", value=str(row_data.get("Project", "")) if is_edit else "")
@@ -396,52 +396,45 @@ with tab_wcc:
 
         st.divider()
 
-        # --- PRE-RENDER LOGIC FOR ACTIONS ---
+        # --- STYLE UPGRADE ---
         if not df_wcc.empty:
             st.markdown("""
                 <style>
-                .wcc-scroll { width: 100%; overflow-x: auto; border-radius: 12px; border: 1px solid #e0e0e0; }
-                .wcc-table { width: 100%; border-collapse: collapse; min-width: 1700px; background: white; }
-                .wcc-table th { background-color: #1E3A8A; color: white; padding: 15px; text-align: left; font-size: 14px; text-transform: uppercase; }
-                .wcc-table td { padding: 12px 15px; border-bottom: 1px solid #f3f4f6; font-size: 13.5px; vertical-align: middle; }
-                .wcc-table tr:hover { background-color: #f9fafb; }
-                .site-badge { background-color: #DBEAFE; color: #1E40AF; padding: 3px 8px; border-radius: 6px; font-weight: bold; font-size: 12px; }
-                .wa-btn-lavish { display: inline-block; background-color: #25D366; color: white !important; padding: 6px 12px; border-radius: 8px; text-decoration: none; font-size: 12px; font-weight: 700; }
+                .main-header { font-size: 20px; font-weight: bold; color: #1E3A8A; margin-bottom: 10px; }
+                .site-badge { background-color: #E0F2FE; color: #0369A1; padding: 4px 10px; border-radius: 20px; font-weight: 600; font-size: 12px; border: 1px solid #BAE6FD; }
+                .wa-btn { background-color: #25D366; color: white !important; padding: 6px 12px; border-radius: 8px; text-decoration: none; font-size: 12px; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+                .wa-btn:hover { background-color: #128C7E; }
                 </style>
             """, unsafe_allow_html=True)
 
-            # Table Header Columns
+            # Table Header
             h_cols = st.columns([0.6, 0.4, 1, 1.2, 1, 1.2, 1, 1, 1, 1, 1, 1])
             fields = ["Actions", "Sr.", "Project", "Project ID", "Site ID", "Site Name", "PO No", "Date", "Photo", "JMS", "WCC No", "Status"]
-            for col, name in zip(h_cols, fields): col.markdown(f"**{name}**")
-            st.divider()
+            for col, name in zip(h_cols, fields): col.markdown(f"<p style='color:#1E3A8A; font-weight:bold; font-size:14px;'>{name}</p>", unsafe_allow_html=True)
+            st.markdown("<hr style='margin:0; border-top: 2px solid #1E3A8A;'>", unsafe_allow_html=True)
 
             for i, row in df_wcc.iterrows():
                 r_cols = st.columns([0.6, 0.4, 1, 1.2, 1, 1.2, 1, 1, 1, 1, 1, 1])
                 
-                # --- ACTIONS (✏️ and 💬) ---
                 with r_cols[0]:
-                    btn_c1, btn_c2 = st.columns(2)
-                    if btn_c1.button("✏️", key=f"lavish_ed_{row['Project ID']}"):
-                        wcc_modal(row)
-                    
+                    b1, b2 = st.columns(2)
+                    if b1.button("✏️", key=f"sty_ed_{row['Project ID']}"): wcc_modal(row)
                     if role == 'requester':
-                        msg = (f"Hello Prkash Ji,\nRaise WCC urgently...\n\n*Project* :- {row.get('Project', 'None')}\n*Project ID* :- {row.get('Project ID', 'None')}\n*Site ID* :- {row.get('Site ID', 'None')}\n*Site Name* :- {row.get('Site Name', 'None')}\n*PO Number* :- {row.get('PO Number', 'None')}\n*Reqeust Date* :- {row.get('Reqeust Date', 'None')}\n*WCC Number* :- {row.get('WCC Number', 'None')}\n*WCC Status* :- {row.get('WCC Status', 'None')}\n\nIn case of any document or detail required please call to me or whatsaap to me but raise wcc in 1st priority.\n\nThanks,\nMayur Patil\n7350533473")
+                        msg = (f"Hello Prkash Ji,\nRaise WCC urgently...\n\n*Project* :- {row.get('Project')}\n*Project ID* :- {row.get('Project ID')}\n*Site ID* :- {row.get('Site ID')}\n*Site Name* :- {row.get('Site Name')}\n*PO Number* :- {row.get('PO Number')}\n*Reqeust Date* :- {row.get('Reqeust Date')}\n*WCC Number* :- {row.get('WCC Number')}\n*WCC Status* :- {row.get('WCC Status')}\n\nThanks,\nMayur Patil\n7350533473")
                         url = f"whatsapp://send?text={urllib.parse.quote(msg)}"
-                        btn_c2.markdown(f'<a href="{url}" class="wa-btn-lavish">💬</a>', unsafe_allow_html=True)
+                        b2.markdown(f'<a href="{url}" class="wa-btn">💬</a>', unsafe_allow_html=True)
 
-                # --- DATA COLUMNS ---
-                r_cols[1].write(i+1)
-                r_cols[2].write(row.get('Project',''))
-                r_cols[3].write(row.get('Project ID',''))
+                r_cols[1].write(f"<p style='font-size:13px;'>{i+1}</p>", unsafe_allow_html=True)
+                r_cols[2].write(f"<p style='font-size:13px;'>{row.get('Project','')}</p>", unsafe_allow_html=True)
+                r_cols[3].write(f"<p style='font-size:13px;'>{row.get('Project ID','')}</p>", unsafe_allow_html=True)
                 r_cols[4].markdown(f'<span class="site-badge">{row.get("Site ID","")}</span>', unsafe_allow_html=True)
-                r_cols[5].write(row.get('Site Name',''))
-                r_cols[6].write(row.get('PO Number',''))
-                r_cols[7].write(row.get('Reqeust Date',''))
-                r_cols[8].write(row.get('Photo',''))
-                r_cols[9].write(row.get('JMS',''))
-                r_cols[10].markdown(f"<span style='color:#DC2626; font-weight:800;'>{row.get('WCC Number','-')}</span>", unsafe_allow_html=True)
-                r_cols[11].write(row.get('WCC Status',''))
-                st.divider()
+                r_cols[5].write(f"<p style='font-size:13px;'>{row.get('Site Name','')}</p>", unsafe_allow_html=True)
+                r_cols[6].write(f"<p style='font-size:13px;'>{row.get('PO Number','')}</p>", unsafe_allow_html=True)
+                r_cols[7].write(f"<p style='font-size:13px;'>{row.get('Reqeust Date','')}</p>", unsafe_allow_html=True)
+                r_cols[8].write(f"<p style='font-size:13px;'>{row.get('Photo','')}</p>", unsafe_allow_html=True)
+                r_cols[9].write(f"<p style='font-size:13px;'>{row.get('JMS','')}</p>", unsafe_allow_html=True)
+                r_cols[10].markdown(f"<p style='color:#DC2626; font-weight:bold; font-size:13px;'>{row.get('WCC Number','-')}</p>", unsafe_allow_html=True)
+                r_cols[11].write(f"<p style='font-size:13px;'>{row.get('WCC Status','')}</p>", unsafe_allow_html=True)
+                st.markdown("<hr style='margin:0; border-top: 1px solid #E5E7EB;'>", unsafe_allow_html=True)
         else:
             st.info("No records found.")
