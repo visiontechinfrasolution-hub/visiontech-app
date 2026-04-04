@@ -305,7 +305,7 @@ with tab4:
             except Exception as e: st.error(f"Error: {e}")
 
 # =====================================================================
-# 📡 TAB 5: WCC TRACKER (FIXED WHATSAPP FORMAT ONLY)
+# 📡 TAB 5: WCC TRACKER (FIXED WHATSAPP TAB ISSUE)
 # =====================================================================
 with tab_wcc:
     def fetch_wcc():
@@ -326,7 +326,7 @@ with tab_wcc:
     if "wcc_role" not in st.session_state: st.session_state.wcc_role = None
 
     if not st.session_state.wcc_role:
-        pwd = st.text_input("Enter Password:", type="password", key="wcc_pwd_v16")
+        pwd = st.text_input("Enter Password:", type="password", key="wcc_pwd_v17")
         if st.button("🔓 Unlock Folder"):
             if pwd == "Vision@321": st.session_state.wcc_role = "requester"
             elif pwd == "Account@321": st.session_state.wcc_role = "accountant"
@@ -342,14 +342,14 @@ with tab_wcc:
         @st.dialog("📝 WCC Details Form", width="large")
         def wcc_modal(row_data=None):
             is_edit = row_data is not None
-            with st.form("wcc_form_v16"):
+            with st.form("wcc_form_v17"):
                 if role == "requester":
                     c1, c2 = st.columns(2)
                     v_proj = c1.text_input("Project", value=str(row_data.get("Project", "")) if is_edit else "")
                     v_pid = c2.text_input("Project ID *", value=str(row_data.get("Project ID", "")) if is_edit else "", disabled=is_edit)
                     c3, c4 = st.columns(2)
                     v_sid = c3.text_input("Site ID", value=str(row_data.get("Site ID", "")) if is_edit else "")
-                    v_snm = c4.text_input("Site Name", value=str(row_data.get("Site Name", "")) if is_edit else "")
+                    v_snm = c4.text_input("Site Name", value=str(row.get("Site Name", "")) if is_edit else "")
                     c5, c6 = st.columns(2)
                     v_po = c5.text_input("PO Number", value=str(row_data.get("PO Number", "")) if is_edit else "")
                     d_val = datetime.now().date()
@@ -409,7 +409,6 @@ with tab_wcc:
                     if b1.button("✏️", key=f"ed_{row['Project ID']}"): wcc_modal(row)
                     
                     if role == 'requester':
-                        # --- FIXED WHATSAPP FORMAT ---
                         msg = (
                             f"Hello Prkash Ji,\n"
                             f"Raise WCC urgently...\n\n"
@@ -426,6 +425,7 @@ with tab_wcc:
                             f"Mayur Patil\n"
                             f"7350533473"
                         )
+                        # FIX: Using wa.me instead of api.whatsapp.com to reduce tab opening
                         url = f"https://wa.me/?text={urllib.parse.quote(msg)}"
                         b2.markdown(f"[💬]({url})")
 
