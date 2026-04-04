@@ -387,7 +387,7 @@ with tab_wcc:
 
         df_wcc = pd.DataFrame(fetch_table("WCC Status"))
 
-        # --- 2. POP-UP DIALOG FOR ADD/EDIT WCC ---
+       # --- 2. POP-UP DIALOG FOR ADD/EDIT WCC ---
         @st.dialog("📝 WCC Details Form", width="large")
         def wcc_form_modal(ed=None):
             with st.form("wcc_update_form"):
@@ -401,14 +401,24 @@ with tab_wcc:
                 po_no = c4.text_input("PO Number", value=str(ed.get("PO Number", "")) if ed is not None else "")
 
                 c5, c6 = st.columns(2)
-                # Note: Using 'Reqeust Date' exactly as per your Supabase DB spelling
-                req_date = c5.text_input("Request Date", value=str(ed.get("Reqeust Date", "")) if ed is not None else "")
+                
+                # --- FIX: DATE FORMAT & CALENDAR PICKER ---
+                existing_date = ed.get("Reqeust Date", "") if ed is not None else ""
+                parsed_date = None
+                if existing_date and str(existing_date).strip() not in ["", "None", "nan", "NULL"]:
+                    try:
+                        parsed_date = pd.to_datetime(existing_date).date()
+                    except:
+                        parsed_date = None
+                
+                # Yeh aapko Date Select (Calendar) ka option dega
+                req_date_obj = c5.date_input("Request Date", value=parsed_date)
+                
                 wcc_no = c6.text_input("WCC Number", value=str(ed.get("WCC Number", "")) if ed is not None else "")
 
                 st.markdown("### 📊 Status Tracking")
                 c7, c8, c9 = st.columns(3)
 
-                # Required Dropdowns
                 photo_opts = ["Pending", "Available on Portal"]
                 photo_val = str(ed.get("Photo", "Pending")) if ed is not None else "Pending"
                 photo = c7.selectbox("Photo *", photo_opts, index=photo_opts.index(photo_val) if photo_val in photo_opts else 0)
@@ -422,23 +432,29 @@ with tab_wcc:
                 wcc_status = c9.selectbox("WCC Status *", status_opts, index=status_opts.index(status_val) if status_val in status_opts else 0)
 
                 if st.form_submit_button("💾 Save WCC Record", use_container_width=True):
+                    # FIX: Supabase ko strict 'None' bhejna hai agar form khali ho
+                    final_req_date = req_date_obj.strftime('%Y-%m-%d') if req_date_obj is not None else None
+                    
                     payload = {
-                        "Project ID": p_id,
-                        "Site ID": s_id,
-                        "Site Name": s_name,
-                        "PO Number": po_no,
-                        "Reqeust Date": req_date,  # Exact spelling from DB
+                        "Project ID": p_id.strip() if p_id.strip() else None,
+                        "Site ID": s_id.strip() if s_id.strip() else None,
+                        "Site Name": s_name.strip() if s_name.strip() else None,
+                        "PO Number": po_no.strip() if po_no.strip() else None,
+                        "Reqeust Date": final_req_date,  # <-- Ab Supabase Crash nahi karega
                         "Photo": photo,
                         "JMS": jms,
-                        "WCC Number": wcc_no,
+                        "WCC Number": wcc_no.strip() if wcc_no.strip() else None,
                         "WCC Status": wcc_status
                     }
-                    if ed is not None and 'id' in ed:
-                        update_row("WCC Status", ed['id'], payload)
-                    else:
-                        insert_row("WCC Status", payload)
-                    st.rerun()
-
+                    
+                    try:
+                        if ed is not None and 'id' in ed:
+                            update_row("WCC Status", ed['id'], payload)
+                        else:
+                            insert_row("WCC Status", payload)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Database Error: {e}")
         # --- 3. URL PARAMS FOR ACTIONS ---
         if "edit_wcc" in st.query_params:
             rid = str(st.query_params["edit_wcc"])
