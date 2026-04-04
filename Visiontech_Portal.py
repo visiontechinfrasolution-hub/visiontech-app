@@ -305,7 +305,7 @@ with tab4:
             except Exception as e: st.error(f"Error: {e}")
 
 # =====================================================================
-# 📡 TAB 5: WCC TRACKER (FINAL UI RE-FIX)
+# 📡 TAB 5: WCC TRACKER (STABLE BUTTON LOGIC - NO NEW WINDOW)
 # =====================================================================
 with tab_wcc:
     def fetch_wcc():
@@ -326,7 +326,7 @@ with tab_wcc:
     if "wcc_role" not in st.session_state: st.session_state.wcc_role = None
 
     if not st.session_state.wcc_role:
-        pwd = st.text_input("Enter Password:", type="password", key="wcc_pwd_v14")
+        pwd = st.text_input("Enter Password:", type="password", key="wcc_pwd_final_stable")
         if st.button("🔓 Unlock Folder"):
             if pwd == "Vision@321": st.session_state.wcc_role = "requester"
             elif pwd == "Account@321": st.session_state.wcc_role = "accountant"
@@ -339,9 +339,10 @@ with tab_wcc:
             st.session_state.wcc_role = None
             st.rerun()
 
+        # --- THE DIALOG FORM ---
         @st.dialog("📝 WCC Details Form", width="large")
         def wcc_modal(row=None):
-            with st.form("wcc_form_v14"):
+            with st.form("wcc_form_stable"):
                 if role == "requester":
                     c1, c2 = st.columns(2)
                     v_proj = c1.text_input("Project", value=str(row.get("Project", "")) if row else "")
@@ -394,54 +395,55 @@ with tab_wcc:
 
         st.divider()
 
+        # --- RE-ENGINEERED STABLE TABLE ---
         if not df_wcc.empty:
-            # CSS specifically for rendering
-            st.markdown("""
-                <style>
-                .wcc-scroll { width: 100%; overflow-x: auto; border: 1px solid #ddd; border-radius: 8px; }
-                .wcc-table { width: 100%; border-collapse: collapse; min-width: 1600px; font-family: sans-serif; }
-                .wcc-table th { background-color: #008DDA; color: white; padding: 12px; text-align: left; }
-                .wcc-table td { padding: 10px; border-bottom: 1px solid #eee; font-size: 13px; }
-                .btn-wa { background-color: #25D366 !important; color: white !important; padding: 5px 10px; border-radius: 4px; text-decoration: none; font-size: 12px; font-weight: bold; display: inline-block; }
-                </style>
-            """, unsafe_allow_html=True)
-
-            html_t = '<div class="wcc-scroll"><table class="wcc-table"><thead><tr><th>Actions</th><th>Sr.</th><th>Project</th><th>Project ID</th><th>Site ID</th><th>Site Name</th><th>PO No</th><th>Date</th><th>Photo</th><th>JMS</th><th>WCC No</th><th>Status</th></tr></thead><tbody>'
+            # Table Header
+            cols = st.columns([0.8, 0.4, 1, 1.2, 1, 1.2, 1, 1, 1, 1, 1, 1])
+            fields = ["Actions", "Sr.", "Project", "Project ID", "Site ID", "Site Name", "PO No", "Date", "Photo", "JMS", "WCC No", "Status"]
+            for col, field in zip(cols, fields): col.markdown(f"**{field}**")
+            st.divider()
 
             for i, row in df_wcc.iterrows():
-                # --- NEW MOBILE NUMBER IN WA FORMAT ---
-                wa_msg = (
-                    f"Hello Prkash Ji,\n"
-                    f"Raise WCC urgently...\n\n"
-                    f"*Project* :- {row.get('Project', 'None')}\n"
-                    f"*Project ID* :- {row.get('Project ID', 'None')}\n"
-                    f"*Site ID* :- {row.get('Site ID', 'None')}\n"
-                    f"*Site Name* :- {row.get('Site Name', 'None')}\n"
-                    f"*PO Number* :- {row.get('PO Number', 'None')}\n"
-                    f"*Reqeust Date* :- {row.get('Reqeust Date', 'None')}\n"
-                    f"*WCC Number* :- {row.get('WCC Number', 'None')}\n"
-                    f"*WCC Status* :- {row.get('WCC Status', 'None')}\n\n"
-                    f"In case of any document or detail required please call to me or whatsaap to me but raise wcc in 1st priority.\n\n"
-                    f"Thanks,\n"
-                    f"Mayur Patil\n"
-                    f"7350533473"
-                )
-                wa_url = f"https://wa.me/?text={urllib.parse.quote(wa_msg)}"
-                pid = str(row.get('Project ID'))
-                edit_link = f"?edit_pid={urllib.parse.quote(pid)}"
-                wa_btn = f'<a href="{wa_url}" target="_blank" class="btn-wa">💬 WA</a>' if role == 'requester' else '-'
+                c = st.columns([0.8, 0.4, 1, 1.2, 1, 1.2, 1, 1, 1, 1, 1, 1])
                 
-                html_t += f"<tr><td><a href='{edit_link}' target='_self' style='text-decoration:none; font-size:18px;'>✏️</a> &nbsp; {wa_btn}</td><td>{i+1}</td><td>{row.get('Project','')}</td><td>{row.get('Project ID','')}</td><td><b>{row.get('Site ID','')}</b></td><td>{row.get('Site Name','')}</td><td>{row.get('PO Number','')}</td><td>{row.get('Reqeust Date','')}</td><td>{row.get('Photo','')}</td><td>{row.get('JMS','')}</td><td style='color:red; font-weight:bold;'>{row.get('WCC Number','-')}</td><td>{row.get('WCC Status','')}</td></tr>"
-            
-            html_t += "</tbody></table></div>"
-            
-            # Rendering is key here
-            st.markdown(html_t, unsafe_allow_html=True)
+                # --- ACTION BUTTONS (NO NEW WINDOW) ---
+                with c[0]:
+                    btn_col1, btn_col2 = st.columns(2)
+                    if btn_col1.button("✏️", key=f"edit_{row.get('Project ID')}"):
+                        wcc_modal(row)
+                    
+                    if role == 'requester':
+                        wa_msg = (
+                            f"Hello Prkash Ji,\n"
+                            f"Raise WCC urgently...\n\n"
+                            f"*Project* :- {row.get('Project', 'None')}\n"
+                            f"*Project ID* :- {row.get('Project ID', 'None')}\n"
+                            f"*Site ID* :- {row.get('Site ID', 'None')}\n"
+                            f"*Site Name* :- {row.get('Site Name', 'None')}\n"
+                            f"*PO Number* :- {row.get('PO Number', 'None')}\n"
+                            f"*Reqeust Date* :- {row.get('Reqeust Date', 'None')}\n"
+                            f"*WCC Number* :- {row.get('WCC Number', 'None')}\n"
+                            f"*WCC Status* :- {row.get('WCC Status', 'None')}\n\n"
+                            f"In case of any document or detail required please call to me or whatsaap to me but raise wcc in 1st priority.\n\n"
+                            f"Thanks,\n"
+                            f"Mayur Patil\n"
+                            f"7350533473"
+                        )
+                        wa_url = f"https://wa.me/?text={urllib.parse.quote(wa_msg)}"
+                        btn_col2.markdown(f'[![WA](https://img.icons8.com/color/24/000000/whatsapp--v1.png)]({wa_url})')
 
-            if "edit_pid" in st.query_params:
-                sel_pid = st.query_params["edit_pid"]
-                st.query_params.clear()
-                match_row = next((item for item in raw_data if str(item["Project ID"]) == sel_pid), None)
-                if match_row: wcc_modal(match_row)
+                # --- DATA COLUMNS ---
+                c[1].write(i+1)
+                c[2].write(row.get('Project',''))
+                c[3].write(row.get('Project ID',''))
+                c[4].write(f"**{row.get('Site ID','')}**")
+                c[5].write(row.get('Site Name',''))
+                c[6].write(row.get('PO Number',''))
+                c[7].write(row.get('Reqeust Date',''))
+                c[8].write(row.get('Photo',''))
+                c[9].write(row.get('JMS',''))
+                c[10].markdown(f"<span style='color:red; font-weight:bold;'>{row.get('WCC Number','-')}</span>", unsafe_allow_html=True)
+                c[11].write(row.get('WCC Status',''))
+                st.divider()
         else:
             st.info("No records found.")
