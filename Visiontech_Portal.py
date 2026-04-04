@@ -305,7 +305,7 @@ with tab4:
             except Exception as e: st.error(f"Error: {e}")
 
 # =====================================================================
-# 📡 TAB 5: WCC TRACKER (STABLE BUTTON LOGIC - NO NEW WINDOW)
+# 📡 TAB 5: WCC TRACKER (FIXED VALUEERROR & SUBMIT BUTTON)
 # =====================================================================
 with tab_wcc:
     def fetch_wcc():
@@ -326,9 +326,9 @@ with tab_wcc:
     if "wcc_role" not in st.session_state: st.session_state.wcc_role = None
 
     if not st.session_state.wcc_role:
-        pwd = st.text_input("Enter Password:", type="password", key="wcc_pwd_final_stable")
+        pwd = st.text_input("Enter Password:", type="password", key="wcc_pwd_v15_stable")
         if st.button("🔓 Unlock Folder"):
-            if pwd == "Vision@321": st.session_state.wcc_role = "requester"
+            if pwd == "Vision@321": st.session_state.get('wcc_role', "requester"); st.session_state.wcc_role = "requester"
             elif pwd == "Account@321": st.session_state.wcc_role = "accountant"
             else: st.error("❌ Wrong Password!")
             st.rerun()
@@ -341,98 +341,105 @@ with tab_wcc:
 
         # --- THE DIALOG FORM ---
         @st.dialog("📝 WCC Details Form", width="large")
-        def wcc_modal(row=None):
-            with st.form("wcc_form_stable"):
+        def wcc_modal(row_data=None):
+            # Safe check for row_data (Pandas Series fix)
+            is_edit = row_data is not None
+            
+            with st.form("wcc_form_stable_v15"):
                 if role == "requester":
                     c1, c2 = st.columns(2)
-                    v_proj = c1.text_input("Project", value=str(row.get("Project", "")) if row else "")
-                    v_pid = c2.text_input("Project ID *", value=str(row.get("Project ID", "")) if row else "", disabled=(row is not None))
+                    v_proj = c1.text_input("Project", value=str(row_data.get("Project", "")) if is_edit else "")
+                    # Project ID Primary Key hai isliye edit ke waqt lock rahega
+                    v_pid = c2.text_input("Project ID *", value=str(row_data.get("Project ID", "")) if is_edit else "", disabled=is_edit)
+                    
                     c3, c4 = st.columns(2)
-                    v_sid = c3.text_input("Site ID", value=str(row.get("Site ID", "")) if row else "")
-                    v_snm = c4.text_input("Site Name", value=str(row.get("Site Name", "")) if row else "")
+                    v_sid = c3.text_input("Site ID", value=str(row_data.get("Site ID", "")) if is_edit else "")
+                    v_snm = c4.text_input("Site Name", value=str(row_data.get("Site Name", "")) if is_edit else "")
+                    
                     c5, c6 = st.columns(2)
-                    v_po = c5.text_input("PO Number", value=str(row.get("PO Number", "")) if row else "")
+                    v_po = c5.text_input("PO Number", value=str(row_data.get("PO Number", "")) if is_edit else "")
+                    
+                    # Date Handling
                     d_val = datetime.now().date()
-                    if row and row.get("Reqeust Date"):
-                        try: d_val = pd.to_datetime(row.get("Reqeust Date")).date()
+                    if is_edit and row_data.get("Reqeust Date"):
+                        try: d_val = pd.to_datetime(row_data.get("Reqeust Date")).date()
                         except: d_val = datetime.now().date()
                     v_dt = st.date_input("Request Date", value=d_val)
+                    
                     st.markdown("### Status Tracking")
                     c7, c8, c9 = st.columns(3)
                     p_opts = ["Pending", "Available on Portal"]
-                    v_pht = c7.selectbox("Photo", p_opts, index=p_opts.index(row.get("Photo", "Available on Portal")) if row and row.get("Photo") in p_opts else 1)
+                    v_pht = c7.selectbox("Photo", p_opts, index=p_opts.index(row_data.get("Photo", "Available on Portal")) if is_edit and row_data.get("Photo") in p_opts else 1)
+                    
                     j_opts = ["Pending", "Available on Portal", "Create by You"]
-                    v_jms = c8.selectbox("JMS", j_opts, index=j_opts.index(row.get("JMS", "Create by You")) if row and row.get("JMS") in j_opts else 2)
+                    v_jms = c8.selectbox("JMS", j_opts, index=j_opts.index(row_data.get("JMS", "Create by You")) if is_edit and row_data.get("JMS") in j_opts else 2)
+                    
                     s_opts = ["Creation Pending", "Pending for Approval", "Proceed", "Rejected", "Cancel"]
-                    v_sts = c9.selectbox("WCC Status", s_opts, index=s_opts.index(row.get("WCC Status", "Creation Pending")) if row and row.get("WCC Status") in s_opts else 0)
-                    v_wno = row.get("WCC Number") if row else None 
+                    v_sts = c9.selectbox("WCC Status", s_opts, index=s_opts.index(row_data.get("WCC Status", "Creation Pending")) if is_edit and row_data.get("WCC Status") in s_opts else 0)
+                    v_wno = row_data.get("WCC Number") if is_edit else None 
                 else:
-                    st.warning(f"Accountant Mode: {row.get('Project ID')}")
-                    v_pid = row.get('Project ID')
-                    v_wno = st.text_input("Enter WCC Number", value=str(row.get("WCC Number", "")) if row else "")
+                    # Accountant Mode
+                    v_pid = row_data.get('Project ID')
+                    st.warning(f"Updating WCC Number for Project ID: {v_pid}")
+                    v_wno = st.text_input("Enter WCC Number", value=str(row_data.get("WCC Number", "")) if is_edit else "")
 
-                if st.form_submit_button("💾 Save Changes", use_container_width=True):
+                # Submit Button (Must be inside st.form)
+                submitted = st.form_submit_button("💾 Save Changes", use_container_width=True)
+                if submitted:
                     def clean_numeric(val):
                         if not val or str(val).strip() in ["", "None", "nan"]: return None
                         num_only = ''.join(filter(str.isdigit, str(val)))
                         return num_only if num_only != "" else None
+
                     payload = {"Project ID": v_pid, "WCC Number": clean_numeric(v_wno)}
                     if role == "requester":
-                        payload.update({"Project": v_proj, "Site ID": v_sid, "Site Name": v_snm, "PO Number": clean_numeric(v_po), "Reqeust Date": str(v_dt), "Photo": v_pht, "JMS": v_jms, "WCC Status": v_sts})
-                    if save_wcc_data(payload): st.rerun()
+                        payload.update({
+                            "Project": v_proj, "Site ID": v_sid, "Site Name": v_snm, 
+                            "PO Number": clean_numeric(v_po), "Reqeust Date": str(v_dt),
+                            "Photo": v_pht, "JMS": v_jms, "WCC Status": v_sts
+                        })
+                    
+                    if save_wcc_data(payload):
+                        st.success("✅ Saved!")
+                        st.rerun()
 
+        # --- TOP BUTTONS ---
         raw_data = fetch_wcc()
         df_wcc = pd.DataFrame(raw_data) if raw_data else pd.DataFrame()
         
         c_top1, c_top2 = st.columns(2)
         with c_top1:
-            if role == "requester" and st.button("➕ Add New Site Request", type="primary", use_container_width=True): wcc_modal()
+            if role == "requester" and st.button("➕ Add New Site Request", type="primary", use_container_width=True):
+                wcc_modal()
         with c_top2:
             if not df_wcc.empty:
                 output = io.BytesIO()
                 with pd.ExcelWriter(output, engine='xlsxwriter') as writer: df_wcc.to_excel(writer, index=False)
-                st.download_button(label="📥 Download Excel Report", data=output.getvalue(), file_name="WCC_Report.xlsx", use_container_width=True)
+                st.download_button(label="📥 Download Excel", data=output.getvalue(), file_name="WCC_Report.xlsx", use_container_width=True)
 
         st.divider()
 
-        # --- RE-ENGINEERED STABLE TABLE ---
+        # --- TABLE WITH BUTTONS ---
         if not df_wcc.empty:
             # Table Header
-            cols = st.columns([0.8, 0.4, 1, 1.2, 1, 1.2, 1, 1, 1, 1, 1, 1])
-            fields = ["Actions", "Sr.", "Project", "Project ID", "Site ID", "Site Name", "PO No", "Date", "Photo", "JMS", "WCC No", "Status"]
-            for col, field in zip(cols, fields): col.markdown(f"**{field}**")
+            h = st.columns([0.6, 0.4, 1, 1.2, 1, 1.2, 1, 1, 1, 1, 1, 1])
+            cols = ["Actions", "Sr.", "Project", "Project ID", "Site ID", "Site Name", "PO No", "Date", "Photo", "JMS", "WCC No", "Status"]
+            for col, name in zip(h, cols): col.markdown(f"**{name}**")
             st.divider()
 
             for i, row in df_wcc.iterrows():
-                c = st.columns([0.8, 0.4, 1, 1.2, 1, 1.2, 1, 1, 1, 1, 1, 1])
+                c = st.columns([0.6, 0.4, 1, 1.2, 1, 1.2, 1, 1, 1, 1, 1, 1])
                 
-                # --- ACTION BUTTONS (NO NEW WINDOW) ---
                 with c[0]:
-                    btn_col1, btn_col2 = st.columns(2)
-                    if btn_col1.button("✏️", key=f"edit_{row.get('Project ID')}"):
+                    b1, b2 = st.columns(2)
+                    if b1.button("✏️", key=f"ed_{row['Project ID']}"):
                         wcc_modal(row)
                     
                     if role == 'requester':
-                        wa_msg = (
-                            f"Hello Prkash Ji,\n"
-                            f"Raise WCC urgently...\n\n"
-                            f"*Project* :- {row.get('Project', 'None')}\n"
-                            f"*Project ID* :- {row.get('Project ID', 'None')}\n"
-                            f"*Site ID* :- {row.get('Site ID', 'None')}\n"
-                            f"*Site Name* :- {row.get('Site Name', 'None')}\n"
-                            f"*PO Number* :- {row.get('PO Number', 'None')}\n"
-                            f"*Reqeust Date* :- {row.get('Reqeust Date', 'None')}\n"
-                            f"*WCC Number* :- {row.get('WCC Number', 'None')}\n"
-                            f"*WCC Status* :- {row.get('WCC Status', 'None')}\n\n"
-                            f"In case of any document or detail required please call to me or whatsaap to me but raise wcc in 1st priority.\n\n"
-                            f"Thanks,\n"
-                            f"Mayur Patil\n"
-                            f"7350533473"
-                        )
-                        wa_url = f"https://wa.me/?text={urllib.parse.quote(wa_msg)}"
-                        btn_col2.markdown(f'[![WA](https://img.icons8.com/color/24/000000/whatsapp--v1.png)]({wa_url})')
+                        msg = f"Hello Prkash Ji,\nRaise WCC urgently...\n\n*Project ID* :- {row['Project ID']}\n*Site ID* :- {row['Site ID']}\n\nThanks,\nMayur Patil\n7350533473"
+                        url = f"https://wa.me/?text={urllib.parse.quote(msg)}"
+                        b2.markdown(f"[💬]({url})")
 
-                # --- DATA COLUMNS ---
                 c[1].write(i+1)
                 c[2].write(row.get('Project',''))
                 c[3].write(row.get('Project ID',''))
