@@ -303,7 +303,8 @@ with tab4:
                     gmaps_route = f"https://www.google.com/maps?q=lat,long{coords_str}"
                     st.markdown(f'<a href="{gmaps_route}" target="_blank"><button style="width:100%; background-color:#4285F4; color:white; border:none; padding:10px; border-radius:5px; font-weight:bold; cursor:pointer;">🗺️ Open Full Route in Maps</button></a>', unsafe_allow_html=True)
             except Exception as e: st.error(f"Error: {e}")
-                # =====================================================================
+
+# =====================================================================
 # 📡 TAB 5: WCC TRACKER (REQUESTER & ACCOUNTANT)
 # =====================================================================
 with tab_wcc:
