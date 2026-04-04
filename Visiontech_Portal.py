@@ -305,7 +305,7 @@ with tab4:
             except Exception as e: st.error(f"Error: {e}")
 
 # =====================================================================
-# 📡 TAB 5: WCC TRACKER (REQUESTER HIDE WCC LOGIC)
+# 📡 TAB 5: WCC TRACKER (FINAL STABLE VERSION)
 # =====================================================================
 with tab_wcc:
     def fetch_wcc():
@@ -329,7 +329,7 @@ with tab_wcc:
     if "wcc_role" not in st.session_state: st.session_state.wcc_role = None
 
     if not st.session_state.wcc_role:
-        pwd = st.text_input("Enter Password to Unlock Folder:", type="password", key="wcc_pwd_v7_final")
+        pwd = st.text_input("Enter Password to Unlock Folder:", type="password", key="wcc_pwd_v8_final")
         if st.button("🔓 Unlock Folder"):
             if pwd == "Vision@321": st.session_state.wcc_role = "requester"
             elif pwd == "Account@321": st.session_state.wcc_role = "accountant"
@@ -344,18 +344,16 @@ with tab_wcc:
 
         @st.dialog("📝 WCC Details Form", width="large")
         def wcc_modal(row=None):
-            with st.form("wcc_form_v7"):
+            with st.form("wcc_form_v8"):
                 current_id = row.get('id') if row else None
                 
                 if role == "requester":
-                    # --- REQUESTER VIEW: PROJECT DETAILS ---
                     c1, c2 = st.columns(2)
                     v_proj = c1.text_input("Project", value=str(row.get("Project", "")) if row else "")
                     v_pid = c2.text_input("Project ID", value=str(row.get("Project ID", "")) if row else "")
                     c3, c4 = st.columns(2)
                     v_sid = c3.text_input("Site ID", value=str(row.get("Site ID", "")) if row else "")
                     v_snm = c4.text_input("Site Name", value=str(row.get("Site Name", "")) if row else "")
-                    
                     c5, c6 = st.columns(2)
                     v_po = c5.text_input("PO Number", value=str(row.get("PO Number", "")) if row else "")
                     d_val = datetime.now().date()
@@ -363,7 +361,6 @@ with tab_wcc:
                         try: d_val = pd.to_datetime(row.get("Reqeust Date")).date()
                         except: d_val = datetime.now().date()
                     v_dt = st.date_input("Request Date", value=d_val)
-                    
                     st.markdown("### Status Tracking")
                     c7, c8, c9 = st.columns(3)
                     p_opts = ["Pending", "Available on Portal"]
@@ -372,89 +369,60 @@ with tab_wcc:
                     v_jms = c8.selectbox("JMS", j_opts, index=j_opts.index(row.get("JMS")) if row and row.get("JMS") in j_opts else 0)
                     s_opts = ["Creation Pending", "Pending for Approval", "Proceed", "Rejected", "Cancel"]
                     v_sts = c9.selectbox("WCC Status", s_opts, index=s_opts.index(row.get("WCC Status")) if row and row.get("WCC Status") in s_opts else 0)
-                    
-                    # NOTE: WCC Number yahan se HATA diya gaya hai (Ye blank hi jayega)
+                    # WCC Number requester ke liye hidden hai
                     v_wno = row.get("WCC Number") if row else None 
-                
                 else:
-                    # --- ACCOUNTANT VIEW: ONLY WCC NUMBER ---
-                    st.warning(f"Accountant Mode: Updating WCC Number for Site {row.get('Site ID')}")
+                    st.warning(f"Accountant Mode: Site {row.get('Site ID')}")
                     v_wno = st.text_input("Enter WCC Number", value=str(row.get("WCC Number", "")) if row else "")
 
                 if st.form_submit_button("💾 Save Changes", use_container_width=True):
                     def clean_numeric(val):
-                        if not val or str(val).strip() == "" or str(val) == "None": return None
+                        if not val or str(val).strip() in ["", "None", "nan"]: return None
                         num_only = ''.join(filter(str.isdigit, str(val)))
                         return num_only if num_only != "" else None
 
                     payload = {"WCC Number": clean_numeric(v_wno)}
                     if role == "requester":
                         payload.update({
-                            "Project": v_proj.strip() if v_proj else None, 
-                            "Project ID": v_pid.strip() if v_pid else None, 
-                            "Site ID": v_sid.strip() if v_sid else None, 
-                            "Site Name": v_snm.strip() if v_snm else None, 
-                            "PO Number": clean_numeric(v_po), 
-                            "Reqeust Date": str(v_dt), 
+                            "Project": v_proj.strip() if v_proj else None, "Project ID": v_pid.strip() if v_pid else None,
+                            "Site ID": v_sid.strip() if v_sid else None, "Site Name": v_snm.strip() if v_snm else None,
+                            "PO Number": clean_numeric(v_po), "Reqeust Date": str(v_dt),
                             "Photo": v_pht, "JMS": v_jms, "WCC Status": v_sts
                         })
-                    
                     res = save_wcc_data(payload, current_id)
-                    if res:
-                        st.success("✅ Saved Successfully!")
-                        st.rerun()
+                    if res: st.rerun()
 
-        # --- UI DISPLAY ---
+        # --- ACTION BUTTONS ---
         raw_data = fetch_wcc()
         df_wcc = pd.DataFrame(raw_data) if raw_data else pd.DataFrame()
-
         col_act1, col_act2 = st.columns([2, 1])
         with col_act1:
             if role == "requester":
-                if st.button("➕ Add New Site Request", type="primary", use_container_width=True):
-                    wcc_modal()
+                if st.button("➕ Add New Site Request", type="primary"): wcc_modal()
         with col_act2:
             if not df_wcc.empty:
-                selected_site = st.selectbox("✏️ Select Site to Edit", ["-- Edit Site --"] + df_wcc['Site ID'].tolist(), label_visibility="collapsed")
-                if selected_site != "-- Edit Site --":
+                selected_site = st.selectbox("✏️ Edit Site", ["-- Select --"] + df_wcc['Site ID'].tolist(), label_visibility="collapsed")
+                if selected_site != "-- Select --":
                     edit_row = next(item for item in raw_data if item["Site ID"] == selected_site)
-                    if st.button("📝 Open Edit Form", use_container_width=True):
-                        wcc_modal(edit_row)
+                    if st.button("📝 Open Edit Form"): wcc_modal(edit_row)
 
+        # --- TABLE VIEW ---
         if not df_wcc.empty:
             st.markdown("""
                 <style>
-                .wcc-scroll { width: 100%; overflow-x: auto; border: 1px solid #ddd; border-radius: 8px; margin-top: 10px;}
+                .wcc-scroll { width: 100%; overflow-x: auto; border: 1px solid #ddd; border-radius: 8px; }
                 .wcc-table { width: 100%; border-collapse: collapse; min-width: 1500px; font-family: sans-serif; }
                 .wcc-table th { background-color: #008DDA; color: white; padding: 12px; text-align: left; }
                 .wcc-table td { padding: 10px; border-bottom: 1px solid #eee; font-size: 13px; }
-                .wcc-table tr:hover { background-color: #f9f9f9; }
-                .btn-wa { background-color: #25D366; color: white; padding: 4px 8px; border-radius: 4px; text-decoration: none; font-size: 11px; font-weight: bold; }
+                .btn-wa { background-color: #25D366; color: white; padding: 4px 8px; border-radius: 4px; text-decoration: none; font-size: 11px; }
                 </style>
             """, unsafe_allow_html=True)
-
-            html_table = '<div class="wcc-scroll"><table class="wcc-table"><tr><th>Sr.</th><th>Project</th><th>Project ID</th><th>Site ID</th><th>Site Name</th><th>PO Number</th><th>Date</th><th>Photo</th><th>JMS</th><th>WCC No</th><th>Status</th><th>WA</th></tr>'
-
+            
+            html_table = '<div class="wcc-scroll"><table class="wcc-table"><tr><th>Sr.</th><th>Project</th><th>Project ID</th><th>Site ID</th><th>Site Name</th><th>PO No</th><th>Date</th><th>Photo</th><th>JMS</th><th>WCC No</th><th>Status</th><th>WA</th></tr>'
             for i, row in df_wcc.iterrows():
-                wa_txt = f"Hello,\nKindly raise WCC urgently.\n\n*Site ID*:- {row.get('Site ID')}\n*WCC No*:- {row.get('WCC Number')}"
-                wa_url = f"https://wa.me/?text={urllib.parse.quote(wa_txt)}"
+                wa_url = f"https://wa.me/?text=Hello, Raise WCC: {row.get('Site ID')}"
                 wa_btn = f'<a href="{wa_url}" target="_blank" class="btn-wa">💬 WA</a>' if role == 'requester' else '-'
-                
-                html_table += f"""
-                <tr>
-                    <td>{i+1}</td>
-                    <td>{row.get('Project','')}</td>
-                    <td>{row.get('Project ID','')}</td>
-                    <td><b>{row.get('Site ID','')}</b></td>
-                    <td>{row.get('Site Name','')}</td>
-                    <td>{row.get('PO Number','')}</td>
-                    <td>{row.get('Reqeust Date','')}</td>
-                    <td>{row.get('Photo','')}</td>
-                    <td>{row.get('JMS','')}</td>
-                    <td style="color:red; font-weight:bold;">{row.get('WCC Number','-')}</td>
-                    <td>{row.get('WCC Status','')}</td>
-                    <td>{wa_btn}</td>
-                </tr>
-                """
+                html_table += f"<tr><td>{i+1}</td><td>{row.get('Project','')}</td><td>{row.get('Project ID','')}</td><td><b>{row.get('Site ID','')}</b></td><td>{row.get('Site Name','')}</td><td>{row.get('PO Number','')}</td><td>{row.get('Reqeust Date','')}</td><td>{row.get('Photo','')}</td><td>{row.get('JMS','')}</td><td style='color:red; font-weight:bold;'>{row.get('WCC Number','-')}</td><td>{row.get('WCC Status','')}</td><td>{wa_btn}</td></tr>"
             html_table += "</table></div>"
             st.markdown(html_table, unsafe_allow_html=True)
+        else: st.info("No records found.")
