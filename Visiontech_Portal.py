@@ -341,27 +341,191 @@ with tab4:
                     st.markdown(f'<a href="{gmaps_route}" target="_blank"><button style="width:100%; background-color:#4285F4; color:white; border:none; padding:10px; border-radius:5px; font-weight:bold; cursor:pointer;">🗺️ Open Full Route in Maps</button></a>', unsafe_allow_html=True)
             except Exception as e: st.error(f"Error: {e}")
 
-# =====================================================================
-# 📁 TAB 5 & 6 (Data Entry & Finance)
-# =====================================================================
-with tab5:
-    st.subheader("📁 Site Data Entry Form")
-    with st.form("site_entry_form", clear_on_submit=True):
-        c1, c2 = st.columns(2)
-        with c1: p_no_in = st.text_input("Project Number"); s_id_in = st.text_input("Site ID")
-        with c2: d_dt_in = st.date_input("Dispatch Date", value=datetime.now()); qty_in = st.number_input("Qty A", min_value=0, step=1)
-        if st.form_submit_button("🚀 Save Data"):
-            if p_no_in and s_id_in:
-                try: supabase_new.table("Site_Data_Entry").insert({"Project Number": p_no_in, "Site ID": s_id_in, "Dispatch Date": d_dt_in.strftime('%d-%b-%Y'), "Qty A": qty_in}).execute(); st.success("✅ Saved!")
-                except Exception as e: st.error(f"❌ Error: {e}")
-with tab6:
-    st.subheader("💰 Finance & Billing Entry")
-    with st.form("fin_form", clear_on_submit=True):
-        f1, f2 = st.columns(2)
-        with f1: fin_p_no = st.text_input("Project Number"); t_bill = st.number_input("Team Billing", min_value=0)
-        with f2: t_paid = st.number_input("Team Paid Amt", min_value=0); fin_dt = st.date_input("Entry Date", value=datetime.now())
-        if st.form_submit_button("💵 Record Finance"):
-            if fin_p_no:
-                v_bal = t_bill - t_paid
-                try: supabase_new.table("Finance_Entry").insert({"Project Number": fin_p_no, "Team Billing": t_bill, "Team Paid Amt": t_paid, "VIS Balance": v_bal, "Date": fin_dt.strftime('%d-%b-%Y')}).execute(); st.success(f"✅ Saved! Balance: {v_bal}")
-                except Exception as e: st.error(f"❌ Error: {e}")
+
+# ================= 4. 📡 WCC TRACKER =================
+elif menu == "📡 WCC Tracker":
+    st.title("📡 WCC Status Tracker")
+
+    # --- 1. PASSWORD PROTECTION ---
+    if "wcc_auth" not in st.session_state:
+        st.session_state.wcc_auth = False
+
+    if not st.session_state.wcc_auth:
+        st.warning("🔒 This section is highly confidential and locked.")
+        c1, c2 = st.columns([1, 2])
+        with c1:
+            pwd = st.text_input("Enter Password:", type="password")
+            if st.button("🔓 Unlock Tracker", type="primary"):
+                if pwd == "Vision@321":
+                    st.session_state.wcc_auth = True
+                    st.rerun()
+                else:
+                    st.error("❌ Incorrect Password!")
+    else:
+        # Tracker Unlocked State
+        t1, t2 = st.columns([4, 1])
+        t2.button("🔒 Lock Tracker", on_click=lambda: st.session_state.update(wcc_auth=False))
+        
+        st.write("---")
+
+        df_wcc = pd.DataFrame(fetch_table("WCC Status"))
+
+        # --- 2. POP-UP DIALOG FOR ADD/EDIT WCC ---
+        @st.dialog("📝 WCC Details Form", width="large")
+        def wcc_form_modal(ed=None):
+            with st.form("wcc_update_form"):
+                st.subheader("Site Information")
+                c1, c2 = st.columns(2)
+                p_id = c1.text_input("Project ID", value=str(ed.get("Project ID", "")) if ed is not None else "")
+                s_id = c2.text_input("Site ID", value=str(ed.get("Site ID", "")) if ed is not None else "")
+
+                c3, c4 = st.columns(2)
+                s_name = c3.text_input("Site Name", value=str(ed.get("Site Name", "")) if ed is not None else "")
+                po_no = c4.text_input("PO Number", value=str(ed.get("PO Number", "")) if ed is not None else "")
+
+                c5, c6 = st.columns(2)
+                # Note: Using 'Reqeust Date' exactly as per your Supabase DB spelling
+                req_date = c5.text_input("Request Date", value=str(ed.get("Reqeust Date", "")) if ed is not None else "")
+                wcc_no = c6.text_input("WCC Number", value=str(ed.get("WCC Number", "")) if ed is not None else "")
+
+                st.markdown("### 📊 Status Tracking")
+                c7, c8, c9 = st.columns(3)
+
+                # Required Dropdowns
+                photo_opts = ["Pending", "Available on Portal"]
+                photo_val = str(ed.get("Photo", "Pending")) if ed is not None else "Pending"
+                photo = c7.selectbox("Photo *", photo_opts, index=photo_opts.index(photo_val) if photo_val in photo_opts else 0)
+
+                jms_opts = ["Pending", "Available on Portal", "Create by You"]
+                jms_val = str(ed.get("JMS", "Pending")) if ed is not None else "Pending"
+                jms = c8.selectbox("JMS *", jms_opts, index=jms_opts.index(jms_val) if jms_val in jms_opts else 0)
+
+                status_opts = ["Creation Pending", "Pending for Approval", "Proceed", "Rejected", "Cancel"]
+                status_val = str(ed.get("WCC Status", "Creation Pending")) if ed is not None else "Creation Pending"
+                wcc_status = c9.selectbox("WCC Status *", status_opts, index=status_opts.index(status_val) if status_val in status_opts else 0)
+
+                if st.form_submit_button("💾 Save WCC Record", use_container_width=True):
+                    payload = {
+                        "Project ID": p_id,
+                        "Site ID": s_id,
+                        "Site Name": s_name,
+                        "PO Number": po_no,
+                        "Reqeust Date": req_date,  # Exact spelling from DB
+                        "Photo": photo,
+                        "JMS": jms,
+                        "WCC Number": wcc_no,
+                        "WCC Status": wcc_status
+                    }
+                    if ed is not None and 'id' in ed:
+                        update_row("WCC Status", ed['id'], payload)
+                    else:
+                        insert_row("WCC Status", payload)
+                    st.rerun()
+
+        # --- 3. URL PARAMS FOR ACTIONS ---
+        if "edit_wcc" in st.query_params:
+            rid = str(st.query_params["edit_wcc"])
+            st.query_params.clear()
+            st.query_params["menu"] = "WCC Tracker"
+
+            ed_row = pd.DataFrame()
+            for idx, row in df_wcc.iterrows():
+                db_id = str(row.get('id', row.get('ID', idx)))
+                if db_id == rid:
+                    ed_row = df_wcc.iloc[[idx]]
+                    break
+
+            if not ed_row.empty:
+                wcc_form_modal(ed_row.iloc[0].to_dict())
+
+        # Top Button
+        if st.button("➕ Add New WCC Record", type="primary"):
+            wcc_form_modal()
+
+        # --- 4. LAVISH WCC TABLE ---
+        if not df_wcc.empty:
+            import urllib.parse
+
+            html_code = """
+            <style>
+            .wcc-scroll { width: 100%; overflow-x: auto; border-radius: 10px; border: 1px solid #ddd; background: white; margin-top: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); position: relative; z-index: 10; }
+            .wcc-table { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 1800px; font-family: sans-serif; }
+            .wcc-table th { background: #009688; color: white; padding: 12px; text-align: left; position: sticky; top: 0; z-index: 20; font-size: 14px; border-bottom: 1px solid #eee; }
+            .wcc-table td { padding: 12px; border-bottom: 1px solid #eee; font-size: 13px; color: #333; }
+            .wcc-table tr:hover td { background: #e0f2f1; }
+            .wcc-action { position: sticky; left: 0; background: #f4f6f9 !important; z-index: 999 !important; border-right: 2px solid #ddd !important; text-align: center; }
+            .wcc-action-head { position: sticky; left: 0; z-index: 1000 !important; background: #009688 !important; border-right: 2px solid #00796b !important; text-align: center; }
+            .wcc-btn { text-decoration: none; font-size: 18px; margin: 0 8px; cursor: pointer; position: relative; z-index: 9999 !important; pointer-events: auto !important; display: inline-block; }
+            .wcc-btn:hover { transform: scale(1.2); }
+            .wcc-badge { background: #e0f2f1; color: #00796b; padding: 4px 8px; border-radius: 12px; font-weight: bold; font-size: 11px; }
+            </style>
+
+            <div class="wcc-scroll">
+                <table class="wcc-table">
+                    <tr>
+                        <th class="wcc-action-head">Actions</th>
+                        <th>Sr. No.</th>
+                        <th>Project ID</th>
+                        <th>Site ID</th>
+                        <th>Site Name</th>
+                        <th>PO Number</th>
+                        <th>Request Date</th>
+                        <th>Photo</th>
+                        <th>JMS</th>
+                        <th>WCC Number</th>
+                        <th>WCC Status</th>
+                    </tr>
+            """
+
+            for i, row in df_wcc.iterrows():
+                db_id = row.get('id', row.get('ID', i))
+                p_id = str(row.get('Project ID', '-'))
+                s_id = str(row.get('Site ID', '-'))
+                s_name = str(row.get('Site Name', '-'))
+                po_no = str(row.get('PO Number', '-'))
+                req_date = str(row.get('Reqeust Date', '-')) 
+                wcc_no = str(row.get('WCC Number', '-'))
+                wcc_sts = str(row.get('WCC Status', '-'))
+
+                # Generate Exact WhatsApp Message
+                wa_msg = f"""Hello,
+Below Site WCC Request sent to you kindly raise WCC urgently and comfirm on Website.
+All Detail Available on our vispltower.com software.
+
+*Project ID* :- {p_id}
+*Site ID* :- {s_id}
+*Site Name* :- {s_name}
+*PO Number* :- {po_no}
+*Reqeust Date* :- {req_date}
+*WCC Number* :- {wcc_no}
+*WCC Status* :- {wcc_sts}
+
+In case of any document or detail required please call to me or whatsaap to me but raise wcc in 1st priority."""
+                
+                # Format URL for WhatsApp API
+                wa_link = f"https://wa.me/?text={urllib.parse.quote(wa_msg)}"
+
+                html_code += f"""
+                    <tr>
+                        <td class="wcc-action">
+                            <a href="?menu=WCC Tracker&edit_wcc={db_id}" target="_self" class="wcc-btn" title="Edit Record">✏️</a>
+                            <a href="{wa_link}" target="_blank" class="wcc-btn" title="Send WhatsApp Message">💬</a>
+                        </td>
+                        <td><b>{i + 1}</b></td>
+                        <td style="font-weight:bold; color:#009688;">{p_id}</td>
+                        <td>{s_id}</td>
+                        <td>{s_name}</td>
+                        <td>{po_no}</td>
+                        <td>{req_date}</td>
+                        <td><span class="wcc-badge">{row.get('Photo', '-')}</span></td>
+                        <td><span class="wcc-badge">{row.get('JMS', '-')}</span></td>
+                        <td style="color:#e65100; font-weight:bold;">{wcc_no}</td>
+                        <td><span class="wcc-badge">{wcc_sts}</span></td>
+                    </tr>
+                """
+
+            html_code += "</table></div>"
+            st.markdown(html_code.replace('\n', ''), unsafe_allow_html=True)
+
+        else:
+            st.info("No records found in WCC Status.")
