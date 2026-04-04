@@ -88,7 +88,6 @@ with tab1:
 
     if submit_search or stn_pending_btn or gen_new_boq or update_click:
         query = supabase.table("BOQ Report").select("*").limit(50000)
-        
         if update_click:
             try:
                 sd_res = supabase.table("Site Data").select("*").execute()
@@ -113,8 +112,7 @@ with tab1:
             for col in qty_cols:
                 if col in df_res.columns: df_res[col] = pd.to_numeric(df_res[col], errors='coerce').fillna(0).astype(int)
 
-            if update_click: 
-                display_sequence = ['Project Number', 'Dispatch Date']
+            if update_click: display_sequence = ['Project Number', 'Dispatch Date']
             else:
                 display_sequence = mera_sequence
                 if 'Item Code' in df_res.columns:
@@ -123,7 +121,6 @@ with tab1:
                     df_res = df_res.groupby('TempGroupKey', as_index=False).agg(agg_dict)
             
             st.session_state['display_cols'] = display_sequence
-
             site_id_for_wa = df_res['Site ID'].iloc[0] if not df_res.empty and 'Site ID' in df_res.columns else None
             indus_wa_block = ""
             current_site_name = "-"
@@ -151,32 +148,26 @@ with tab1:
         current_cols = st.session_state.get('display_cols', mera_sequence)
         final_cols = [c for c in current_cols if c in df.columns]
         st.dataframe(df[final_cols], use_container_width=True, hide_index=True)
-
         st.markdown("### 📤 Export & Share")
         btn_col1, btn_col2 = st.columns([1, 4])
         p_val = df['Project Number'].iloc[0] if not df.empty and 'Project Number' in df.columns else "NA"
         s_id = df['Site ID'].iloc[0] if not df.empty and 'Site ID' in df.columns else "NA"
         s_name = st.session_state.get('wa_site_name', '-')
-        
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             df.to_excel(writer, index=False, sheet_name='BOQ_Report')
         processed_data = output.getvalue()
-        
         with btn_col1:
             st.download_button(label="📥 Download Excel", data=processed_data, file_name=f"{p_val}_{s_id}.xlsx", use_container_width=True)
-        
         with btn_col2:
             df_sorted = df.copy()
             if 'Sr. No.' in df_sorted.columns:
                 df_sorted['Sr. No.'] = pd.to_numeric(df_sorted['Sr. No.'], errors='coerce')
                 df_sorted = df_sorted.sort_values(by='Sr. No.')
             df_sorted = df_sorted.reset_index(drop=True)
-            
             wa_msg = f"📦 *BOQ REPORT* : {p_val}\n*Project Number* - {p_val}\n*Site ID* - {s_id}\n*Site Name* - {s_name}\n\n"
             for index, row in df_sorted.iterrows():
                 wa_msg += f"{index + 1}.\n*Transaction Type* - {row.get('Transaction Type', '-')}\n*BOQ Number* - {row.get('BOQ', '-')}\n*Item Code* - {row.get('Item Code', '-')}\n*Item Description* - {row.get('Item Description', '-')}\n*BOQ Qty* - {row.get('Qty A', '0')}\n*Dispatched Qty* - {row.get('Qty B', '0')}\n*STN Qty* - {row.get('Qty C', '0')}\n*Parent* - {row.get('Parent/Child', '-')}\n*Dispatched Date* - {row.get('Dispatch Date', '-')}\n*Transporter Name* - {row.get('Transporter', '-')}\n*TSP Name* - {row.get('TSP Partner Name', '-')}\n--------------------\n"
-            
             wa_msg += st.session_state.get('wa_indus_data', "")
             st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}" target="_blank"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">🚀 Share Full Report</button></a>', unsafe_allow_html=True)
 
@@ -250,8 +241,7 @@ with tab4:
         if res_ind.data:
             df_ind = pd.DataFrame(res_ind.data)
             st.dataframe(df_ind, use_container_width=True, hide_index=True)
-            st.divider()
-            st.subheader("📌 Vertical Site Details")
+            st.divider(); st.subheader("📌 Vertical Site Details")
             row_in = res_ind.data[0]
             def call_html(label, name, num):
                 if num and str(num).strip() not in ['-', '', 'None', 'nan']:
@@ -271,16 +261,129 @@ with tab4:
                 else: st.markdown(f"📍 **Lat/Long** :- {lat if lat else '-'} / {lon if lon else '-'}")
         else: st.info("No Indus data found.")
 
-    st.divider()
-    st.subheader("🧭 Route Plan")
+    st.divider(); st.subheader("🧭 Route Plan")
     if 'route_list' not in st.session_state: st.session_state.route_list = []
     with st.expander("🛠️ Create New Route Plan", expanded=False):
         c1, c2 = st.columns(2)
-        with c1: start_coords = st.text_input("🏠 Start Location (City or Lat, Long)", placeholder="e.g. Pune")
-        with c2: end_coords = st.text_input("🏁 End Location (City or Lat, Long)", placeholder="e.g. Mumbai")
+        with c1: start_coords = st.text_input("🏠 Start Location", placeholder="e.g. Pune")
+        with c2: end_coords = st.text_input("🏁 End Location", placeholder="e.g. Mumbai")
         with st.form("add_site_form", clear_on_submit=True):
             add_sid = st.text_input("📍 Add Indus Site ID")
             if st.form_submit_button("➕ Add +"):
                 if add_sid:
                     s_res = supabase.table("Indus Data").select("*").ilike("Site ID", f"%{add_sid.strip()}%").execute()
-                    if s_res.data: st.session_state.route
+                    if s_res.data: st.session_state.route_list.append(s_res.data[0]); st.success(f"Site {add_sid} added!")
+                    else: st.error("Site ID not found!")
+        if st.session_state.route_list:
+            st.write("**Current Sites:** " + ", ".join([s['Site ID'] for s in st.session_state.route_list]))
+            if st.button("🗑️ Clear List"): st.session_state.route_list = []; st.rerun()
+    if st.button("🚀 Calculate Best Route", use_container_width=True):
+        if not start_coords or not end_coords or not st.session_state.route_list: st.warning("Incomplete details!")
+        else:
+            try:
+                geolocator = Nominatim(user_agent="vis_route_planner")
+                def get_lat_lon(loc):
+                    if ',' in loc and any(c.isdigit() for c in loc): return [float(x.strip()) for x in loc.split(',')]
+                    l = geolocator.geocode(loc); return [l.latitude, l.longitude] if l else None
+                curr_p, end_p = get_lat_lon(start_coords), get_lat_lon(end_coords)
+                if not curr_p or not end_p: st.error("Check Start/End location name.")
+                else:
+                    unvisited = st.session_state.route_list.copy(); final_path = []
+                    while unvisited:
+                        valid_sites = [s for s in unvisited if s.get('Lat') and s.get('Long') and str(s.get('Lat')).strip() != '-']
+                        if not valid_sites: break
+                        next_s = min(valid_sites, key=lambda x: geodesic(curr_p, (float(x['Lat']), float(x['Long']))).km)
+                        final_path.append(next_s); curr_p = (float(next_s['Lat']), float(next_s['Long'])); unvisited.remove(next_s)
+                    
+                    route_data = [{"Serial No": "0", "Task": "START", "Site ID": "Home/Office", "Location": start_coords}]
+                    for i, s in enumerate(final_path, 1): route_data.append({"Serial No": str(i), "Task": "Visit", "Site ID": s['Site ID'], "Location": f"{s['Lat']}, {s['Long']}"})
+                    route_data.append({"Serial No": str(len(final_path)+1), "Task": "END", "Site ID": "Destination", "Location": end_coords})
+                    st.table(pd.DataFrame(route_data))
+                    coords_str = "/".join([start_coords] + [f"{s['Lat']},{s['Long']}" for s in final_path] + [end_coords])
+                    gmaps_route = f"https://www.google.com/maps?q=lat,long{coords_str}"
+                    st.markdown(f'<a href="{gmaps_route}" target="_blank"><button style="width:100%; background-color:#4285F4; color:white; border:none; padding:10px; border-radius:5px; font-weight:bold; cursor:pointer;">🗺️ Open Full Route in Maps</button></a>', unsafe_allow_html=True)
+            except Exception as e: st.error(f"Error: {e}")
+                # =====================================================================
+# 📡 TAB 5: WCC TRACKER (REQUESTER & ACCOUNTANT)
+# =====================================================================
+with tab_wcc:
+    def fetch_wcc():
+        try: return supabase.table("WCC Status").select("*").execute().data
+        except: return []
+
+    def insert_wcc(data): return supabase.table("WCC Status").insert(data).execute()
+    def update_wcc(rid, data): return supabase.table("WCC Status").update(data).eq("id", rid).execute()
+
+    st.title("📡 WCC Status Tracker")
+
+    if "wcc_role" not in st.session_state: st.session_state.wcc_role = None
+
+    if not st.session_state.wcc_role:
+        pwd = st.text_input("Enter Password to Unlock Folder:", type="password")
+        if st.button("🔓 Unlock Folder"):
+            if pwd == "Vision@321": st.session_state.wcc_role = "requester"
+            elif pwd == "Account@321": st.session_state.wcc_role = "accountant"
+            else: st.error("❌ Wrong Password!")
+            st.rerun()
+    else:
+        role = st.session_state.wcc_role
+        st.info(f"Logged in as: **{role.upper()}**")
+        if st.button("🔒 Logout"):
+            st.session_state.wcc_role = None
+            st.rerun()
+
+        @st.dialog("📝 WCC Details Form", width="large")
+        def wcc_modal(row=None):
+            with st.form("wcc_form"):
+                if role == "requester":
+                    c1, c2 = st.columns(2)
+                    v_proj = c1.text_input("Project", value=row.get("Project", "") if row else "")
+                    v_pid = c2.text_input("Project ID", value=row.get("Project ID", "") if row else "")
+                    c3, c4 = st.columns(2)
+                    v_sid = c3.text_input("Site ID", value=row.get("Site ID", "") if row else "")
+                    v_snm = c4.text_input("Site Name", value=row.get("Site Name", "") if row else "")
+                    c5, c6 = st.columns(2)
+                    v_po = c5.text_input("PO Number", value=row.get("PO Number", "") if row else "")
+                    # Date Picker for clean format
+                    d_val = pd.to_datetime(row.get("Reqeust Date")).date() if row and row.get("Reqeust Date") else datetime.now().date()
+                    v_dt = st.date_input("Request Date", value=d_val)
+                    
+                    st.markdown("### Status Tracking")
+                    c7, c8, c9 = st.columns(3)
+                    v_pht = c7.selectbox("Photo", ["Pending", "Available on Portal"], index=0)
+                    v_jms = c8.selectbox("JMS", ["Pending", "Available on Portal", "Create by You"], index=0)
+                    v_sts = c9.selectbox("WCC Status", ["Creation Pending", "Pending for Approval", "Proceed", "Rejected", "Cancel"], index=0)
+                    v_wno = st.text_input("WCC Number", value=row.get("WCC Number", "") if row else "")
+                else:
+                    # Accountant Mode: Only WCC Number is editable
+                    st.warning(f"Updating WCC Number for Site: {row.get('Site ID')}")
+                    v_wno = st.text_input("Enter WCC Number", value=row.get("WCC Number", "") if row else "")
+
+                if st.form_submit_button("💾 Save Changes"):
+                    payload = {"WCC Number": v_wno}
+                    if role == "requester":
+                        payload.update({"Project": v_proj, "Project ID": v_pid, "Site ID": v_sid, "Site Name": v_snm, "PO Number": v_po, "Reqeust Date": str(v_dt), "Photo": v_pht, "JMS": v_jms, "WCC Status": v_sts})
+                    
+                    if row: update_wcc(row['id'], payload)
+                    else: insert_wcc(payload)
+                    st.rerun()
+
+        if role == "requester":
+            if st.button("➕ Add New Site Request"): wcc_modal()
+
+        data_wcc = fetch_wcc()
+        if data_wcc:
+            df_wcc = pd.DataFrame(data_wcc)
+            # Show Table with Actions
+            for i, row in df_wcc.iterrows():
+                with st.expander(f"📍 {row.get('Site ID', 'NA')} - {row.get('WCC Status', 'NA')}"):
+                    st.write(f"**Project:** {row.get('Project')} | **PO:** {row.get('PO Number')}")
+                    st.write(f"**WCC No:** {row.get('WCC Number', 'PENDING')}")
+                    c_btn, c_wa = st.columns([1, 4])
+                    if c_btn.button("✏️ Edit", key=f"ed_{row['id']}"): wcc_modal(row)
+                    
+                    if role == "requester":
+                        wa_msg = f"Hello,\nBelow Site WCC Request sent to you kindly raise WCC urgently.\n\n*Project* :- {row.get('Project')}\n*Site ID* :- {row.get('Site ID')}\n*WCC Status* :- {row.get('WCC Status')}"
+                        wa_url = f"https://wa.me/?text={urllib.parse.quote(wa_msg)}"
+                        c_wa.markdown(f'[🚀 Send WhatsApp]({wa_url})')
+        else: st.info("No WCC Records found.")
