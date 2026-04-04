@@ -305,29 +305,24 @@ with tab4:
             except Exception as e: st.error(f"Error: {e}")
 
 # =====================================================================
-# 📡 TAB 5: WCC TRACKER (REQUESTER & ACCOUNTANT)
+# 📡 TAB 5: WCC TRACKER (TABLE FORMAT WITH 2-USER SYSTEM)
 # =====================================================================
 with tab_wcc:
     def fetch_wcc():
         try: 
             res = supabase.table("WCC Status").select("*").execute()
             return res.data
-        except Exception as e:
-            st.error(f"Fetch Error: {e}")
-            return []
+        except: return []
 
     def insert_wcc(data): return supabase.table("WCC Status").insert(data).execute()
-    
-    # ID handle karne ke liye safe function
-    def update_wcc(rid, data):
-        return supabase.table("WCC Status").update(data).eq("id", rid).execute()
+    def update_wcc(rid, data): return supabase.table("WCC Status").update(data).eq("id", rid).execute()
 
     st.title("📡 WCC Status Tracker")
 
     if "wcc_role" not in st.session_state: st.session_state.wcc_role = None
 
     if not st.session_state.wcc_role:
-        pwd = st.text_input("Enter Password to Unlock Folder:", type="password", key="wcc_pwd_main")
+        pwd = st.text_input("Enter Password to Unlock Folder:", type="password", key="wcc_pwd_final")
         if st.button("🔓 Unlock Folder"):
             if pwd == "Vision@321": st.session_state.wcc_role = "requester"
             elif pwd == "Account@321": st.session_state.wcc_role = "accountant"
@@ -342,10 +337,8 @@ with tab_wcc:
 
         @st.dialog("📝 WCC Details Form", width="large")
         def wcc_modal(row=None):
-            with st.form("wcc_form"):
-                # Safe ID extraction
+            with st.form("wcc_form_v2"):
                 row_id = row.get('id') if row and 'id' in row else (row.get('ID') if row else None)
-                
                 if role == "requester":
                     c1, c2 = st.columns(2)
                     v_proj = c1.text_input("Project", value=str(row.get("Project", "")) if row else "")
@@ -355,8 +348,6 @@ with tab_wcc:
                     v_snm = c4.text_input("Site Name", value=str(row.get("Site Name", "")) if row else "")
                     c5, c6 = st.columns(2)
                     v_po = c5.text_input("PO Number", value=str(row.get("PO Number", "")) if row else "")
-                    
-                    # Date Logic
                     d_val = datetime.now().date()
                     if row and row.get("Reqeust Date"):
                         try: d_val = pd.to_datetime(row.get("Reqeust Date")).date()
@@ -367,57 +358,77 @@ with tab_wcc:
                     c7, c8, c9 = st.columns(3)
                     p_opts = ["Pending", "Available on Portal"]
                     v_pht = c7.selectbox("Photo", p_opts, index=p_opts.index(row.get("Photo")) if row and row.get("Photo") in p_opts else 0)
-                    
                     j_opts = ["Pending", "Available on Portal", "Create by You"]
                     v_jms = c8.selectbox("JMS", j_opts, index=j_opts.index(row.get("JMS")) if row and row.get("JMS") in j_opts else 0)
-                    
                     s_opts = ["Creation Pending", "Pending for Approval", "Proceed", "Rejected", "Cancel"]
                     v_sts = c9.selectbox("WCC Status", s_opts, index=s_opts.index(row.get("WCC Status")) if row and row.get("WCC Status") in s_opts else 0)
-                    
                     v_wno = st.text_input("WCC Number", value=str(row.get("WCC Number", "")) if row else "")
                 else:
-                    st.warning(f"Updating WCC Number for Site: {row.get('Site ID')}")
+                    st.warning(f"Accountant Mode: Editing Site {row.get('Site ID')}")
                     v_wno = st.text_input("Enter WCC Number", value=str(row.get("WCC Number", "")) if row else "")
 
-                if st.form_submit_button("💾 Save Changes"):
+                if st.form_submit_button("💾 Save Changes", use_container_width=True):
                     payload = {"WCC Number": v_wno}
                     if role == "requester":
-                        payload.update({
-                            "Project": v_proj, "Project ID": v_pid, "Site ID": v_sid, 
-                            "Site Name": v_snm, "PO Number": v_po, "Reqeust Date": str(v_dt), 
-                            "Photo": v_pht, "JMS": v_jms, "WCC Status": v_sts
-                        })
-                    
-                    try:
-                        if row_id: update_wcc(row_id, payload)
-                        else: insert_wcc(payload)
-                        st.success("✅ Saved Successfully!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Save Error: {e}")
+                        payload.update({"Project": v_proj, "Project ID": v_pid, "Site ID": v_sid, "Site Name": v_snm, "PO Number": v_po, "Reqeust Date": str(v_dt), "Photo": v_pht, "JMS": v_jms, "WCC Status": v_sts})
+                    if row_id: update_wcc(row_id, payload)
+                    else: insert_wcc(payload)
+                    st.rerun()
 
         if role == "requester":
             if st.button("➕ Add New Site Request", type="primary"): wcc_modal()
 
+        # --- LAVISH TABLE UI ---
         raw_data = fetch_wcc()
         if raw_data:
             df_wcc = pd.DataFrame(raw_data)
+            import urllib.parse
+            html_table = """
+            <style>
+            .wcc-scroll { width: 100%; overflow-x: auto; border-radius: 10px; border: 1px solid #ddd; background: white; margin-top: 15px; }
+            .wcc-table { width: 100%; border-collapse: collapse; min-width: 1400px; font-family: sans-serif; }
+            .wcc-table th { background: #008DDA; color: white; padding: 12px; text-align: left; position: sticky; top: 0; }
+            .wcc-table td { padding: 10px; border-bottom: 1px solid #eee; font-size: 13px; }
+            .wcc-table tr:hover { background: #F7FBFF; }
+            .btn-wa { background: #25D366; color: white; padding: 5px 10px; border-radius: 4px; text-decoration: none; font-weight: bold; font-size: 11px; }
+            </style>
+            <div class="wcc-scroll"><table class="wcc-table">
+            <tr><th>Actions</th><th>Sr.</th><th>Project</th><th>Project ID</th><th>Site ID</th><th>Site Name</th><th>PO Number</th><th>Date</th><th>Photo</th><th>JMS</th><th>WCC No</th><th>Status</th></tr>
+            """
             for i, row in df_wcc.iterrows():
-                # Safe ID for key generation
-                unique_id = row.get('id', row.get('ID', i))
+                uid = row.get('id', row.get('ID', i))
+                wa_txt = f"Hello,\nKindly raise WCC urgently.\n\n*Project*:- {row.get('Project')}\n*Site ID*:- {row.get('Site ID')}\n*WCC No*:- {row.get('WCC Number')}"
+                wa_link = f"https://wa.me/?text={urllib.parse.quote(wa_txt)}"
                 
-                with st.expander(f"📍 {row.get('Site ID', 'NA')} - {row.get('WCC Status', 'NA')}"):
-                    st.write(f"**Project:** {row.get('Project', '-')} | **Project ID:** {row.get('Project ID', '-')}")
-                    st.write(f"**PO No:** {row.get('PO Number', '-')} | **Date:** {row.get('Reqeust Date', '-')}")
-                    st.write(f"**WCC No:** `{row.get('WCC Number', 'PENDING')}`")
-                    
-                    c_btn, c_wa = st.columns([1, 4])
-                    if c_btn.button("✏️ Edit", key=f"btn_ed_{unique_id}"): 
-                        wcc_modal(row.to_dict())
-                    
-                    if role == "requester":
-                        wa_txt = f"Hello,\nBelow Site WCC Request sent to you kindly raise WCC urgently.\n\n*Project* :- {row.get('Project')}\n*Site ID* :- {row.get('Site ID')}\n*WCC Number* :- {row.get('WCC Number')}\n*WCC Status* :- {row.get('WCC Status')}"
-                        wa_url = f"https://wa.me/?text={urllib.parse.quote(wa_txt)}"
-                        c_wa.markdown(f'<a href="{wa_url}" target="_blank"><button style="background-color:#25D366;color:white;border:none;padding:5px 15px;border-radius:5px;cursor:pointer;">🚀 Share WhatsApp</button></a>', unsafe_allow_html=True)
+                html_table += f"""
+                <tr>
+                    <td>
+                        <a href="?edit_wcc={uid}" target="_self" style="text-decoration:none;">✏️</a>
+                        {" " if role != 'requester' else f'<a href="{wa_link}" target="_blank" class="btn-wa">💬 WA</a>'}
+                    </td>
+                    <td>{i+1}</td>
+                    <td>{row.get('Project','-')}</td>
+                    <td>{row.get('Project ID','-')}</td>
+                    <td><b>{row.get('Site ID','-')}</b></td>
+                    <td>{row.get('Site Name','-')}</td>
+                    <td>{row.get('PO Number','-')}</td>
+                    <td>{row.get('Reqeust Date','-')}</td>
+                    <td>{row.get('Photo','-')}</td>
+                    <td>{row.get('JMS','-')}</td>
+                    <td style="color:red; font-weight:bold;">{row.get('WCC Number','-')}</td>
+                    <td>{row.get('WCC Status','-')}</td>
+                </tr>
+                """
+            html_table += "</table></div>"
+            st.markdown(html_table, unsafe_allow_html=True)
+            
+            # URL params detection for Edit
+            if "edit_wcc" in st.query_params:
+                edit_id = st.query_params["edit_wcc"]
+                st.query_params.clear()
+                for d in raw_data:
+                    if str(d.get('id', d.get('ID'))) == str(edit_id):
+                        wcc_modal(d)
+                        break
         else:
-            st.info("No WCC Records found.")
+            st.info("No records found.")
