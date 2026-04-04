@@ -25,54 +25,33 @@ st.sidebar.divider()
 st.sidebar.caption("© 2026 Visiontech Infra Solutions")
 
 # --- 3. TABS ---
-tab1, tab2, tab3, tab4, tab_wcc, tab5, tab6 = st.tabs(["📦 BOQ Report", "🧾 PO Report", "🏗️ Site Detail", "📊 Indus Basic Data", "📡 WCC Tracker", "📁 Data Entry", "💰 Finance Entry"])
+tab1, tab2, tab3, tab4, tab_wcc, tab5, tab6 = st.tabs([
+    "📦 BOQ Report", "🧾 PO Report", "🏗️ Site Detail", 
+    "📊 Indus Basic Data", "📡 WCC Tracker", "📁 Data Entry", "💰 Finance Entry"
+])
 
 # =====================================================================
 # 🟩 TAB 1: BOQ REPORT
 # =====================================================================
 with tab1:
-    # --- NAYA: CUSTOM SCROLLBAR STYLE ---
     st.markdown("""
         <style>
-            /* Pure table container ka scrollbar bada karne ke liye */
-            div[data-testid="stDataTableBody"]::-webkit-scrollbar {
-                width: 14px;      /* Vertical scrollbar ki choudai */
-                height: 14px;     /* Horizontal scrollbar ki oonchai */
-            }
-            div[data-testid="stDataTableBody"]::-webkit-scrollbar-track {
-                background: #f1f1f1; 
-                border-radius: 10px;
-            }
-            div[data-testid="stDataTableBody"]::-webkit-scrollbar-thumb {
-                background: #888; 
-                border-radius: 10px;
-                border: 2px solid #f1f1f1; /* Space deta hai taaki pakadne mein aasani ho */
-            }
-            div[data-testid="stDataTableBody"]::-webkit-scrollbar-thumb:hover {
-                background: #555; /* Mouse le jaane par color dark ho jayega */
-            }
-            
-            /* Agar aap standard dataframe use kar rahe hain toh uske liye bhi: */
-            .stDataFrame div::-webkit-scrollbar {
-                width: 14px !important;
-                height: 14px !important;
-            }
-            .stDataFrame div::-webkit-scrollbar-thumb {
-                background-color: #007bff !important; /* Blue color taaki alag dikhe */
-                border-radius: 10px !important;
-            }
+            div[data-testid="stDataTableBody"]::-webkit-scrollbar { width: 14px; height: 14px; }
+            div[data-testid="stDataTableBody"]::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
+            div[data-testid="stDataTableBody"]::-webkit-scrollbar-thumb { background: #888; border-radius: 10px; border: 2px solid #f1f1f1; }
+            div[data-testid="stDataTableBody"]::-webkit-scrollbar-thumb:hover { background: #555; }
+            .stDataFrame div::-webkit-scrollbar { width: 14px !important; height: 14px !important; }
+            .stDataFrame div::-webkit-scrollbar-thumb { background-color: #007bff !important; border-radius: 10px !important; }
         </style>
     """, unsafe_allow_html=True)    
     st.markdown("<h3 style='text-align: center; margin-bottom: 0px;'>🔍 Visiontech Infra Solutions</h3>", unsafe_allow_html=True)
     mera_sequence = ['Sr. No.', 'Site ID', 'Product', 'Transaction Type', 'Issue From', 'Project Number', 'BOQ', 'Item Code', 'Item Description', 'Qty A', 'Qty B', 'Qty C', 'Dispatch Date', 'Parent/Child', 'Line Status', 'Transporter', 'TSP Partner Name', 'LR Number', 'Vehicle Number', 'Challan Number', 'BOQ Date', 'Department', 'Item Category', 'Source Of Fulfilment']
 
-   # 1. Clear Functionality ke liye keys initialize karein (form ke upar)
     if 'cleared' not in st.session_state:
         st.session_state.cleared = False
 
     with st.form("search_form", clear_on_submit=st.session_state.cleared):
         c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([1.1, 1.0, 1.1, 1.0, 1.1, 1.1, 1.2, 0.1])
-        
         with c1: project_query = st.text_input("📁 Project No.", key="boq_p_v5")
         with c2: site_query = st.text_input("📍 Site ID", key="boq_s_v5")
         with c3: boq_query = st.text_input("📄 BOQ", key="boq_b_v5")
@@ -85,11 +64,10 @@ with tab1:
             col_btn1, col_btn2 = st.columns(2)
             with col_btn1:
                 submit_search = st.form_submit_button("🔍 Search")
-                if submit_search:
-                    st.session_state.cleared = False # Search ke waqt clear nahi karna
+                if submit_search: st.session_state.cleared = False
             with col_btn2:
                 if st.form_submit_button("🗑️ Clear"):
-                    st.session_state.cleared = True # Agli baar form clear ho jayega
+                    st.session_state.cleared = True
                     st.session_state.pop('boq_df', None)
                     st.session_state.pop('wa_site_name', None)
                     st.rerun()
@@ -119,8 +97,7 @@ with tab1:
                     if p_list:
                         yesterday_str = (datetime.now() - timedelta(days=1)).strftime('%d-%b-%Y')
                         query = query.in_("Project Number", p_list).eq("Dispatch Date", yesterday_str)
-            except Exception as e: 
-                st.error(f"API Error: {e}")
+            except Exception as e: st.error(f"API Error: {e}")
         elif gen_new_boq:
             formatted_date_str = boq_date_pick.strftime('%d-%b-%Y')
             query = query.eq("BOQ Date", formatted_date_str)
@@ -134,8 +111,7 @@ with tab1:
             df_res = pd.DataFrame(response.data)
             qty_cols = ['Qty A', 'Qty B', 'Qty C']
             for col in qty_cols:
-                if col in df_res.columns:
-                    df_res[col] = pd.to_numeric(df_res[col], errors='coerce').fillna(0).astype(int)
+                if col in df_res.columns: df_res[col] = pd.to_numeric(df_res[col], errors='coerce').fillna(0).astype(int)
 
             if update_click: 
                 display_sequence = ['Project Number', 'Dispatch Date']
@@ -148,7 +124,6 @@ with tab1:
             
             st.session_state['display_cols'] = display_sequence
 
-            # --- FETCH SITE NAME & INDUS DATA ---
             site_id_for_wa = df_res['Site ID'].iloc[0] if not df_res.empty and 'Site ID' in df_res.columns else None
             indus_wa_block = ""
             current_site_name = "-"
@@ -166,8 +141,7 @@ with tab1:
                 df_res['Sr. No.'] = pd.to_numeric(df_res['Sr. No.'], errors='coerce')
                 df_res = df_res.sort_values(by='Sr. No.')
             for col in ['Dispatch Date', 'BOQ Date']:
-                if col in df_res.columns: 
-                    df_res[col] = pd.to_datetime(df_res[col], errors='coerce').dt.strftime('%d-%b-%Y')
+                if col in df_res.columns: df_res[col] = pd.to_datetime(df_res[col], errors='coerce').dt.strftime('%d-%b-%Y')
             
             df_res = df_res.fillna('').astype(str).replace(['None', 'nan', 'NULL', 'NaT'], '')
             st.session_state['boq_df'] = df_res
@@ -250,4 +224,63 @@ with tab2:
 # 🏗️ TAB 3: SITE DETAIL
 # =====================================================================
 with tab3:
-    st.markdown("<h3 style='text-
+    st.markdown("<h3 style='text-align: center;'>🏗️ Site Detail</h3>", unsafe_allow_html=True)
+    with st.form("sd_form_v5"):
+        s1, s2 = st.columns(2)
+        with s1: p_id_sd = st.text_input("📁 Project Number Search")
+        with s2: site_id_sd = st.text_input("📍 Site ID Search")
+        if st.form_submit_button("🔍 Search Detail"):
+            res_sd = supabase.table("Site Data").select("*").ilike("SITE ID", f"%{site_id_sd}%").execute()
+            if res_sd.data:
+                for row in res_sd.data:
+                    st.markdown(f"**Project**: {row.get('Project Number','-')} | **SITE ID**: {row.get('SITE ID','-')} | **Site Name**: {row.get('Site Name','-')}")
+
+# =====================================================================
+# 📊 TAB 4: INDUS BASIC DATA
+# =====================================================================
+with tab4:
+    st.markdown("<h3 style='text-align: center;'>📊 Indus Basic Data</h3>", unsafe_allow_html=True)
+    with st.form("ind_form_v5"):
+        i1, i2, i3 = st.columns(3)
+        with i1: in_id = st.text_input("📍 Site ID Search")
+        with i2: in_nm = st.text_input("🏢 Site Name Search")
+        with i3: st.write(""); sub_ind = st.form_submit_button("🔍 Search Indus")
+    if sub_ind:
+        res_ind = supabase.table("Indus Data").select("*").ilike("Site ID", f"%{in_id}%").execute()
+        if res_ind.data:
+            df_ind = pd.DataFrame(res_ind.data)
+            st.dataframe(df_ind, use_container_width=True, hide_index=True)
+            st.divider()
+            st.subheader("📌 Vertical Site Details")
+            row_in = res_ind.data[0]
+            def call_html(label, name, num):
+                if num and str(num).strip() not in ['-', '', 'None', 'nan']:
+                    return f'{label}: **{name}** ({num}) <a href="tel:{num}"><button style="background-color:#007bff;color:white;border:none;padding:2px 10px;border-radius:5px;cursor:pointer;font-weight:bold;">📞 Call</button></a>'
+                return f'{label}: **{name}** (-)'
+            v1, v2 = st.columns(2)
+            with v1:
+                st.markdown(f"🛰️ **Area Name** :- {row_in.get('Area Name','-')}")
+                st.markdown(call_html("👨‍🔧 **Tech Name**", row_in.get('Tech Name','-'), row_in.get('Tech Number','-')), unsafe_allow_html=True)
+                st.markdown(call_html("👷 **FSE**", row_in.get('FSE','-'), row_in.get('FSE Number','-')), unsafe_allow_html=True)
+            with v2:
+                st.markdown(call_html("👨‍💼 **AOM Name**", row_in.get('AOM Name','-'), row_in.get('AOM Number','-')), unsafe_allow_html=True)
+                lat, lon = row_in.get('Lat', ''), row_in.get('Long', '')
+                if lat and lon and str(lat).strip() not in ['-', '', 'None', 'nan']:
+                    maps_url = f"https://www.google.com/maps?q={lat},{lon}"
+                    st.markdown(f"📍 **Lat/Long** :- {lat} / {lon} <a href='{maps_url}' target='_blank'><button style='background-color:#EA4335;color:white;border:none;padding:2px 10px;border-radius:5px;cursor:pointer;font-weight:bold;'>📍 Direction</button></a>", unsafe_allow_html=True)
+                else: st.markdown(f"📍 **Lat/Long** :- {lat if lat else '-'} / {lon if lon else '-'}")
+        else: st.info("No Indus data found.")
+
+    st.divider()
+    st.subheader("🧭 Route Plan")
+    if 'route_list' not in st.session_state: st.session_state.route_list = []
+    with st.expander("🛠️ Create New Route Plan", expanded=False):
+        c1, c2 = st.columns(2)
+        with c1: start_coords = st.text_input("🏠 Start Location (City or Lat, Long)", placeholder="e.g. Pune")
+        with c2: end_coords = st.text_input("🏁 End Location (City or Lat, Long)", placeholder="e.g. Mumbai")
+        with st.form("add_site_form", clear_on_submit=True):
+            add_sid = st.text_input("📍 Add Indus Site ID")
+            if st.form_submit_button("➕ Add +"):
+                if add_sid:
+                    s_res = supabase.table("Indus Data").select("*").ilike("Site ID", f"%{add_sid.strip()}%").execute()
+                    if s_res.data: st.session_state.route
