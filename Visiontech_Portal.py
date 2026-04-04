@@ -305,7 +305,7 @@ with tab4:
             except Exception as e: st.error(f"Error: {e}")
 
 # =====================================================================
-# 📡 TAB 5: WCC TRACKER (PERFECT UI & WHATSAPP FORMAT)
+# 📡 TAB 5: WCC TRACKER (FIXED HTML RENDERING)
 # =====================================================================
 with tab_wcc:
     def fetch_wcc():
@@ -316,7 +316,7 @@ with tab_wcc:
 
     def save_wcc_data(payload):
         try:
-            # UPSERT logic for Primary Key (Project ID)
+            # UPSERT logic: Project ID primary key hai toh duplicate nahi hone dega
             return supabase.table("WCC Status").upsert(payload).execute()
         except Exception as e:
             st.error(f"❌ Database Error: {e}")
@@ -327,7 +327,7 @@ with tab_wcc:
     if "wcc_role" not in st.session_state: st.session_state.wcc_role = None
 
     if not st.session_state.wcc_role:
-        pwd = st.text_input("Enter Password:", type="password", key="wcc_pwd_v11_fix")
+        pwd = st.text_input("Enter Password:", type="password", key="wcc_pwd_final_fix_v12")
         if st.button("🔓 Unlock Folder"):
             if pwd == "Vision@321": st.session_state.wcc_role = "requester"
             elif pwd == "Account@321": st.session_state.wcc_role = "accountant"
@@ -343,7 +343,7 @@ with tab_wcc:
         # --- THE DIALOG FORM ---
         @st.dialog("📝 WCC Details Form", width="large")
         def wcc_modal(row=None):
-            with st.form("wcc_form_v11"):
+            with st.form("wcc_form_v12"):
                 if role == "requester":
                     c1, c2 = st.columns(2)
                     v_proj = c1.text_input("Project", value=str(row.get("Project", "")) if row else "")
@@ -390,7 +390,7 @@ with tab_wcc:
                         })
                     if save_wcc_data(payload): st.rerun()
 
-        # --- TOP ACTIONS ---
+        # --- ACTIONS ---
         raw_data = fetch_wcc()
         df_wcc = pd.DataFrame(raw_data) if raw_data else pd.DataFrame()
         
@@ -407,28 +407,28 @@ with tab_wcc:
 
         st.divider()
 
-        # --- TABLE WITH INLINE EDIT & WHATSAPP ---
+        # --- TABLE UI ---
         if not df_wcc.empty:
-            # Table CSS
+            # Table CSS - Fixed Scrolling
             st.markdown("""
                 <style>
                 .wcc-scroll { width: 100%; overflow-x: auto; border: 1px solid #ddd; border-radius: 8px; }
                 .wcc-table { width: 100%; border-collapse: collapse; min-width: 1600px; font-family: sans-serif; }
                 .wcc-table th { background-color: #008DDA; color: white; padding: 12px; text-align: left; }
-                .wcc-table td { padding: 10px; border-bottom: 1px solid #eee; font-size: 13px; }
+                .wcc-table td { padding: 10px; border-bottom: 1px solid #eee; font-size: 13px; vertical-align: middle; }
                 .wcc-table tr:hover { background-color: #f9f9f9; }
-                .btn-wa { background-color: #25D366; color: white; padding: 4px 8px; border-radius: 4px; text-decoration: none; font-size: 12px; font-weight: bold; }
-                .btn-edit { text-decoration: none; font-size: 18px; cursor: pointer; }
+                .btn-wa { background-color: #25D366; color: white; padding: 5px 10px; border-radius: 4px; text-decoration: none; font-size: 12px; font-weight: bold; }
+                .btn-edit { text-decoration: none; font-size: 18px; cursor: pointer; color: #333; }
                 </style>
             """, unsafe_allow_html=True)
 
-            html_t = '<div class="wcc-scroll"><table class="wcc-table"><tr>'
+            html_t = '<div class="wcc-scroll"><table class="wcc-table"><thead><tr>'
             cols = ["Actions", "Sr.", "Project", "Project ID", "Site ID", "Site Name", "PO No", "Date", "Photo", "JMS", "WCC No", "Status"]
             for h in cols: html_t += f'<th>{h}</th>'
-            html_t += '</tr>'
+            html_t += '</tr></thead><tbody>'
 
             for i, row in df_wcc.iterrows():
-                # --- EXACT WHATSAPP MESSAGE FORMAT ---
+                # --- WHATSAPP MESSAGE ---
                 wa_msg = (
                     f"Hello Prkash Ji,\n"
                     f"Raise WCC urgently...\n\n"
@@ -443,12 +443,12 @@ with tab_wcc:
                     f"In case of any document or detail required please call to me or whatsaap to me but raise wcc in 1st priority.\n\n"
                     f"Thanks,\n"
                     f"Mayur Patil\n"
-                    f"9960843473"
+                    f"7350533473"
                 )
                 wa_url = f"https://wa.me/?text={urllib.parse.quote(wa_msg)}"
                 
-                pid = row.get('Project ID')
-                edit_link = f"?edit_pid={urllib.parse.quote(str(pid))}"
+                pid = str(row.get('Project ID'))
+                edit_link = f"?edit_pid={urllib.parse.quote(pid)}"
                 wa_btn = f'<a href="{wa_url}" target="_blank" class="btn-wa">💬 WA</a>' if role == 'requester' else '-'
                 
                 html_t += f"""
@@ -470,14 +470,17 @@ with tab_wcc:
                     <td>{row.get('WCC Status','')}</td>
                 </tr>
                 """
-            html_t += "</table></div>"
+            html_t += "</tbody></table></div>"
+            
+            # --- IMPORTANT: RENDERING THE HTML ---
             st.markdown(html_t, unsafe_allow_html=True)
 
-            # URL Detection for Modal
+            # --- DETECT ACTION FROM URL ---
             if "edit_pid" in st.query_params:
                 sel_pid = st.query_params["edit_pid"]
                 st.query_params.clear()
                 match_row = next((item for item in raw_data if str(item["Project ID"]) == sel_pid), None)
-                if match_row: wcc_modal(match_row)
+                if match_row:
+                    wcc_modal(match_row)
         else:
             st.info("No records found.")
