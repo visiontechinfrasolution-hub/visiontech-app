@@ -439,26 +439,27 @@ with tab_wcc:
         else:
             st.info("No records found.")
 # =====================================================================
-# 💎 TAB 6: PO TSV ANALYZER (LAVISH & CLEAN VERSION)
+# 💎 TAB 6: PO TSV ANALYZER (LAVISH, COMPACT & CLEAN)
 # =====================================================================
 with tab6:
     st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>📁 Premium PO Analyzer</h3>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: #666; font-size: 14px;'>Clean Project IDs | Centered Values | Instant Sync</p>", unsafe_allow_html=True)
     st.divider()
 
-    # --- Custom CSS for Lavish Look & Centering ---
+    # --- Custom CSS for Lavish, Compact & Centered Look ---
     st.markdown("""
         <style>
-            /* Table Header Styling */
+            /* Table Header: Center and Visiontech Blue */
             [data-testid="stHeaderRowCell"] {
                 text-align: center !important;
                 background-color: #1E3A8A !important;
                 color: white !important;
                 font-weight: bold !important;
+                font-size: 14px !important;
             }
-            /* Table Content Centering */
+            /* Table Data: Center and Compact Font */
             [data-testid="stTableCell"] {
                 text-align: center !important;
+                font-size: 13px !important;
             }
             /* DataFrame Border and Shadow */
             .stDataFrame {
@@ -470,14 +471,14 @@ with tab6:
     """, unsafe_allow_html=True)
 
     # 1. File Upload
-    po_file = st.file_uploader("Upload 'export.tsv'", type=['tsv', 'txt'], key="po_lavish_v8")
+    po_file = st.file_uploader("Upload 'export.tsv'", type=['tsv', 'txt'], key="po_lavish_final_v9")
 
     if po_file is not None:
         try:
-            # File data read karna (Encoding Fix)
+            # File read karna (Encoding Fix for Oracle exports)
             content = po_file.getvalue().decode('ISO-8859-1').splitlines()
             
-            # Header search logic
+            # Header search logic (Dynamic row detection)
             h_idx = -1
             for i, line in enumerate(content):
                 if "Project Name" in line:
@@ -496,32 +497,32 @@ with tab6:
                     on_bad_lines='skip'
                 )
                 
-                # --- COLUMN & VALUE CLEANING ---
-                # 1. Column names se quotes aur spaces hatana
+                # --- CLEANING PROCESS ---
+                # Column names clean
                 df_raw.columns = [str(c).strip().replace('"', '') for c in df_raw.columns]
                 
                 target_p = 'Project Name'
                 target_a = 'Amount'
 
                 if target_p in df_raw.columns and target_a in df_raw.columns:
-                    # 2. Project Name se " " hatana (For Excel Search)
+                    # ID Clean-up: Removing double quotes for Excel search compatibility
                     df_raw[target_p] = df_raw[target_p].astype(str).str.replace('"', '').str.strip()
                     
-                    # 3. Amount se " " aur comma hatakar number banana
+                    # Amount Clean-up: Removing quotes and commas
                     df_raw[target_a] = pd.to_numeric(
                         df_raw[target_a].astype(str).str.replace('"', '').str.replace(',', '').str.strip(), 
                         errors='coerce'
                     )
                     
-                    # Invalid data remove karna
+                    # Remove invalid/empty rows
                     df_clean = df_raw.dropna(subset=[target_p, target_a])
                     df_clean = df_clean[df_clean[target_p] != ""]
 
-                    # --- CALCULATION ---
+                    # --- SUMMARIZATION ---
                     summary_df = df_clean.groupby(target_p)[target_a].sum().reset_index()
                     summary_df = summary_df.sort_values(by=target_a, ascending=False)
 
-                    # --- UI: PREMIUM METRIC CARDS ---
+                    # --- UI: METRIC CARDS ---
                     st.write("")
                     c1, c2 = st.columns(2)
                     with c1:
@@ -540,29 +541,21 @@ with tab6:
                             </div>
                         """, unsafe_allow_html=True)
 
-                    # --- UI: LAVISH DATAFRAME (Only 2 columns) ---
+                    # --- UI: COMPACT DATAFRAME ---
                     st.write("")
                     st.dataframe(
                         summary_df,
                         use_container_width=True,
                         hide_index=True,
                         column_config={
-                            target_p: st.column_config.TextColumn(
-                                "📁 Clean Project ID", 
-                                width="medium",
-                                help="Double quotes removed for easy Excel search"
-                            ),
-                            target_a: st.column_config.NumberColumn(
-                                "💰 Total Amount", 
-                                format="₹%.2f", 
-                                width="small"
-                            )
+                            target_p: st.column_config.TextColumn("📁 Project ID", width="medium"),
+                            target_a: st.column_config.NumberColumn("💰 Total Amount", format="₹%.2f", width="small")
                         }
                     )
 
-                    # --- SYNC BUTTON ---
+                    # --- SYNC SECTION ---
                     st.divider()
-                    if st.button("🚀 Sync Clean Summary to Database", use_container_width=True):
+                    if st.button("🚀 Sync Clean Data to Supabase", use_container_width=True):
                         upload_list = [
                             {
                                 "project_name": str(row[target_p]), 
@@ -572,18 +565,17 @@ with tab6:
                             } for _, row in summary_df.iterrows()
                         ]
                         supabase.table("po_details").insert(upload_list).execute()
-                        st.success("✅ Clean data synced to po_details table!")
+                        st.success("✅ Clean summary synced to po_details table!")
 
                 else:
-                    st.error("Error: Required columns not found. Please check file format.")
+                    st.error("Error: Required columns not found. Check file header.")
             else:
-                st.error("Could not find 'Project Name' in the file. Check if it's a valid PO export.")
+                st.error("Could not find 'Project Name' row. Please check your TSV file.")
 
         except Exception as e:
-            # Syntax error fix: Ensuring proper indentation for except block
             st.error(f"❌ Processing Error: {str(e)}")
 
-    # 8. History Table
+    # 8. Compact History View
     with st.expander("📜 Last 5 Synced Entries"):
         h_res = supabase.table("po_details").select("project_name, amount").order("id", desc=True).limit(5).execute()
         if h_res.data:
