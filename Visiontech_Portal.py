@@ -439,55 +439,65 @@ with tab_wcc:
         else:
             st.info("No records found.")
 # =====================================================================
-# 📁 NEW: PO TSV ANALYZER (FIXED ENCODING)
+# 📁 NEW: PO TSV ANALYZER (ROBUST VERSION)
 # =====================================================================
 with tab6:
     st.markdown("<h3 style='text-align: center;'>📁 PO TSV File Processor</h3>", unsafe_allow_html=True)
     
-    po_file = st.file_uploader("Upload TSV File", type=['tsv', 'txt', 'csv'], key="po_processor_v2")
+    po_file = st.file_uploader("Upload TSV File", type=['tsv', 'txt'], key="po_processor_v3")
 
     if po_file is not None:
         try:
-            # FIX: Adding encoding='ISO-8859-1' to handle special characters
-            df_raw = pd.read_csv(po_file, sep='\t', quoting=3, encoding='ISO-8859-1')
+            # FIX: Adding on_bad_lines='skip' and engine='python' to handle formatting errors
+            df_raw = pd.read_csv(
+                po_file, 
+                sep='\t', 
+                quoting=3, 
+                encoding='ISO-8859-1', 
+                on_bad_lines='skip', 
+                engine='python'
+            )
             
+            # Column names clean-up
             df_raw.columns = df_raw.columns.str.strip()
 
+            # Check for required columns
             if 'Project Name' in df_raw.columns and 'Amount' in df_raw.columns:
-                # Cleaning Amount
+                # Amount cleaning
                 df_raw['Amount'] = pd.to_numeric(df_raw['Amount'].astype(str).str.replace(',', ''), errors='coerce')
                 
-                # Filter valid data
+                # Filter valid projects
                 df_clean = df_raw.dropna(subset=['Project Name', 'Amount'])
-                df_clean = df_clean[df_clean['Project Name'].str.strip() != ""]
+                df_clean = df_clean[df_clean['Project Name'].astype(str).str.strip() != ""]
 
-                # Grouping by Project Name [cite: 1, 3, 4]
+                # Grouping by Project Name
                 summary_df = df_clean.groupby('Project Name')['Amount'].sum().reset_index()
                 summary_df = summary_df.sort_values(by='Amount', ascending=False)
 
-                # Metrics
+                # Dashboard Display
                 st.subheader("📊 Project-wise Summary")
                 c1, c2 = st.columns(2)
-                c1.metric("Total Projects", len(summary_df))
-                c2.metric("Grand Total", f"₹{summary_df['Amount'].sum():,.2f}")
+                c1.metric("Total Unique Projects", len(summary_df))
+                c2.metric("PO Grand Total", f"₹{summary_df['Amount'].sum():,.2f}")
 
                 st.dataframe(summary_df.style.format({"Amount": "₹{:,.2f}"}), use_container_width=True, hide_index=True)
 
                 # Sync to Supabase
-                if st.button("🚀 Sync to po_details", use_container_width=True):
-                    upload_payload = [
-                        {
-                            "project_name": str(row['Project Name']), 
-                            "amount": float(row['Amount']),
-                            "supplier": "Visiontech Infra Solutions",
-                            "status": "Processed"
-                        } for _, row in summary_df.iterrows()
-                    ]
-                    supabase.table("po_details").insert(upload_payload).execute()
-                    st.success("✅ Sync Successful!")
-
+                if st.button("🚀 Sync to po_details Table", use_container_width=True):
+                    with st.spinner("Uploading..."):
+                        upload_payload = [
+                            {
+                                "project_name": str(row['Project Name']), 
+                                "amount": float(row['Amount']),
+                                "supplier": "Visiontech Infra Solutions",
+                                "status": "Processed"
+                            } for _, row in summary_df.iterrows()
+                        ]
+                        supabase.table("po_details").insert(upload_payload).execute()
+                        st.success("✅ Sync Successful!")
             else:
-                st.error("Column 'Project Name' or 'Amount' not found!")
+                st.error("Columns 'Project Name' or 'Amount' not found!")
+                st.write("Columns detected:", list(df_raw.columns))
 
         except Exception as e:
-            st.error(f"❌ Error: {e}")
+            st.error(f"❌ Processing Error: {e}")
