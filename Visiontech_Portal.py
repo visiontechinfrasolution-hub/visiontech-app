@@ -439,78 +439,86 @@ with tab_wcc:
         else:
             st.info("No records found.")
 # =====================================================================
-# 📊 PO FILE PROCESSOR (PROJECT WISE SUMMARY)
+# 📁 NEW: PO TSV ANALYZER (PROJECT WISE TOTALS)
 # =====================================================================
 with tab6:
     st.markdown("<h3 style='text-align: center;'>📁 PO TSV File Processor</h3>", unsafe_allow_html=True)
-    st.info("Upload your 'export.tsv' file to calculate project-wise totals and sync with Supabase.")
+    st.info("Upload 'export.tsv' to get project-wise totals and sync with Supabase.")
 
-    # 1. File Upload Section
-    po_file = st.file_uploader("Upload TSV File (export.tsv)", type=['tsv', 'txt'], key="po_uploader_v1")
+    # 1. File Uploader
+    po_file = st.file_uploader("Upload TSV File", type=['tsv', 'txt'], key="po_processor_v1")
 
     if po_file is not None:
         try:
-            # 2. Reading with Pandas (Fast Processing)
-            # quoting=3 handle karta hai special characters jo descriptions me hote hai
+            # 2. Reading TSV with Pandas (Very Fast)
+            # quoting=3 ensures special characters in descriptions don't break the load
             df_raw = pd.read_csv(po_file, sep='\t', quoting=3)
             
-            # Column names se extra spaces hatana
+            # Clean column names (Remove leading/trailing spaces)
             df_raw.columns = df_raw.columns.str.strip()
 
+            # Checking required columns
             if 'Project Name' in df_raw.columns and 'Amount' in df_raw.columns:
+                
                 # 3. Data Cleaning
-                # Amount column se comma hatakar numeric me convert karna [cite: 2]
+                # Convert Amount to numeric by removing commas
                 df_raw['Amount'] = pd.to_numeric(df_raw['Amount'].astype(str).str.replace(',', ''), errors='coerce')
                 
-                # Invalid projects aur empty amounts ko hatana
+                # Keep only valid rows with Project Name and Amount
                 df_clean = df_raw.dropna(subset=['Project Name', 'Amount'])
                 df_clean = df_clean[df_clean['Project Name'].str.strip() != ""]
 
-                # 4. Calculation: Grouping by Project Name [cite: 1, 2]
+                # 4. Calculation: Group by Project Name and Sum Amounts
                 summary_df = df_clean.groupby('Project Name')['Amount'].sum().reset_index()
                 summary_df = summary_df.sort_values(by='Amount', ascending=False)
 
                 # 5. Display Results
                 st.subheader("📊 Project-wise Total Summary")
                 
-                # Metrics Dashboard
-                m1, m2 = st.columns(2)
-                m1.metric("Total Unique Projects", len(summary_df))
-                m2.metric("Total PO Grand Value", f"₹{summary_df['Amount'].sum():,.2f}")
+                # Summary Metrics for a quick glance
+                c1, c2 = st.columns(2)
+                with c1:
+                    st.metric("Total Projects", len(summary_df))
+                with c2:
+                    st.metric("Total PO Value", f"₹{summary_df['Amount'].sum():,.2f}")
 
-                # Sorted Table display 
+                # Displaying the summarized table
                 st.dataframe(
                     summary_df.style.format({"Amount": "₹{:,.2f}"}), 
                     use_container_width=True,
                     hide_index=True
                 )
 
-                # 6. Sync with po_details Table in Supabase
+                # 6. Syncing to Supabase (po_details Table)
                 st.divider()
-                if st.button("🚀 Sync Totals to po_details Table", use_container_width=True):
-                    with st.spinner("Syncing with Supabase..."):
+                if st.button("🚀 Sync Totals to 'po_details' Table", use_container_width=True):
+                    with st.spinner("Syncing data to Supabase..."):
+                        # Map data to your po_details columns
                         upload_payload = []
                         for _, row in summary_df.iterrows():
                             upload_payload.append({
                                 "project_name": str(row['Project Name']),
                                 "amount": float(row['Amount']),
                                 "supplier": "Visiontech Infra Solutions",
-                                "status": "Open"
+                                "status": "Processed"
                             })
                         
-                        # Bulk Insert Query [cite: 2]
-                        sync_res = supabase.table("po_details").insert(upload_payload).execute()
-                        st.success(f"Successfully synced {len(upload_payload)} projects to Supabase!")
+                        # Bulk Insert Query
+                        try:
+                            supabase.table("po_details").insert(upload_payload).execute()
+                            st.success(f"Successfully synced {len(upload_payload)} projects!")
+                        except Exception as db_err:
+                            st.error(f"Database Error: {db_err}")
 
             else:
-                st.error("Error: Required columns ('Project Name' or 'Amount') not found in file.")
-                st.write("Columns found:", list(df_raw.columns))
+                st.error("Column mismatch! Ensure 'Project Name' and 'Amount' exist in the file.")
+                st.write("Found Columns:", list(df_raw.columns))
 
         except Exception as e:
             st.error(f"❌ Processing Error: {e}")
 
-    # 7. Recent Sync History (For verification)
-    with st.expander("Recent Database Entries (Top 5)"):
-        hist_res = supabase.table("po_details").select("*").order("id", desc=True).limit(5).execute()
-        if hist_res.data:
-            st.table(pd.DataFrame(hist_res.data)[['project_name', 'amount']])
+    # 7. Verification: View last 5 entries from DB
+    with st.expander("Recent Database Entries"):
+        db_check = supabase.table("po_details").select("*").order("id", desc=True).limit(5).execute()
+        if db_check.data:
+            st.table(pd.DataFrame(db_check.data)[['project_name', 'amount']])
