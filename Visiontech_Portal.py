@@ -438,3 +438,77 @@ with tab_wcc:
                 st.markdown("<hr style='margin:0; border-top: 1px solid #E5E7EB;'>", unsafe_allow_html=True)
         else:
             st.info("No records found.")
+# =====================================================================
+# 📁 NEW SECTION: PO FILE PROCESSOR (PROJECT WISE SUMMARY)
+# =====================================================================
+with tab6:  # Aap isse kisi bhi khali tab me ya naye tab me daal sakte hain
+    st.markdown("<h3 style='text-align: center;'>📁 PO TSV File Processor</h3>", unsafe_allow_html=True)
+    st.info("Upload your 'export.tsv' file to calculate project-wise totals and sync with Supabase.")
+
+    # File Uploader
+    po_file = st.file_uploader("Upload TSV File", type=['tsv', 'txt'], key="po_uploader_v1")
+
+    if po_file is not None:
+        try:
+            # 1. Fast Reading with Pandas
+            # quoting=3 use kiya hai taaki special characters se file break na ho
+            df_raw = pd.read_csv(po_file, sep='\t', quoting=3)
+            
+            # Clean column names (extra spaces hatane ke liye)
+            df_raw.columns = df_raw.columns.str.strip()
+
+            if 'Project Name' in df_raw.columns and 'Amount' in df_raw.columns:
+                # 2. Data Cleaning
+                # Amount me se comma hatakar number me convert karna
+                df_raw['Amount'] = pd.to_numeric(df_raw['Amount'].astype(str).str.replace(',', ''), errors='coerce')
+                
+                # Sirf valid rows rakhna
+                df_clean = df_raw.dropna(subset=['Project Name', 'Amount'])
+                df_clean = df_clean[df_clean['Project Name'] != '']
+
+                # 3. Project Wise Total Calculation (FAST)
+                summary_df = df_clean.groupby('Project Name')['Amount'].sum().reset_index()
+                
+                # 4. Results Display
+                st.subheader("📊 Project-wise Total Summary")
+                
+                # Metrics for quick view
+                m1, m2 = st.columns(2)
+                m1.metric("Total Projects", len(summary_df))
+                m2.metric("Total PO Value", f"₹{summary_df['Amount'].sum():,.2f}")
+
+                # Summary Table
+                st.dataframe(summary_df.style.format({"Amount": "₹{:,.2f}"}), use_container_width=True)
+
+                # 5. Sync with Supabase
+                st.divider()
+                if st.button("🚀 Sync Totals to Supabase Table", use_container_width=True):
+                    with st.spinner("Uploading to po_details..."):
+                        # Payload taiyar karna (Column names matches your po_details table)
+                        upload_payload = []
+                        for _, row in summary_df.iterrows():
+                            upload_payload.append({
+                                "project_name": str(row['Project Name']),
+                                "amount": float(row['Amount']),
+                                "supplier": "Visiontech Infra Solutions",
+                                "status": "Processed"
+                            })
+                        
+                        # Supabase Bulk Insert
+                        sync_res = supabase.table("po_details").insert(upload_payload).execute()
+                        st.success(f"Successfully synced {len(upload_payload)} projects to Supabase!")
+
+            else:
+                st.error("Error: Required columns ('Project Name' or 'Amount') not found in file.")
+                st.write("Available Columns:", list(df_raw.columns))
+
+        except Exception as e:
+            st.error(f"❌ Processing Error: {e}")
+
+    # --- Historical Data from Supabase ---
+    st.divider()
+    st.subheader("📜 Recently Synced Data")
+    if st.button("Refresh History"):
+        hist_res = supabase.table("po_details").select("*").order("created_at", desc=True).limit(20).execute()
+        if hist_res.data:
+            st.table(pd.DataFrame(hist_res.data)[['project_name', 'amount', 'created_at']])
