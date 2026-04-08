@@ -439,65 +439,80 @@ with tab_wcc:
         else:
             st.info("No records found.")
 # =====================================================================
-# 📁 NEW: PO TSV ANALYZER (ROBUST VERSION)
+# 📁 PO TSV ANALYZER (VERSION 4 - COLUMN FIX)
 # =====================================================================
 with tab6:
     st.markdown("<h3 style='text-align: center;'>📁 PO TSV File Processor</h3>", unsafe_allow_html=True)
     
-    po_file = st.file_uploader("Upload TSV File", type=['tsv', 'txt'], key="po_processor_v3")
+    po_file = st.file_uploader("Upload TSV File", type=['tsv', 'txt'], key="po_processor_v4")
 
     if po_file is not None:
         try:
-            # FIX: Adding on_bad_lines='skip' and engine='python' to handle formatting errors
+            # Step 1: Read the file skipping initial empty rows if any
+            # error_bad_lines ki jagah on_bad_lines use kiya hai
             df_raw = pd.read_csv(
                 po_file, 
                 sep='\t', 
                 quoting=3, 
                 encoding='ISO-8859-1', 
-                on_bad_lines='skip', 
-                engine='python'
+                on_bad_lines='warn', 
+                engine='python',
+                skipinitialspace=True
             )
             
-            # Column names clean-up
-            df_raw.columns = df_raw.columns.str.strip()
+            # Step 2: Clean column names (Very Important)
+            df_raw.columns = [str(c).strip().replace('"', '') for c in df_raw.columns]
+            
+            # Step 3: Debugging - Agar columns nahi mil rahe toh list dikhao
+            target_project = 'Project Name'
+            target_amount = 'Amount'
+            
+            # Kabhi-kabhi header row 2nd line par hoti hai, uske liye check
+            if target_project not in df_raw.columns:
+                # Agar pehli line header nahi hai, toh file ko header=1 se read karega
+                po_file.seek(0)
+                df_raw = pd.read_csv(po_file, sep='\t', quoting=3, encoding='ISO-8859-1', header=1, engine='python')
+                df_raw.columns = [str(c).strip().replace('"', '') for c in df_raw.columns]
 
-            # Check for required columns
-            if 'Project Name' in df_raw.columns and 'Amount' in df_raw.columns:
-                # Amount cleaning
-                df_raw['Amount'] = pd.to_numeric(df_raw['Amount'].astype(str).str.replace(',', ''), errors='coerce')
+            if target_project in df_raw.columns and target_amount in df_raw.columns:
+                # Amount Cleaning (Comma aur extra quotes hatana)
+                df_raw[target_amount] = pd.to_numeric(
+                    df_raw[target_amount].astype(str).str.replace(',', '').str.replace('"', ''), 
+                    errors='coerce'
+                )
                 
-                # Filter valid projects
-                df_clean = df_raw.dropna(subset=['Project Name', 'Amount'])
-                df_clean = df_clean[df_clean['Project Name'].astype(str).str.strip() != ""]
+                # Filter valid data
+                df_clean = df_raw.dropna(subset=[target_project, target_amount])
+                df_clean = df_clean[df_clean[target_project].astype(str).str.strip() != ""]
 
                 # Grouping by Project Name
-                summary_df = df_clean.groupby('Project Name')['Amount'].sum().reset_index()
-                summary_df = summary_df.sort_values(by='Amount', ascending=False)
+                summary_df = df_clean.groupby(target_project)[target_amount].sum().reset_index()
+                summary_df = summary_df.sort_values(by=target_amount, ascending=False)
 
-                # Dashboard Display
+                # Results Display
                 st.subheader("📊 Project-wise Summary")
                 c1, c2 = st.columns(2)
                 c1.metric("Total Unique Projects", len(summary_df))
-                c2.metric("PO Grand Total", f"₹{summary_df['Amount'].sum():,.2f}")
+                c2.metric("PO Grand Total", f"₹{summary_df[target_amount].sum():,.2f}")
 
-                st.dataframe(summary_df.style.format({"Amount": "₹{:,.2f}"}), use_container_width=True, hide_index=True)
+                st.dataframe(summary_df.style.format({target_amount: "₹{:,.2f}"}), use_container_width=True, hide_index=True)
 
                 # Sync to Supabase
-                if st.button("🚀 Sync to po_details Table", use_container_width=True):
-                    with st.spinner("Uploading..."):
-                        upload_payload = [
-                            {
-                                "project_name": str(row['Project Name']), 
-                                "amount": float(row['Amount']),
-                                "supplier": "Visiontech Infra Solutions",
-                                "status": "Processed"
-                            } for _, row in summary_df.iterrows()
-                        ]
-                        supabase.table("po_details").insert(upload_payload).execute()
-                        st.success("✅ Sync Successful!")
+                if st.button("🚀 Sync to po_details", use_container_width=True):
+                    upload_payload = [
+                        {
+                            "project_name": str(row[target_project]), 
+                            "amount": float(row[target_amount]),
+                            "supplier": "Visiontech Infra Solutions",
+                            "status": "Processed"
+                        } for _, row in summary_df.iterrows()
+                    ]
+                    supabase.table("po_details").insert(upload_payload).execute()
+                    st.success("✅ Sync Successful!")
             else:
-                st.error("Columns 'Project Name' or 'Amount' not found!")
-                st.write("Columns detected:", list(df_raw.columns))
+                st.error(f"❌ '{target_project}' or '{target_amount}' column abhi bhi nahi mil raha!")
+                st.write("Detected Columns:", list(df_raw.columns))
+                st.info("Check: Kya file ke andar 'Project Name' column ka spelling exactly yahi hai?")
 
         except Exception as e:
-            st.error(f"❌ Processing Error: {e}")
+            st.error(f"❌ Error: {e}")
