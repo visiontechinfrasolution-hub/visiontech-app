@@ -439,80 +439,90 @@ with tab_wcc:
         else:
             st.info("No records found.")
 # =====================================================================
-# 📁 PO TSV ANALYZER (VERSION 4 - COLUMN FIX)
+# 📊 FINAL FIXED PO TSV PROCESSOR (DYNAMIC HEADER SEARCH)
 # =====================================================================
 with tab6:
     st.markdown("<h3 style='text-align: center;'>📁 PO TSV File Processor</h3>", unsafe_allow_html=True)
     
-    po_file = st.file_uploader("Upload TSV File", type=['tsv', 'txt'], key="po_processor_v4")
+    po_file = st.file_uploader("Upload TSV File", type=['tsv', 'txt'], key="po_processor_final_v5")
 
     if po_file is not None:
         try:
-            # Step 1: Read the file skipping initial empty rows if any
-            # error_bad_lines ki jagah on_bad_lines use kiya hai
-            df_raw = pd.read_csv(
-                po_file, 
-                sep='\t', 
-                quoting=3, 
-                encoding='ISO-8859-1', 
-                on_bad_lines='warn', 
-                engine='python',
-                skipinitialspace=True
-            )
+            # 1. Row Index dhoondna jahan 'Project Name' column hai
+            # File ko binary mode me read karke lines scan karenge
+            content = po_file.getvalue().decode('ISO-8859-1').splitlines()
             
-            # Step 2: Clean column names (Very Important)
-            df_raw.columns = [str(c).strip().replace('"', '') for c in df_raw.columns]
+            header_row_idx = -1
+            for i, line in enumerate(content):
+                if "Project Name" in line:
+                    header_row_idx = i
+                    break
             
-            # Step 3: Debugging - Agar columns nahi mil rahe toh list dikhao
-            target_project = 'Project Name'
-            target_amount = 'Amount'
-            
-            # Kabhi-kabhi header row 2nd line par hoti hai, uske liye check
-            if target_project not in df_raw.columns:
-                # Agar pehli line header nahi hai, toh file ko header=1 se read karega
-                po_file.seek(0)
-                df_raw = pd.read_csv(po_file, sep='\t', quoting=3, encoding='ISO-8859-1', header=1, engine='python')
-                df_raw.columns = [str(c).strip().replace('"', '') for c in df_raw.columns]
-
-            if target_project in df_raw.columns and target_amount in df_raw.columns:
-                # Amount Cleaning (Comma aur extra quotes hatana)
-                df_raw[target_amount] = pd.to_numeric(
-                    df_raw[target_amount].astype(str).str.replace(',', '').str.replace('"', ''), 
-                    errors='coerce'
+            if header_row_idx != -1:
+                # 2. Sahi row se data load karna
+                po_file.seek(0) # File pointer wapas shuru me lana
+                df_raw = pd.read_csv(
+                    po_file, 
+                    sep='\t', 
+                    quoting=3, 
+                    encoding='ISO-8859-1', 
+                    skiprows=header_row_idx, # Sahi header tak skip karega
+                    engine='python',
+                    on_bad_lines='skip'
                 )
                 
-                # Filter valid data
-                df_clean = df_raw.dropna(subset=[target_project, target_amount])
-                df_clean = df_clean[df_clean[target_project].astype(str).str.strip() != ""]
+                # 3. Column names se extra quotes aur spaces hatana
+                df_raw.columns = [str(c).strip().replace('"', '') for c in df_raw.columns]
+                
+                # Target columns check karna
+                target_p = 'Project Name'
+                target_a = 'Amount'
 
-                # Grouping by Project Name
-                summary_df = df_clean.groupby(target_project)[target_amount].sum().reset_index()
-                summary_df = summary_df.sort_values(by=target_amount, ascending=False)
+                if target_p in df_raw.columns and target_a in df_raw.columns:
+                    # Amount cleaning (Quotes aur Comma hatana)
+                    df_raw[target_a] = pd.to_numeric(
+                        df_raw[target_a].astype(str).str.replace(',', '').str.replace('"', ''), 
+                        errors='coerce'
+                    )
+                    
+                    # Filter: Sirf wo rows jahan Project Name hai
+                    df_clean = df_raw.dropna(subset=[target_p, target_a])
+                    df_clean = df_clean[df_clean[target_p].astype(str).str.strip() != ""]
 
-                # Results Display
-                st.subheader("📊 Project-wise Summary")
-                c1, c2 = st.columns(2)
-                c1.metric("Total Unique Projects", len(summary_df))
-                c2.metric("PO Grand Total", f"₹{summary_df[target_amount].sum():,.2f}")
+                    # 4. Calculation: Project wise Sum
+                    summary_df = df_clean.groupby(target_p)[target_a].sum().reset_index()
+                    summary_df = summary_df.sort_values(by=target_a, ascending=False)
 
-                st.dataframe(summary_df.style.format({target_amount: "₹{:,.2f}"}), use_container_width=True, hide_index=True)
+                    # 5. Results Display
+                    st.success(f"File processed successfully from row {header_row_idx + 1}!")
+                    
+                    c1, c2 = st.columns(2)
+                    c1.metric("Unique Projects", len(summary_df))
+                    c2.metric("Total Value", f"₹{summary_df[target_a].sum():,.2f}")
 
-                # Sync to Supabase
-                if st.button("🚀 Sync to po_details", use_container_width=True):
-                    upload_payload = [
-                        {
-                            "project_name": str(row[target_project]), 
-                            "amount": float(row[target_amount]),
-                            "supplier": "Visiontech Infra Solutions",
-                            "status": "Processed"
-                        } for _, row in summary_df.iterrows()
-                    ]
-                    supabase.table("po_details").insert(upload_payload).execute()
-                    st.success("✅ Sync Successful!")
+                    st.dataframe(
+                        summary_df.style.format({target_a: "₹{:,.2f}"}), 
+                        use_container_width=True, 
+                        hide_index=True
+                    )
+
+                    # Sync with Supabase (po_details)
+                    if st.button("🚀 Sync to Supabase Table", use_container_width=True):
+                        upload_payload = [
+                            {
+                                "project_name": str(row[target_p]), 
+                                "amount": float(row[target_a]),
+                                "supplier": "Visiontech Infra Solutions",
+                                "status": "Processed"
+                            } for _, row in summary_df.iterrows()
+                        ]
+                        supabase.table("po_details").insert(upload_payload).execute()
+                        st.success("✅ Database sync successful!")
+                else:
+                    st.error(f"Column '{target_p}' or '{target_a}' not found in the identified header row.")
+                    st.write("Columns found:", list(df_raw.columns))
             else:
-                st.error(f"❌ '{target_project}' or '{target_amount}' column abhi bhi nahi mil raha!")
-                st.write("Detected Columns:", list(df_raw.columns))
-                st.info("Check: Kya file ke andar 'Project Name' column ka spelling exactly yahi hai?")
+                st.error("Could not find 'Project Name' in any row of the file. Please check the file format.")
 
         except Exception as e:
-            st.error(f"❌ Error: {e}")
+            st.error(f"❌ Processing Error: {e}")
