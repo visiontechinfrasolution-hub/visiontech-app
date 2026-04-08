@@ -439,91 +439,131 @@ with tab_wcc:
         else:
             st.info("No records found.")
 # =====================================================================
-# 📊 FINAL PO PROCESSOR (SYNTAX & QUOTE FIX)
+# 💎 TAB 6: PO TSV ANALYZER (LAVISH & CLEAN VERSION)
 # =====================================================================
 with tab6:
-    st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>📁 PO TSV File Processor</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>📁 Premium PO Analyzer</h3>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #666; font-size: 14px;'>Clean Project IDs | Centered Values | Instant Sync</p>", unsafe_allow_html=True)
     st.divider()
 
-    # 1. File Uploader
-    po_file = st.file_uploader("Upload 'export.tsv' file", type=['tsv', 'txt'], key="po_final_fix_v7")
+    # --- Custom CSS for Lavish Look & Centering ---
+    st.markdown("""
+        <style>
+            /* Table Header Styling */
+            [data-testid="stHeaderRowCell"] {
+                text-align: center !important;
+                background-color: #1E3A8A !important;
+                color: white !important;
+                font-weight: bold !important;
+            }
+            /* Table Content Centering */
+            [data-testid="stTableCell"] {
+                text-align: center !important;
+            }
+            /* DataFrame Border and Shadow */
+            .stDataFrame {
+                border: 1px solid #e6e9ef;
+                border-radius: 12px;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            }
+        </style>
+    """, unsafe_allow_html=True)
+
+    # 1. File Upload
+    po_file = st.file_uploader("Upload 'export.tsv'", type=['tsv', 'txt'], key="po_lavish_v8")
 
     if po_file is not None:
         try:
-            # File content read karna
-            raw_bytes = po_file.getvalue().decode('ISO-8859-1').splitlines()
+            # File data read karna (Encoding Fix)
+            content = po_file.getvalue().decode('ISO-8859-1').splitlines()
             
-            # Header Row dhoondna
-            header_idx = -1
-            for i, line in enumerate(raw_bytes):
+            # Header search logic
+            h_idx = -1
+            for i, line in enumerate(content):
                 if "Project Name" in line:
-                    header_idx = i
+                    h_idx = i
                     break
             
-            if header_idx != -1:
+            if h_idx != -1:
                 po_file.seek(0)
                 df_raw = pd.read_csv(
                     po_file, 
                     sep='\t', 
                     quoting=3, 
                     encoding='ISO-8859-1', 
-                    skiprows=header_idx,
-                    engine='python'
+                    skiprows=h_idx,
+                    engine='python',
+                    on_bad_lines='skip'
                 )
                 
-                # --- CLEANING COLUMNS ---
+                # --- COLUMN & VALUE CLEANING ---
+                # 1. Column names se quotes aur spaces hatana
                 df_raw.columns = [str(c).strip().replace('"', '') for c in df_raw.columns]
                 
                 target_p = 'Project Name'
                 target_a = 'Amount'
 
                 if target_p in df_raw.columns and target_a in df_raw.columns:
-                    
-                    # --- CLEANING VALUES (Quotes hatana taaki Excel me search ho sake) ---
-                    # Project Name ke aage-piche se " hatana
+                    # 2. Project Name se " " hatana (For Excel Search)
                     df_raw[target_p] = df_raw[target_p].astype(str).str.replace('"', '').str.strip()
                     
-                    # Amount se " aur comma hatakar number banana
+                    # 3. Amount se " " aur comma hatakar number banana
                     df_raw[target_a] = pd.to_numeric(
                         df_raw[target_a].astype(str).str.replace('"', '').str.replace(',', '').str.strip(), 
                         errors='coerce'
                     )
                     
-                    # Khali data hatana
+                    # Invalid data remove karna
                     df_clean = df_raw.dropna(subset=[target_p, target_a])
                     df_clean = df_clean[df_clean[target_p] != ""]
 
-                    # 2. Grouping & Total
+                    # --- CALCULATION ---
                     summary_df = df_clean.groupby(target_p)[target_a].sum().reset_index()
                     summary_df = summary_df.sort_values(by=target_a, ascending=False)
 
-                    # 3. Lavish UI Metrics
-                    m1, m2 = st.columns(2)
-                    m1.metric("Unique Projects", len(summary_df))
-                    m2.metric("Total PO Value", f"₹{summary_df[target_a].sum():,.2f}")
+                    # --- UI: PREMIUM METRIC CARDS ---
+                    st.write("")
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        st.markdown(f"""
+                            <div style="background-color: #f8f9fa; padding: 15px; border-radius: 10px; border-left: 5px solid #1E3A8A; text-align: center;">
+                                <span style="color: #666; font-size: 13px; font-weight: bold;">TOTAL PROJECTS</span>
+                                <h3 style="margin:0; color: #1E3A8A;">{len(summary_df)}</h3>
+                            </div>
+                        """, unsafe_allow_html=True)
+                    with c2:
+                        total_amt = summary_df[target_a].sum()
+                        st.markdown(f"""
+                            <div style="background-color: #f8f9fa; padding: 15px; border-radius: 10px; border-left: 5px solid #28a745; text-align: center;">
+                                <span style="color: #666; font-size: 13px; font-weight: bold;">TOTAL PO VALUE</span>
+                                <h3 style="margin:0; color: #28a745;">₹{total_amt:,.2f}</h3>
+                            </div>
+                        """, unsafe_allow_html=True)
 
-                    # 4. Lavish Table Display (Centered)
-                    st.markdown("""
-                        <style>
-                            [data-testid="stHeaderRowCell"] { text-align: center !important; background-color: #1E3A8A !important; color: white !important; }
-                            [data-testid="stTableCell"] { text-align: center !important; }
-                        </style>
-                    """, unsafe_allow_html=True)
-
+                    # --- UI: LAVISH DATAFRAME (Only 2 columns) ---
+                    st.write("")
                     st.dataframe(
                         summary_df,
                         use_container_width=True,
                         hide_index=True,
                         column_config={
-                            target_p: st.column_config.TextColumn("📁 Project ID (Clean)", width="medium"),
-                            target_a: st.column_config.NumberColumn("💰 Total Amount", format="₹%.2f", width="small")
+                            target_p: st.column_config.TextColumn(
+                                "📁 Clean Project ID", 
+                                width="medium",
+                                help="Double quotes removed for easy Excel search"
+                            ),
+                            target_a: st.column_config.NumberColumn(
+                                "💰 Total Amount", 
+                                format="₹%.2f", 
+                                width="small"
+                            )
                         }
                     )
 
-                    # 5. Sync Button
+                    # --- SYNC BUTTON ---
                     st.divider()
-                    if st.button("🚀 Sync to Database", use_container_width=True):
-                        upload_data = [
+                    if st.button("🚀 Sync Clean Summary to Database", use_container_width=True):
+                        upload_list = [
                             {
                                 "project_name": str(row[target_p]), 
                                 "amount": float(row[target_a]),
@@ -531,14 +571,20 @@ with tab6:
                                 "status": "Processed"
                             } for _, row in summary_df.iterrows()
                         ]
-                        supabase.table("po_details").insert(upload_data).execute()
-                        st.success("✅ Data Synced!")
+                        supabase.table("po_details").insert(upload_list).execute()
+                        st.success("✅ Clean data synced to po_details table!")
 
                 else:
-                    st.error("Columns not found! Check file header.")
+                    st.error("Error: Required columns not found. Please check file format.")
             else:
-                st.error("Could not find 'Project Name' row.")
+                st.error("Could not find 'Project Name' in the file. Check if it's a valid PO export.")
 
         except Exception as e:
-            # Yahan syntax error nahi aayega, indentation check kar li gayi hai
-            st.error(f"❌ Error during processing: {e}")
+            # Syntax error fix: Ensuring proper indentation for except block
+            st.error(f"❌ Processing Error: {str(e)}")
+
+    # 8. History Table
+    with st.expander("📜 Last 5 Synced Entries"):
+        h_res = supabase.table("po_details").select("project_name, amount").order("id", desc=True).limit(5).execute()
+        if h_res.data:
+            st.table(pd.DataFrame(h_res.data))
