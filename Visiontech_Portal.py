@@ -439,76 +439,90 @@ with tab_wcc:
         else:
             st.info("No records found.")
 # =====================================================================
-# 📁 NEW SECTION: PO FILE PROCESSOR (PROJECT WISE SUMMARY)
+# 📊 NEW: PO FILE ANALYZER & SYNC (PROJECT WISE)
 # =====================================================================
-with tab6:  # Aap isse kisi bhi khali tab me ya naye tab me daal sakte hain
-    st.markdown("<h3 style='text-align: center;'>📁 PO TSV File Processor</h3>", unsafe_allow_html=True)
-    st.info("Upload your 'export.tsv' file to calculate project-wise totals and sync with Supabase.")
-
-    # File Uploader
-    po_file = st.file_uploader("Upload TSV File", type=['tsv', 'txt'], key="po_uploader_v1")
+# Is code ko kisi bhi tab (e.g., tab6) ke andar paste karein
+with tab6:
+    st.markdown("<h3 style='text-align: center;'>📁 PO TSV Processor</h3>", unsafe_allow_html=True)
+    st.markdown("---")
+    
+    # 1. File Upload Section
+    po_file = st.file_uploader("Upload your 'export.tsv' file here", type=['tsv', 'txt'], key="po_fast_processor")
 
     if po_file is not None:
         try:
-            # 1. Fast Reading with Pandas
-            # quoting=3 use kiya hai taaki special characters se file break na ho
+            # 2. Reading TSV (Using quoting=3 to handle special characters in descriptions)
+            # Aapki file TSV hai isliye sep='\t' zaroori hai
             df_raw = pd.read_csv(po_file, sep='\t', quoting=3)
             
-            # Clean column names (extra spaces hatane ke liye)
+            # Clean column names
             df_raw.columns = df_raw.columns.str.strip()
 
+            # Check if required columns exist
             if 'Project Name' in df_raw.columns and 'Amount' in df_raw.columns:
-                # 2. Data Cleaning
-                # Amount me se comma hatakar number me convert karna
+                
+                # 3. Data Cleaning (Removing commas and converting to numbers)
+                # Ye part fast processing ke liye critical hai
                 df_raw['Amount'] = pd.to_numeric(df_raw['Amount'].astype(str).str.replace(',', ''), errors='coerce')
                 
-                # Sirf valid rows rakhna
+                # Dropping empty project names
                 df_clean = df_raw.dropna(subset=['Project Name', 'Amount'])
-                df_clean = df_clean[df_clean['Project Name'] != '']
+                df_clean = df_clean[df_clean['Project Name'].str.strip() != ""]
 
-                # 3. Project Wise Total Calculation (FAST)
+                # 4. Grouping (Project ID wise Total Amount)
+                # Ye wahi logic hai jo aapne manga tha
                 summary_df = df_clean.groupby('Project Name')['Amount'].sum().reset_index()
-                
-                # 4. Results Display
-                st.subheader("📊 Project-wise Total Summary")
-                
-                # Metrics for quick view
-                m1, m2 = st.columns(2)
-                m1.metric("Total Projects", len(summary_df))
-                m2.metric("Total PO Value", f"₹{summary_df['Amount'].sum():,.2f}")
+                summary_df = summary_df.sort_values(by='Amount', ascending=False)
 
-                # Summary Table
-                st.dataframe(summary_df.style.format({"Amount": "₹{:,.2f}"}), use_container_width=True)
+                # 5. Display Results
+                st.subheader("📌 Project Wise Totals")
+                
+                # Summary Metrics
+                c1, c2 = st.columns(2)
+                with c1:
+                    st.metric("Total Unique Projects", len(summary_df))
+                with c2:
+                    total_val = summary_df['Amount'].sum()
+                    st.metric("Grand Total PO Value", f"₹{total_val:,.2f}")
 
-                # 5. Sync with Supabase
-                st.divider()
-                if st.button("🚀 Sync Totals to Supabase Table", use_container_width=True):
-                    with st.spinner("Uploading to po_details..."):
-                        # Payload taiyar karna (Column names matches your po_details table)
-                        upload_payload = []
+                # Interactive Table
+                st.dataframe(
+                    summary_df.style.format({"Amount": "₹{:,.2f}"}), 
+                    use_container_width=True,
+                    hide_index=True
+                )
+
+                # 6. Push to Supabase Table (po_details)
+                st.markdown("---")
+                if st.button("🚀 Sync this Summary to po_details Table", use_container_width=True):
+                    with st.spinner("Uploading data..."):
+                        # Preparing list of dictionaries for bulk insert
+                        # Column names exactly as per your po_details table
+                        upload_data = []
                         for _, row in summary_df.iterrows():
-                            upload_payload.append({
+                            upload_data.append({
                                 "project_name": str(row['Project Name']),
                                 "amount": float(row['Amount']),
                                 "supplier": "Visiontech Infra Solutions",
-                                "status": "Processed"
+                                "status": "Open"
                             })
                         
-                        # Supabase Bulk Insert
-                        sync_res = supabase.table("po_details").insert(upload_payload).execute()
-                        st.success(f"Successfully synced {len(upload_payload)} projects to Supabase!")
+                        # Bulk Insert Query
+                        try:
+                            res = supabase.table("po_details").insert(upload_data).execute()
+                            st.success(f"✅ Successfully synced {len(upload_data)} project records!")
+                        except Exception as db_err:
+                            st.error(f"Database Error: {db_err}")
 
             else:
-                st.error("Error: Required columns ('Project Name' or 'Amount') not found in file.")
-                st.write("Available Columns:", list(df_raw.columns))
+                st.warning("Required columns ('Project Name' and 'Amount') not found in the uploaded file.")
+                st.write("Columns found in your file:", list(df_raw.columns))
 
         except Exception as e:
-            st.error(f"❌ Processing Error: {e}")
+            st.error(f"❌ Error processing file: {e}")
 
-    # --- Historical Data from Supabase ---
-    st.divider()
-    st.subheader("📜 Recently Synced Data")
-    if st.button("Refresh History"):
-        hist_res = supabase.table("po_details").select("*").order("created_at", desc=True).limit(20).execute()
-        if hist_res.data:
-            st.table(pd.DataFrame(hist_res.data)[['project_name', 'amount', 'created_at']])
+    # 7. Recent Sync History (View only)
+    with st.expander("View Last 5 Synced Records"):
+        hist = supabase.table("po_details").select("*").order("id", desc=True).limit(5).execute()
+        if hist.data:
+            st.table(pd.DataFrame(hist.data)[['project_name', 'amount']])
