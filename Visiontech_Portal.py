@@ -439,148 +439,106 @@ with tab_wcc:
         else:
             st.info("No records found.")
 # =====================================================================
-# 📊 NEW: PO TSV ANALYZER (LAVISH & FAST VERSION)
+# 📊 FINAL PO PROCESSOR (SYNTAX & QUOTE FIX)
 # =====================================================================
 with tab6:
     st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>📁 PO TSV File Processor</h3>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: #666;'>Upload 'export.tsv' to get project-wise totals and sync with Supabase</p>", unsafe_allow_html=True)
     st.divider()
 
-    # --- Custom CSS for Lavish Look & Centering ---
-    st.markdown("""
-        <style>
-            [data-testid="stHeaderRowCell"] {
-                text-align: center !important;
-                background-color: #1E3A8A !important;
-                color: white !important;
-                font-weight: bold !important;
-            }
-            [data-testid="stTableCell"] {
-                text-align: center !important;
-            }
-            .stDataFrame {
-                border: 1px solid #e6e9ef;
-                border-radius: 15px;
-                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-            }
-        </style>
-    """, unsafe_allow_html=True)
-
     # 1. File Uploader
-    po_file = st.file_uploader("Choose TSV File", type=['tsv', 'txt'], key="po_processor_final_v6")
+    po_file = st.file_uploader("Upload 'export.tsv' file", type=['tsv', 'txt'], key="po_final_fix_v7")
 
     if po_file is not None:
         try:
-            # 2. Dynamic Header Search (Header dhoondne ke liye)
-            # File ko binary se string me convert karke scan karenge
-            content = po_file.getvalue().decode('ISO-8859-1').splitlines()
+            # File content read karna
+            raw_bytes = po_file.getvalue().decode('ISO-8859-1').splitlines()
             
-            header_row_idx = -1
-            for i, line in enumerate(content):
+            # Header Row dhoondna
+            header_idx = -1
+            for i, line in enumerate(raw_bytes):
                 if "Project Name" in line:
-                    header_row_idx = i
+                    header_idx = i
                     break
             
-            if header_row_idx != -1:
-                # 3. Read Data from identified header row
+            if header_idx != -1:
                 po_file.seek(0)
                 df_raw = pd.read_csv(
                     po_file, 
                     sep='\t', 
                     quoting=3, 
                     encoding='ISO-8859-1', 
-                    skiprows=header_row_idx,
-                    engine='python',
-                    on_bad_lines='skip'
+                    skiprows=header_idx,
+                    engine='python'
                 )
                 
-                # Column names clean (Quotes aur Spaces hatana)
+                # --- CLEANING COLUMNS ---
                 df_raw.columns = [str(c).strip().replace('"', '') for c in df_raw.columns]
                 
                 target_p = 'Project Name'
                 target_a = 'Amount'
 
                 if target_p in df_raw.columns and target_a in df_raw.columns:
-                    # 4. Data Cleaning
+                    
+                    # --- CLEANING VALUES (Quotes hatana taaki Excel me search ho sake) ---
+                    # Project Name ke aage-piche se " hatana
+                    df_raw[target_p] = df_raw[target_p].astype(str).str.replace('"', '').str.strip()
+                    
+                    # Amount se " aur comma hatakar number banana
                     df_raw[target_a] = pd.to_numeric(
-                        df_raw[target_a].astype(str).str.replace(',', '').str.replace('"', ''), 
+                        df_raw[target_a].astype(str).str.replace('"', '').str.replace(',', '').str.strip(), 
                         errors='coerce'
                     )
                     
-                    # Valid data filter
+                    # Khali data hatana
                     df_clean = df_raw.dropna(subset=[target_p, target_a])
-                    df_clean = df_clean[df_clean[target_p].astype(str).str.strip() != ""]
+                    df_clean = df_clean[df_clean[target_p] != ""]
 
-                    # 5. Project-wise Calculation
+                    # 2. Grouping & Total
                     summary_df = df_clean.groupby(target_p)[target_a].sum().reset_index()
                     summary_df = summary_df.sort_values(by=target_a, ascending=False)
 
-                    # --- UI: Metric Cards ---
-                    st.write("")
-                    col_m1, col_m2 = st.columns(2)
-                    with col_m1:
-                        st.markdown(f"""
-                            <div style="background-color: #f8f9fa; padding: 20px; border-radius: 12px; border-left: 6px solid #1E3A8A; text-align: center;">
-                                <p style="margin:0; font-size: 14px; color: #666; font-weight: bold;">UNIQUE PROJECTS</p>
-                                <h2 style="margin:0; color: #1E3A8A;">{len(summary_df)}</h2>
-                            </div>
-                        """, unsafe_allow_html=True)
-                    with col_m2:
-                        total_po_val = summary_df[target_a].sum()
-                        st.markdown(f"""
-                            <div style="background-color: #f8f9fa; padding: 20px; border-radius: 12px; border-left: 6px solid #28a745; text-align: center;">
-                                <p style="margin:0; font-size: 14px; color: #666; font-weight: bold;">TOTAL PO VALUE</p>
-                                <h2 style="margin:0; color: #28a745;">₹{total_po_val:,.2f}</h2>
-                            </div>
-                        """, unsafe_allow_html=True)
+                    # 3. Lavish UI Metrics
+                    m1, m2 = st.columns(2)
+                    m1.metric("Unique Projects", len(summary_df))
+                    m2.metric("Total PO Value", f"₹{summary_df[target_a].sum():,.2f}")
 
-                    st.write("")
+                    # 4. Lavish Table Display (Centered)
+                    st.markdown("""
+                        <style>
+                            [data-testid="stHeaderRowCell"] { text-align: center !important; background-color: #1E3A8A !important; color: white !important; }
+                            [data-testid="stTableCell"] { text-align: center !important; }
+                        </style>
+                    """, unsafe_allow_html=True)
 
-                    # --- UI: Lavish Dataframe ---
                     st.dataframe(
                         summary_df,
                         use_container_width=True,
                         hide_index=True,
                         column_config={
-                            target_p: st.column_config.TextColumn("📁 Project Name", width="medium"),
+                            target_p: st.column_config.TextColumn("📁 Project ID (Clean)", width="medium"),
                             target_a: st.column_config.NumberColumn("💰 Total Amount", format="₹%.2f", width="small")
                         }
                     )
 
-                    # 6. Sync to Supabase Logic
+                    # 5. Sync Button
                     st.divider()
-                    if st.button("🚀 Sync Summary to po_details Table", use_container_width=True):
-                        with st.spinner("Syncing with Supabase..."):
-                            # Payload mapping (As per your po_details table)
-                            payload = [
-                                {
-                                    "project_name": str(row[target_p]), 
-                                    "amount": float(row[target_a]),
-                                    "supplier": "Visiontech Infra Solutions",
-                                    "status": "Processed"
-                                } for _, row in summary_df.iterrows()
-                            ]
-                            
-                            try:
-                                supabase.table("po_details").insert(payload).execute()
-                                st.success(f"✅ Successfully synced {len(payload)} projects!")
-                            except Exception as db_err:
-                                st.error(f"Database Error: {db_err}")
+                    if st.button("🚀 Sync to Database", use_container_width=True):
+                        upload_data = [
+                            {
+                                "project_name": str(row[target_p]), 
+                                "amount": float(row[target_a]),
+                                "supplier": "Visiontech",
+                                "status": "Processed"
+                            } for _, row in summary_df.iterrows()
+                        ]
+                        supabase.table("po_details").insert(upload_data).execute()
+                        st.success("✅ Data Synced!")
+
                 else:
-                    st.error(f"Columns '{target_p}' or '{target_a}' not found!")
-                    st.info(f"Detected Columns: {list(df_raw.columns)}")
+                    st.error("Columns not found! Check file header.")
             else:
-                st.error("Header 'Project Name' not found in file. Please check if this is the correct export file.")
+                st.error("Could not find 'Project Name' row.")
 
         except Exception as e:
-            st.error(f"❌ Processing Error: {e}")
-
-    # 7. Recent History (Lavish List)
-    st.write("")
-    with st.expander("📜 View Last 5 Database Entries"):
-        hist_data = supabase.table("po_details").select("*").order("id", desc=True).limit(5).execute()
-        if hist_data.data:
-            st.table(pd.DataFrame(hist_data.data)[['project_name', 'amount']])
-
-        except Exception as e:
-            st.error(f"❌ Processing Error: {e}")
+            # Yahan syntax error nahi aayega, indentation check kar li gayi hai
+            st.error(f"❌ Error during processing: {e}")
