@@ -555,80 +555,94 @@ with tab6:
 # =====================================================================
 # 📁 NEW TAB 7: DOCUMENT CENTER (UPLOAD & SEARCH)
 # =====================================================================
-# हा कोड तुमच्या tab1, tab2... च्या लिस्टमध्ये 'tab7' म्हणून ॲड करा
-with tab6: # तुमच्या टॅब्सच्या लिस्टमध्ये शेवटचा टॅब 'tab7' किंवा 'tab_docs' म्हणून वाढवा
-    st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>📁 Document Center</h3>", unsafe_allow_html=True)
-    
-    doc_sub1, doc_sub2 = st.tabs(["📤 Upload Documents", "🔍 Search Documents"])
+# टीप: तुमच्या tabs च्या लिस्टमध्ये शेवटी 'tab7' वाढवून घ्या.
+with tab6: # तुम्ही याला tab7 नाव देऊ शकता जर वर एक वाढवला असेल तर
+    st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Visiontech Document Center</h3>", unsafe_allow_html=True)
+    st.divider()
 
-    # --- पोट-टॅब १: अपलोड (मॅनेजरसाठी) ---
+    doc_sub1, doc_sub2 = st.tabs(["📤 Manager Upload", "🔍 Team Search"])
+
+    # --- पोट-टॅब १: मॅनेजरसाठी अपलोड (Rename + Database Logic) ---
     with doc_sub1:
-        st.info("मॅनेजरने फाईल अपलोड करताना खालील माहिती भरावी. सिस्टिम स्वतः फाईलला योग्य नाव देईल.")
-        with st.form("doc_upload_form", clear_on_submit=True):
+        st.info("💡 मॅनेजरने माहिती भरली की सिस्टिम फाईलला 'Project_Indus_Site_Type' असे नाव देऊन सेव्ह करेल.")
+        with st.form("doc_upload_v2026", clear_on_submit=True):
             col_u1, col_u2 = st.columns(2)
-            u_proj = col_u1.text_input("Project Number (उदा. R/RL-123)")
-            u_indus = col_u2.text_input("Indus ID (उदा. IND-1095025)")
-            u_site = col_u1.text_input("Site Name (उदा. Kanewadi)")
-            u_type = col_u2.selectbox("Document Type", ["SRC", "DC", "STN", "REPORT", "PHOTO", "OTHER"])
+            u_proj = col_u1.text_input("📁 Project Number (उदा. R/RL-123459)")
+            u_indus = col_u2.text_input("📍 Indus ID (उदा. IND-1095025)")
+            u_site = col_u1.text_input("🏢 Site Name (उदा. Kanewadi)")
+            u_type = col_u2.selectbox("📄 Doc Type", ["SRC", "DC", "STN", "REPORT", "PHOTO", "OTHER"])
             
             u_file = st.file_uploader("फाईल निवडा (PDF/JPG)", type=['pdf', 'jpg', 'png', 'jpeg'])
-            submit_upload = st.form_submit_button("🚀 Upload to Supabase", use_container_width=True)
+            submit_upload = st.form_submit_button("🚀 Upload & Save", use_container_width=True)
 
             if submit_upload:
                 if u_file and u_proj and u_indus:
                     try:
-                        # १. Rename Logic (स्लॅश बदलून डॅश करणे)
+                        # १. Rename Logic (स्लॅश काढून डॅश करणे)
                         clean_p = u_proj.replace("/", "-").strip()
                         clean_i = u_indus.strip()
                         clean_s = u_site.replace(" ", "_").strip()
                         ext = u_file.name.split(".")[-1]
                         
-                        # नवीन नाव: R-RL-123_IND-101_Kanewadi_SRC.pdf
+                        # नवीन नाव तयार करणे
                         final_filename = f"{clean_p}_{clean_i}_{clean_s}_{u_type}.{ext}"
                         
-                        # २. सुपाबेसमध्ये अपलोड
+                        # २. Supabase Storage मध्ये अपलोड
                         file_data = u_file.getvalue()
-                        res = supabase.storage.from_("site_documents").upload(
+                        storage_res = supabase.storage.from_("site_documents").upload(
                             path=final_filename,
                             file=file_data,
                             file_options={"content-type": u_file.type, "x-upsert": "true"}
                         )
-                        st.success(f"✅ फाईल यशस्वीरित्या सेव्ह झाली: {final_filename}")
-                    except Exception as e:
-                        st.error(f"❌ अपलोड एरर: {str(e)}")
-                else:
-                    st.warning("⚠️ कृपया फाईल आणि सर्व माहिती भरा!")
-
-    # --- पोट-टॅब २: सर्च (टीमसाठी) ---
-    with doc_sub2:
-        st.markdown("🔍 **कोणताही एक कीवर्ड टाकून सर्च करा (उदा. Project No, Site Name किंवा ID)**")
-        search_query = st.text_input("येथे सर्च करा...", placeholder="उदा. Kanewadi किंवा R/RL-123")
-        
-        if st.button("🔎 Find Documents", use_container_width=True):
-            if search_query:
-                try:
-                    # सुपाबेसमधून फाईल्सची लिस्ट काढणे
-                    res_files = supabase.storage.from_("site_documents").list()
-                    if res_files:
-                        # युजरच्या क्वेरीनुसार फाईल्स फिल्टर करणे
-                        filtered = [f for f in res_files if search_query.lower() in f['name'].lower()]
                         
-                        if filtered:
-                            st.write(f"✅ {len(filtered)} फाईल्स सापडल्या:")
-                            for f in filtered:
-                                f_name = f['name']
-                                # पब्लिक URL तयार करणे
-                                f_url = f"{URL}/storage/v1/object/public/site_documents/{f_name}"
-                                
-                                # डिस्प्ले कार्ड
-                                with st.container():
-                                    c1, c2 = st.columns([3, 1])
-                                    c1.markdown(f"📄 **{f_name}**")
-                                    c2.markdown(f'<a href="{f_url}" target="_blank"><button style="width:100%; background-color:#1E3A8A; color:white; border:none; padding:5px; border-radius:5px; cursor:pointer;">📥 View/Download</button></a>', unsafe_allow_html=True)
-                                    st.divider()
-                        else:
-                            st.info("❌ या नावाची कोणतीही फाईल सापडली नाही.")
+                        # ३. फाईलची पब्लिक URL मिळवणे
+                        public_url = f"{URL}/storage/v1/object/public/site_documents/{final_filename}"
+                        
+                        # ४. Database Table (site_documents_master) मध्ये नोंद करणे
+                        db_payload = {
+                            "project_number": u_proj.strip(),
+                            "indus_id": u_indus.strip(),
+                            "site_name": u_site.strip(),
+                            "doc_type": u_type,
+                            "file_name": final_filename,
+                            "file_url": public_url
+                        }
+                        
+                        # SQL मध्ये आपण टेबल बनवल्याची खात्री करा
+                        supabase.table("site_documents_master").insert(db_payload).execute()
+                        
+                        st.success(f"✅ यशस्वी! फाईल '{final_filename}' स्टोअर झाली आणि डेटाबेस अपडेट झाला.")
+                    except Exception as e:
+                        st.error(f"❌ एरर: {str(e)}")
+                else:
+                    st.warning("⚠️ कृपया फाईल निवडा आणि सर्व माहिती भरा!")
+
+    # --- पोट-टॅब २: टीमसाठी सर्च (Database Search Logic) ---
+    with doc_sub2:
+        st.markdown("🔍 **Project No, Indus ID किंवा Site Name टाकून सर्च करा**")
+        q_search = st.text_input("येथे सर्च करा...", placeholder="उदा. Kanewadi / R/RL-123 / IND-101")
+        
+        if st.button("🔎 शोधून काढा", use_container_width=True):
+            if q_search:
+                try:
+                    # डेटाबेसमध्ये OR कंडिशन वापरून सर्च मारणे
+                    res_db = supabase.table("site_documents_master") \
+                        .select("*") \
+                        .or_(f"project_number.ilike.%{q_search}%,indus_id.ilike.%{q_search}%,site_name.ilike.%{q_search}%") \
+                        .execute()
+                    
+                    if res_db.data:
+                        st.write(f"✅ {len(res_db.data)} फाईल्स सापडल्या:")
+                        for row in res_db.data:
+                            with st.container():
+                                c1, c2, c3 = st.columns([2, 1, 1])
+                                c1.markdown(f"📄 **{row['file_name']}**")
+                                c2.markdown(f"🏷️ `{row['doc_type']}`")
+                                c3.markdown(f'<a href="{row["file_url"]}" target="_blank"><button style="width:100%; background-color:#1E3A8A; color:white; border:none; padding:5px; border-radius:5px; cursor:pointer;">📥 View/Download</button></a>', unsafe_allow_html=True)
+                                st.divider()
+                    else:
+                        st.info("❌ या नावाची कोणतीही फाईल सापडली नाही. कृपया स्पेलिंग तपासा.")
                 except Exception as e:
-                    st.error(f"❌ सर्च एरर: {str(e)}")
+                    st.error(f"❌ सर्चमध्ये अडचण आली: {str(e)}")
             else:
-                st.warning("⚠️ कृपया काहीतरी टाईप करा!")
+                st.warning("⚠️ कृपया सर्च बॉक्समध्ये काहीतरी टाईप करा!")
