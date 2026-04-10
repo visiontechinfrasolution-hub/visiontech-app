@@ -553,13 +553,13 @@ with tab6:
         h_res = supabase.table("po_details").select("project_name, amount").order("id", desc=True).limit(5).execute()
         if h_res.data: st.table(pd.DataFrame(h_res.data))
 # =====================================================================
-# 📁 NEW TAB 7: DOCUMENT CENTER (UPLOAD & SEARCH)
+# 📁 NEW TAB 7: DOCUMENT CENTER (UPLOAD, SEARCH & STATUS TRACKER)
 # =====================================================================
 with tab6:
-    st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Visiontech Document Center</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Visiontech Document Center & Tracker</h3>", unsafe_allow_html=True)
     st.divider()
 
-    doc_sub1, doc_sub2 = st.tabs(["📤 Manager Upload", "🔍 Team Search"])
+    doc_sub1, doc_sub2, doc_sub3 = st.tabs(["📤 Manager Upload", "🔍 Team Search", "📊 Upload Status Tracker"])
 
     with doc_sub1:
         st.info("💡 एकापेक्षा जास्त फोटो असल्यास सर्व एकदाच निवडा. सिस्टिम त्यांना Photo, Photo1, Photo2 असे नाव देईल.")
@@ -578,25 +578,21 @@ with tab6:
                     success_count = 0
                     try:
                         for i, single_file in enumerate(u_files):
-                            # १. नेमिंग लॉजिक (तुमच्या मागणीनुसार: Photo, Photo1, Photo2...)
                             clean_p = u_proj.replace("/", "-").strip()
                             clean_i = u_indus.strip()
                             clean_s = u_site.replace(" ", "_").strip()
                             ext = single_file.name.split(".")[-1]
                             
-                            # पहिला फोटो 'Photo' आणि पुढचे 'Photo1', 'Photo2' अशा प्रकारे:
                             num_suffix = "" if i == 0 else str(i)
                             final_filename = f"{clean_p}_{clean_i}_{clean_s}_{u_type}{num_suffix}.{ext}"
                             
-                            # २. सुपाबेसमध्ये अपलोड (एरर फिक्स करण्यासाठी x-upsert हेडर वापरले आहे)
                             file_data = single_file.getvalue()
                             supabase.storage.from_("site_documents").upload(
                                 path=final_filename,
                                 file=file_data,
-                                file_options={"content-type": single_file.type, "x-upsert": "true"} # <--- Fix: Headers instead of keyword
+                                file_options={"content-type": single_file.type, "x-upsert": "true"}
                             )
                             
-                            # ३. डेटाबेस एन्ट्री
                             public_url = f"{URL}/storage/v1/object/public/site_documents/{final_filename}"
                             db_payload = {
                                 "project_number": u_proj.strip(),
@@ -631,3 +627,61 @@ with tab6:
                         st.divider()
                 else:
                     st.info("डेटा सापडला नाही.")
+
+    # --- नवीन सेक्शन: स्टेटस ट्रॅकर (STATUS TRACKER) ---
+    with doc_sub3:
+        st.subheader("📊 Site-wise Document Status")
+        if st.button("🔄 Refresh Tracker"):
+            st.rerun()
+
+        res_tracker = supabase.table("site_documents_master").select("*").execute()
+        if res_tracker.data:
+            raw_df = pd.DataFrame(res_tracker.data)
+            
+            # ग्रुपिंग लॉजिक: एकाच Indus ID खाली सर्व फाईल्स चेक करणे
+            site_groups = raw_df.groupby('indus_id')
+            status_summary = []
+
+            for ind_id, group in site_groups:
+                # सर्व डॉक्युमेंट टाइप्स एका स्ट्रिंगमध्ये जमा करणे
+                all_types = group['doc_type'].str.upper().tolist()
+                
+                status_summary.append({
+                    "Project ID": group.iloc[0].get('project_number', 'N/A'),
+                    "Indus ID": ind_id,
+                    "Site Name": group.iloc[0].get('site_name', 'N/A'),
+                    "SRC": "✅ Available" if "SRC" in all_types else "❌ Pending",
+                    "DC": "✅ Available" if "DC" in all_types else "❌ Pending",
+                    "STN": "✅ Available" if "STN" in all_types else "❌ Pending",
+                    "Report": "✅ Available" if "REPORT" in all_types else "❌ Pending",
+                    "Photo": "✅ Available" if "PHOTO" in all_types else "❌ Pending"
+                })
+
+            final_status_df = pd.DataFrame(status_summary)
+
+            # रंगांचे लॉजिक (✅ हिरवा, ❌ लाल)
+            def style_status(val):
+                color = 'color: green' if '✅' in str(val) else 'color: red'
+                return color
+
+            st.dataframe(
+                final_status_df.style.applymap(style_status, subset=['SRC', 'DC', 'STN', 'Report', 'Photo']),
+                use_container_width=True,
+                hide_index=True
+            )
+
+            # Excel Download पर्याय
+            st.divider()
+            output_xl = io.BytesIO()
+            with pd.ExcelWriter(output_xl, engine='xlsxwriter') as writer:
+                final_status_df.to_excel(writer, index=False, sheet_name='Status_Report')
+            
+            st.download_button(
+                label="📥 Download Status Excel Report",
+                data=output_xl.getvalue(),
+                file_name=f"Visiontech_Status_{datetime.now().strftime('%d_%m_%Y')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+        else:
+            st.warning("ट्रॅकरसाठी कोणताही डेटा उपलब्ध नाही.")
