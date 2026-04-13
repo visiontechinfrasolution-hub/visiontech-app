@@ -665,7 +665,7 @@ with tab6:
                 return color
 
             st.dataframe(
-                final_status_df.style.applymap(style_status, subset=['SRC', 'DC', 'STN', 'Report', 'Photo']),
+                final_status_df.style.map(style_status, subset=['SRC', 'DC', 'STN', 'Report', 'Photo']),
                 use_container_width=True,
                 hide_index=True
             )
