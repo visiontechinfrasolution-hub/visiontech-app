@@ -20,10 +20,10 @@ st.sidebar.title("🧭 VIS Group")
 st.sidebar.divider()
 st.sidebar.caption("© 2026 Visiontech Infra Solutions")
 
-# --- 3. TABS ---
-tab1, tab2, tab3, tab4, tab_wcc, tab5, tab6 = st.tabs([
+# --- 3. TABS (Added "📝 Audit Portal") ---
+tab1, tab2, tab3, tab4, tab_wcc, tab5, tab6, tab_audit = st.tabs([
     "📦 BOQ Report", "🧾 PO Report", "🏗️ Site Detail", 
-    "📊 Indus Basic Data", "📡 WCC Tracker", "📁 Data Entry", "💰 Finance Entry"
+    "📊 Indus Basic Data", "📡 WCC Tracker", "📁 Data Entry", "💰 Finance Entry", "📝 Audit Portal"
 ])
 
 # =====================================================================
@@ -361,3 +361,129 @@ with tab6:
             df_d = pd.DataFrame(res_d.data)
             if g_search: df_d = df_d[df_d.astype(str).apply(lambda x: x.str.contains(g_search, case=False)).any(axis=1)]
             st.dataframe(df_d[['po_number', 'line_no', 'item_number', 'qty', 'amount', 'project_name', 'site_id']], use_container_width=True, hide_index=True)
+
+# =====================================================================
+# 📝 TAB 8: AUDIT PORTAL (ENTRY & EMAIL)
+# =====================================================================
+with tab_audit:
+    st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Audit Request & Dispatch</h3>", unsafe_allow_html=True)
+    
+    audit_sub1, audit_sub2 = st.tabs(["➕ New Entry", "📧 Send Email"])
+
+    # --- SUB TAB 1: DATA ENTRY ---
+    with audit_sub1:
+        with st.form("audit_entry_form", clear_on_submit=True):
+            cols_list = [
+                "Circle", "Ref. No.", "Indus ID", "Site Name", "Site Add", "Cluster / Zone",
+                "Date of Offerance in ISQ", "Date Of Audit Planned in ISQ", "ISQ Offerance Status(Y/N)",
+                "Documents uploaded in ISQ(Y/N)", "TSP Shared Filled checklist during Offerance for audit (Yes / No)",
+                "TSP Shared Compliance Photographs during audit Offerance (yes / No)", "Project", "Tower Type",
+                "Tower Ht.", "Stage", "TSP Name", "Audit Agency Name", "Representative Name",
+                "Representative Contact Number", "Actual ofference date", "Audit Engineer Name",
+                "Contact Details.", "Actual Audit date", "Actual Audit Time", "Lat", "Long"
+            ]
+            
+            # Form UI in 3 columns
+            form_data = {}
+            c1, c2, c3 = st.columns(3)
+            for i, col_name in enumerate(cols_list):
+                if i % 3 == 0: target_col = c1
+                elif i % 3 == 1: target_col = c2
+                else: target_col = c3
+                
+                # Default value logic for Maharashtra
+                def_val = "Maharashtra" if col_name == "Circle" else ""
+                form_data[col_name] = target_col.text_input(col_name, value=def_val)
+
+            if st.form_submit_button("💾 Save Audit Site", use_container_width=True):
+                try:
+                    supabase.table("Audit Request").insert(form_data).execute()
+                    st.success("✅ Site Saved in Database!")
+                except Exception as e:
+                    st.error(f"Save Error: {e}")
+
+    # --- SUB TAB 2: EMAIL DISPATCH ---
+    with audit_sub2:
+        def send_professional_email(selected_df):
+            # Email Credentials (Change these)
+            SENDER = "your-email@gmail.com"
+            APP_PASSWORD = "your-app-password"
+            RECEIVER = "amit.patil@example.com"
+            CC = "prashant.narkar@example.com, projectvisiontech@example.com"
+            
+            tomorrow = (datetime.now() + timedelta(days=1)).strftime('%d-%b-%Y')
+            
+            msg = MIMEMultipart()
+            msg['Subject'] = f"Audit Request_Visiontech_({tomorrow})"
+            msg['From'] = f"Saira Quzi <{SENDER}>"
+            msg['To'] = RECEIVER
+            msg['Cc'] = CC
+
+            # HTML Styling
+            header_style = "background-color: #FFFF00; font-weight: bold; border: 1px solid black; padding: 4px; font-size: 10px; text-align: center;"
+            td_style = "border: 1px solid black; padding: 4px; font-size: 10px; text-align: center;"
+
+            # Create Header
+            h_html = "".join([f"<th style='{header_style}'>{c}</th>" for c in cols_list])
+            
+            # Create Rows
+            r_html = ""
+            for _, row in selected_df.iterrows():
+                r_html += "<tr>"
+                for col in cols_list:
+                    r_html += f"<td style='{td_style}'>{row.get(col, '')}</td>"
+                r_html += "</tr>"
+
+            body = f"""
+            <html>
+            <body style="font-family: Calibri, Arial; font-size: 11px;">
+                <p>Hello Sir,</p>
+                <p>Below sites is ready for audit. Kindly arrange auditor for same.</p>
+                <div style="overflow-x: auto;">
+                    <table style="border-collapse: collapse; width: 100%;">
+                        <thead><tr>{h_html}</tr></thead>
+                        <tbody>{r_html}</tbody>
+                    </table>
+                </div>
+                <p>Thanks,<br><b>Saira Quzi</b><br>8180827123</p>
+            </body>
+            </html>
+            """
+            msg.attach(MIMEText(body, 'html'))
+
+            try:
+                import smtplib
+                with smtplib.SMTP('smtp.gmail.com', 587) as server:
+                    server.starttls()
+                    server.login(SENDER, APP_PASSWORD)
+                    server.send_message(msg)
+                return True
+            except Exception as e:
+                st.error(f"Email Error: {e}")
+                return False
+
+        # Fetch Data for Email
+        res_audit = supabase.table("Audit Request").select("*").order("created_at", desc=True).execute()
+        if res_audit.data:
+            df_audit = pd.DataFrame(res_audit.data)
+            
+            # Search & Filter
+            search_site = st.text_input("🔍 Filter by Site ID / Name")
+            if search_site:
+                df_audit = df_audit[df_audit.astype(str).apply(lambda x: x.str.contains(search_site, case=False)).any(axis=1)]
+
+            # Selection Box
+            selected_indices = st.multiselect("Select Sites for Audit Email:", 
+                                              df_audit.index, 
+                                              format_func=lambda x: f"{df_audit.loc[x, 'Indus ID']} - {df_audit.loc[x, 'Site Name']}")
+            
+            if st.button("📧 Send Professional Email", type="primary", use_container_width=True):
+                if selected_indices:
+                    if send_professional_email(df_audit.loc[selected_indices]):
+                        st.success(f"✅ Audit Email Sent for {len(selected_indices)} sites!")
+                else:
+                    st.warning("⚠️ Kam se kam ek site select karein!")
+            
+            st.divider()
+            st.write("### Database History")
+            st.dataframe(df_audit, use_container_width=True, hide_index=True)
