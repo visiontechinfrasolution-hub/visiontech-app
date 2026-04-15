@@ -6,6 +6,9 @@ import urllib.parse
 import io
 from geopy.distance import geodesic
 from geopy.geocoders import Nominatim
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 # --- 1. CONNECTION ---
 URL = "https://sckyflvukpmdqmdzjzhs.supabase.co"
