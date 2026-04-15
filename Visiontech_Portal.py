@@ -514,25 +514,34 @@ with tab_audit:
         sel_pid = c_top1.selectbox("🔍 Step 1: Select Project ID (Ref. No.)", p_ids)
         sel_rep = c_top2.selectbox("👤 Step 2: Select Representative", user_names)
 
-        # Step 2: Auto-fill Logic with FLEXIBLE COLUMN NAMES
+        # Step 2: Auto-fill Logic (LAT/LONG & MOBILE FIX)
         s_info, rep_mob, lat_val, long_val = {}, "", "", ""
         
         if sel_pid and not m_df.empty:
             s_info = m_df[m_df["PROJECT ID"] == sel_pid].iloc[0].to_dict()
-            # Indus ID nikalna (SITE ID master data mein hai)
-            site_id_val = s_info.get("SITE ID", "")
+            # Master data se Site ID uthana aur clean karna
+            site_id_val = str(s_info.get("SITE ID", "")).strip().upper()
             
-            # --- LAT/LONG LOOKUP (Flexible) ---
+            # --- LAT/LONG LOOKUP (Enhanced) ---
             if site_id_val and not ind_df.empty:
-                # Hum columns ko case-insensitive check karenge
-                ind_df.columns = [c.strip() for c in ind_df.columns]
-                # 'Site ID' ya 'SITE ID' jo bhi ho search karega
-                match_ind = ind_df[ind_df.iloc[:, 0].astype(str) == str(site_id_val)] 
+                # 1. Indus Table ke columns ke extra spaces khatam karein
+                ind_df.columns = [str(c).strip() for c in ind_df.columns]
+                
+                # 2. Site ID column ko identify karein (Jo bhi pehla column ho ya jisme 'site' likha ho)
+                site_col = next((c for c in ind_df.columns if "site" in c.lower()), ind_df.columns[0])
+                
+                # 3. Indus Data mein Site ID ko clean karke match karein
+                ind_df[site_col] = ind_df[site_col].astype(str).str.strip().str.upper()
+                match_ind = ind_df[ind_df[site_col] == site_id_val]
+                
                 if not match_ind.empty:
-                    # Pehla column Site ID, Baaki Lat aur Long dhundte hain
+                    # 4. Lat aur Long columns ko flexible tarike se dhoondein
                     for col in ind_df.columns:
-                        if "lat" in col.lower(): lat_val = str(match_ind.iloc[0][col])
-                        if "long" in col.lower(): long_val = str(match_ind.iloc[0][col])
+                        c_low = col.lower()
+                        if "lat" in c_low: 
+                            lat_val = str(match_ind.iloc[0][col])
+                        if "long" in c_low or "lng" in c_low: 
+                            long_val = str(match_ind.iloc[0][col])
         
         # --- MOBILE LOOKUP (Flexible) ---
         if sel_rep and not u_df.empty:
