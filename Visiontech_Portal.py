@@ -523,29 +523,37 @@ with tab_audit:
             u_names += sorted(u_df["name"].tolist())
         sel_rep = c_top2.selectbox("👤 Step 2: Select Representative", u_names, key="aud_rep_final")
 
-        # --- STEP 2: LOOKUP LOGIC (SAFE) ---
+# --- STEP 2: LOOKUP LOGIC (ULTRA ROBUST) ---
         if sel_pid and not m_df.empty:
-            # Get Project Info
+            # 1. Master Data se Project Info uthana
             s_info = m_df[m_df["PROJECT ID"] == sel_pid].iloc[0].to_dict()
             target_sid = str(s_info.get("SITE ID", "")).strip().upper()
             
-            # Get Lat/Long from Indus Data
+            # 2. Indus Data Fetch (Lat/Long ke liye)
             if target_sid and not ind_df.empty:
-                # Cleaning columns
-                ind_df.columns = [str(c).strip() for c in ind_df.columns]
-                # Match Site ID (Assuming first column is Site ID)
+                # Hum Site ID ko clean karke match karenge (Position 0 par Site ID hai)
+                # ind_df.iloc[:, 0] matlab pehla column
                 match_ind = ind_df[ind_df.iloc[:, 0].astype(str).str.strip().str.upper() == target_sid]
                 
                 if not match_ind.empty:
-                    lat_raw = match_ind.iloc[0].get('Lat', "")
-                    long_raw = match_ind.iloc[0].get('Long', "")
-                    lat_val = str(lat_raw) if pd.notnull(lat_raw) and str(lat_raw).upper() != 'NULL' else ""
-                    long_val = str(long_raw) if pd.notnull(long_raw) and str(long_raw).upper() != 'NULL' else ""
+                    # Aapne screenshot mein dikhaya: 1st column Site ID, uske baad kuch columns, phir Lat aur Long
+                    # Hum column names scan karenge "Lat" aur "Long" keyword ke liye
+                    for col in ind_df.columns:
+                        c_low = str(col).lower().strip()
+                        if c_low == "lat": 
+                            lat_val = str(match_ind.iloc[0][col])
+                        if c_low == "long": 
+                            long_val = str(match_ind.iloc[0][col])
+                    
+                    # Agar NULL likha hai toh khali kar do
+                    if lat_val.upper() == 'NULL': lat_val = ""
+                    if long_val.upper() == 'NULL': long_val = ""
 
-        # Mobile Lookup
+        # 3. Mobile Lookup (Aapne bataya phone_number column hai)
         if sel_rep and not u_df.empty:
             match_u = u_df[u_df["name"].astype(str).str.strip() == str(sel_rep).strip()]
             if not match_u.empty:
+                # 'phone_number' column se data lena
                 rep_mob = str(match_u.iloc[0].get('phone_number', ""))
 
         # --- STEP 3: THE FORM ---
