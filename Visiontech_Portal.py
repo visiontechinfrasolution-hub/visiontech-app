@@ -445,51 +445,99 @@ with tab5:
             st.dataframe(df_t, use_container_width=True)
 
 # =====================================================================
-# 💰 TAB 7: FINANCE ENTRY (JSON/NAN FIXED)
+# 💰 TAB 7: FINANCE ENTRY (REVISED WITH SUBMIT BUTTON & TABLE FIX)
 # =====================================================================
 with tab6:
     st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>💰 Finance Entry (PO Analyzer)</h3>", unsafe_allow_html=True)
+    st.divider()
     
-    # Function to handle NaN values specifically for JSON compliance
+    # numeric cleaning function (to avoid NaN error)
     def clean_num(val):
         try:
             n = pd.to_numeric(str(val).replace(',', '').strip(), errors='coerce')
             return float(n) if pd.notnull(n) else 0.0
         except: return 0.0
 
-    po_file = st.file_uploader("Upload 'export.tsv'", type=['tsv', 'txt'], key="po_fin_fix")
-    if po_file is not None:
-        if st.button("🚀 Sync to Database"):
-            try:
-                content = po_file.getvalue().decode('ISO-8859-1').splitlines()
-                h_idx = -1
-                for i, line in enumerate(content):
-                    if '"Line"' in line and '"Item Num"' in line: h_idx = i; break
+    # 1. UPLOAD SECTION WITH FORM
+    with st.form("finance_upload_form", clear_on_submit=True):
+        po_file = st.file_uploader("Upload 'export.tsv'", type=['tsv', 'txt'], key="po_fin_v3")
+        submit_po = st.form_submit_button("🚀 Upload & Sync to Database", use_container_width=True)
+
+    if po_file is not None and submit_po:
+        try:
+            content = po_file.getvalue().decode('ISO-8859-1').splitlines()
+            h_idx = -1
+            for i, line in enumerate(content):
+                if '"Line"' in line and '"Item Num"' in line: h_idx = i; break
+            
+            if h_idx != -1:
+                po_file.seek(0)
+                # PO Number extraction from top header
+                df_h = pd.read_csv(po_file, sep='\t', nrows=1, encoding='ISO-8859-1')
+                po_no = str(df_h.columns[0]).replace('"', '').strip()
                 
-                if h_idx != -1:
-                    po_file.seek(0)
-                    df_h = pd.read_csv(po_file, sep='\t', nrows=1, encoding='ISO-8859-1')
-                    po_no = str(df_h.columns[0]).replace('"', '').strip()
-                    po_file.seek(0)
-                    df_raw = pd.read_csv(po_file, sep='\t', skiprows=h_idx, quoting=3, encoding='ISO-8859-1', engine='python')
-                    df_raw.columns = [str(c).strip().replace('"', '') for c in df_raw.columns]
-                    df_clean = df_raw.dropna(subset=['Project Name'])
-                    
-                    payload = []
-                    for _, r in df_clean.iterrows():
-                        payload.append({
-                            "po_number": po_no,
-                            "line_no": str(r.get('Line', '')),
-                            "item_number": str(r.get('Item Num', '')),
-                            "description": str(r.get('Description', '')),
-                            "uom": str(r.get('UOM', '')),
-                            "qty": clean_num(r.get('Qty')),      # FIXED: NO NAN
-                            "price": clean_num(r.get('Price')),  # FIXED: NO NAN
-                            "amount": clean_num(r.get('Amount')),# FIXED: NO NAN
-                            "site_id": str(r.get('Site ID', '')),
-                            "site_name": str(r.get('Site Name', '')),
-                            "project_name": str(r.get('Project Name', ''))
-                        })
-                    supabase.table("po_line_items").insert(payload).execute()
-                    st.success(f"✅ PO {po_no} Synced without errors!")
-            except Exception as e: st.error(f"❌ Error: {e}")
+                po_file.seek(0)
+                df_raw = pd.read_csv(po_file, sep='\t', skiprows=h_idx, quoting=3, encoding='ISO-8859-1', engine='python')
+                df_raw.columns = [str(c).strip().replace('"', '') for c in df_raw.columns]
+                df_clean = df_raw.dropna(subset=['Project Name'])
+                
+                # PREPARE DATA
+                line_items = []
+                for _, r in df_clean.iterrows():
+                    line_items.append({
+                        "po_number": po_no,
+                        "line_no": str(r.get('Line', '')),
+                        "item_number": str(r.get('Item Num', '')),
+                        "description": str(r.get('Description', '')),
+                        "uom": str(r.get('UOM', '')),
+                        "qty": clean_num(r.get('Qty')),
+                        "price": clean_num(r.get('Price')),
+                        "amount": clean_num(r.get('Amount')),
+                        "site_id": str(r.get('Site ID', '')),
+                        "site_name": str(r.get('Site Name', '')),
+                        "project_name": str(r.get('Project Name', ''))
+                    })
+                
+                # Summary logic
+                summary_data = df_clean.groupby('Project Name')['Amount'].apply(lambda x: sum(clean_num(v) for v in x)).reset_index()
+                summaries = []
+                for _, s_row in summary_data.iterrows():
+                    summaries.append({
+                        "po_number": po_no,
+                        "project_name": str(s_row['Project Name']),
+                        "total_amount": float(s_row['Amount'])
+                    })
+
+                # SYNC TO SUPABASE
+                if line_items:
+                    supabase.table("po_line_items").insert(line_items).execute()
+                if summaries:
+                    supabase.table("po_summaries").insert(summaries).execute()
+                
+                st.success(f"✅ PO {po_no} processed and synced to both tables!")
+            else:
+                st.error("Header match nahi hua. 'Line' aur 'Item Num' check karein.")
+        except Exception as e:
+            st.error(f"❌ Error: {str(e)}")
+
+    st.divider()
+
+    # 2. DATABASE EXPLORER (TABLES)
+    st.subheader("🔎 Database Explorer")
+    f_tab1, f_tab2 = st.tabs(["📊 Project Summaries", "📋 Detailed Line Items"])
+    
+    with f_tab1:
+        # Summary table fetch
+        res_s = supabase.table("po_summaries").select("*").order("created_at", desc=True).execute()
+        if res_s.data:
+            st.dataframe(pd.DataFrame(res_s.data), use_container_width=True, hide_index=True)
+        else:
+            st.info("Summary table khali hai.")
+
+    with f_tab2:
+        # Line Items table fetch
+        res_d = supabase.table("po_line_items").select("*").order("created_at", desc=True).limit(500).execute()
+        if res_d.data:
+            st.dataframe(pd.DataFrame(res_d.data), use_container_width=True, hide_index=True)
+        else:
+            st.info("Line Items table khali hai.")
