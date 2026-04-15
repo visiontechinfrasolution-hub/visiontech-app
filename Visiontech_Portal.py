@@ -218,39 +218,48 @@ with tab_wcc:
                 col.markdown(f"<p style='color:#1E3A8A; font-weight:bold; font-size:13px; text-align:center;'>{name}</p>", unsafe_allow_html=True)
             st.markdown("<hr style='margin:2px 0px; border-top: 2px solid #1E3A8A;'>", unsafe_allow_html=True)
 
-            # --- TABLE ROWS ---
+           # --- TABLE ROWS (DATE FORMAT & BLANK LOGIC FIXED) ---
             for i, row in df_wcc.iterrows():
                 r_cols = st.columns([1, 0.5, 1.2, 1.5, 1, 1.2, 1, 1.2])
+                
+                # Date Formatting: 15-Apr-2026
+                raw_date = row.get('Reqeust Date', '')
+                try:
+                    formatted_date = pd.to_datetime(raw_date).strftime('%d-%b-%Y') if raw_date and str(raw_date).lower() != 'none' else ""
+                except:
+                    formatted_date = str(raw_date) if str(raw_date).lower() != 'none' else ""
+
+                # Function to remove 'None' from display
+                def clean_none(val):
+                    return str(val) if val and str(val).lower() != 'none' else ""
+
                 with r_cols[0]:
                     b1, b2 = st.columns(2)
                     if b1.button("✏️", key=f"edit_{row['Project ID']}_{i}"): wcc_edit_modal(row)
                     if role == 'requester':
                         msg = (
                             f"Hello Prkash Ji,\nRaise WCC urgently...\n\n"
-                            f"*Project* :- {row.get('Project', 'N/A')}\n"
-                            f"*Project ID* :- {row.get('Project ID', 'N/A')}\n"
-                            f"*Site ID* :- {row.get('Site ID', 'N/A')}\n"
-                            f"*Site Name* :- {row.get('Site Name', 'N/A')}\n"
-                            f"*PO Number* :- {row.get('PO Number', 'N/A')}\n"
-                            f"*Reqeust Date* :- {row.get('Reqeust Date', 'N/A')}\n"
-                            f"*WCC Number* :- {row.get('WCC Number', 'None')}\n"
-                            f"*WCC Status* :- {row.get('WCC Status', 'N/A')}\n\n"
+                            f"*Project* :- {clean_none(row.get('Project'))}\n"
+                            f"*Project ID* :- {clean_none(row.get('Project ID'))}\n"
+                            f"*Site ID* :- {clean_none(row.get('Site ID'))}\n"
+                            f"*Site Name* :- {clean_none(row.get('Site Name'))}\n"
+                            f"*PO Number* :- {clean_none(row.get('PO Number'))}\n"
+                            f"*Reqeust Date* :- {formatted_date}\n"
+                            f"*WCC Number* :- {clean_none(row.get('WCC Number'))}\n"
+                            f"*WCC Status* :- {clean_none(row.get('WCC Status'))}\n\n"
                             f"Thanks,\nMayur Patil\n7350533473"
                         )
                         wa_url = f"whatsapp://send?text={urllib.parse.quote(msg)}"
                         b2.markdown(f'<a href="{wa_url}" class="wa-btn">💬</a>', unsafe_allow_html=True)
                 
                 r_cols[1].markdown(f"<p style='font-size:12px; text-align:center;'>{i+1}</p>", unsafe_allow_html=True)
-                r_cols[2].markdown(f"<p style='font-size:12px; text-align:center;'>{row.get('Project', '')}</p>", unsafe_allow_html=True)
-                r_cols[3].markdown(f"<p style='font-size:12px; text-align:center; font-weight:bold;'>{row.get('Project ID', '')}</p>", unsafe_allow_html=True)
-                r_cols[4].markdown(f"<div style='text-align:center;'><span class='site-badge'>{row.get('Site ID', '')}</span></div>", unsafe_allow_html=True)
-                r_cols[5].markdown(f"<p style='font-size:12px; text-align:center;'>{row.get('Site Name', '')}</p>", unsafe_allow_html=True)
-                r_cols[6].markdown(f"<p style='font-size:12px; text-align:center;'>{row.get('PO Number', '')}</p>", unsafe_allow_html=True)
-                r_cols[7].markdown(f"<p style='font-size:12px; text-align:center;'>{row.get('WCC Status', '')}</p>", unsafe_allow_html=True)
+                r_cols[2].markdown(f"<p style='font-size:12px; text-align:center;'>{clean_none(row.get('Project'))}</p>", unsafe_allow_html=True)
+                r_cols[3].markdown(f"<p style='font-size:12px; text-align:center; font-weight:bold;'>{clean_none(row.get('Project ID'))}</p>", unsafe_allow_html=True)
+                r_cols[4].markdown(f"<div style='text-align:center;'><span class='site-badge'>{clean_none(row.get('Site ID'))}</span></div>", unsafe_allow_html=True)
+                r_cols[5].markdown(f"<p style='font-size:12px; text-align:center;'>{clean_none(row.get('Site Name'))}</p>", unsafe_allow_html=True)
+                r_cols[6].markdown(f"<p style='font-size:12px; text-align:center;'>{clean_none(row.get('PO Number'))}</p>", unsafe_allow_html=True)
+                r_cols[7].markdown(f"<p style='font-size:12px; text-align:center;'>{clean_none(row.get('WCC Status'))}</p>", unsafe_allow_html=True)
                 st.markdown("<hr style='margin:1px 0px; border-top: 1px solid #E5E7EB;'>", unsafe_allow_html=True)
-        else:
-            st.info("No records found in WCC Status. Please click 'Add New Site Request' to create one.")
-
 # =====================================================================
 # 📁 TAB 6: DATA ENTRY (DOCUMENT CENTER)
 # =====================================================================
