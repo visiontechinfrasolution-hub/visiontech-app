@@ -480,41 +480,46 @@ with tab6:
             st.dataframe(df_d[['po_number', 'line_no', 'item_number', 'qty', 'amount', 'project_name', 'site_id']], use_container_width=True, hide_index=True)
 
 # =====================================================================
-# 📝 TAB 8: FINAL AUDIT PORTAL (STABLE LAT/LONG + GMAIL SMTP)
+# 📝 TAB 8: FINAL AUDIT PORTAL (STABLE VERSION - GMAIL ONLY)
 # =====================================================================
 with tab_audit:
     st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Audit Management Portal</h3>", unsafe_allow_html=True)
     
+    # 1. Session State for Multi-Site Queue
     if 'audit_queue' not in st.session_state:
         st.session_state.audit_queue = []
 
-    # --- 1. DATA LOADING ---
+    # 2. Data Loading (Main Tables)
     m_df, u_df, h_df = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
     try:
         m_df = pd.DataFrame(supabase.table("VIS Portal Site Data").select('*').execute().data)
         u_df = pd.DataFrame(supabase.table("allowed_users").select("*").execute().data)
         h_df = pd.DataFrame(supabase.table("Audit Request").select("*").order("created_at", desc=True).execute().data)
-    except: pass
+    except Exception as e:
+        st.error(f"Sync Error: {e}")
 
     t1, t2 = st.tabs(["➕ Create Entry", "📜 History"])
 
     with t1:
+        # Step 1: Selection Dropdowns
         c_top1, c_top2 = st.columns(2)
         p_ids = [""] + sorted(m_df["PROJECT ID"].unique().tolist()) if not m_df.empty else [""]
-        sel_pid = c_top1.selectbox("🔍 Step 1: Select Project ID", p_ids, key="audit_final_stable_pid")
+        sel_pid = c_top1.selectbox("🔍 Step 1: Select Project ID", p_ids, key="audit_final_stable_v8")
         
         user_names = [""] + sorted(u_df["name"].tolist()) if not u_df.empty else [""]
-        sel_rep = c_top2.selectbox("👤 Step 2: Select Representative", user_names, key="audit_final_stable_rep")
+        sel_rep = c_top2.selectbox("👤 Step 2: Select Representative", user_names, key="audit_final_rep_v8")
 
-        # --- STEP 2: PRECISE AUTO-FILL (Working Logic) ---
+        # --- STEP 2: PRECISE AUTO-FILL (Direct Lat/Long Logic - NO CHANGE) ---
         s_info, rep_mob, lat_val, long_val, linked_sid = {}, "", "", "", ""
         today_dt = datetime.now().strftime("%d-%b-%Y")
         tomorrow_dt = (datetime.now() + timedelta(days=1)).strftime("%d-%b-%Y")
         
         if sel_pid and not m_df.empty:
+            # Project ID se Site Details
             s_info = m_df[m_df["PROJECT ID"] == sel_pid].iloc[0].to_dict()
             linked_sid = str(s_info.get("SITE ID", "")).strip()
             
+            # Direct Query to 'Indus_Coordinates' for Lat/Long (Fixed Logic)
             if linked_sid:
                 try:
                     res_coord = supabase.table("Indus_Coordinates").select("Lat", "Long").eq("Site ID", linked_sid).execute()
@@ -525,13 +530,14 @@ with tab_audit:
                 except Exception as e:
                     st.caption(f"Note: Coordinate fetch error: {e}")
 
+        # Representative Mobile Lookup
         if sel_rep and not u_df.empty:
             match_u = u_df[u_df["name"].astype(str).str.strip() == str(sel_rep).strip()]
             if not match_u.empty:
                 rep_mob = str(match_u.iloc[0].get('phone_number', ''))
 
         # --- STEP 3: THE FORM ---
-        with st.form("audit_stable_form"):
+        with st.form("audit_stable_v8_form"):
             col1, col2, col3 = st.columns(3)
             f = {}
             f["Circle"] = col1.text_input("Circle", value="Maharashtra")
@@ -561,7 +567,7 @@ with tab_audit:
             f["Long"] = col2.text_input("Longitude", value=long_val)
             f["Actual Audit date"] = col3.text_input("Actual Audit date", value=tomorrow_dt)
 
-            # Hidden/Static Mapping
+            # Hidden Database Mapping
             f["Stage"], f["Audit Agency Name"], f["TSP Name"] = "", "", "Visiontech"
             f["Actual Audit Time"] = tomorrow_dt
             f["Audit Engineer Name"], f["Contact Details."] = "", ""
@@ -574,19 +580,21 @@ with tab_audit:
                 if sel_pid and f["Lat"] != "":
                     st.session_state.audit_queue.append(f.copy())
                     st.toast(f"✅ Added {linked_sid}")
-                else: st.error("Lat/Long empty!")
+                else:
+                    st.error("Lat/Long empty! Check Site Data.")
 
-        # --- STEP 4: QUEUE & GMAIL SUBMISSION ---
+        # --- STEP 4: QUEUE & SUBMISSION ---
         if st.session_state.audit_queue:
             st.divider()
+            st.subheader(f"📋 Queued Sites ({len(st.session_state.audit_queue)})")
             q_df = pd.DataFrame(st.session_state.audit_queue)
             st.table(q_df[["Indus ID", "Ref. No.", "Lat", "Long"]])
 
             if st.button("📧 Submit & Send Combined Gmail", type="primary", use_container_width=True):
                 try:
-                    # Sync DB Schema
-                    cols_res = supabase.table("Audit Request").select("*").limit(1).execute()
-                    db_cols = cols_res.data[0].keys() if cols_res.data else []
+                    # Sync Database Columns
+                    res_cols = supabase.table("Audit Request").select("*").limit(1).execute()
+                    db_cols = res_cols.data[0].keys() if res_cols.data else []
                     
                     final_save = []
                     for item in st.session_state.audit_queue:
@@ -598,15 +606,19 @@ with tab_audit:
                             if "compliance photographs" in clow: temp[col] = temp.pop("TSP Shared Compliance Photographs during audit Offerance (yes / No)", "yes")
                         final_save.append(temp)
 
-                    # Save to DB
+                    # 1. Save to Supabase
                     supabase.table("Audit Request").insert(final_save).execute()
                     
-                    # Send Gmail via App Password
+                    # 2. Trigger Email (This calls the Gmail function)
                     if send_professional_email(pd.DataFrame(st.session_state.audit_queue)):
-                        st.success("🚀 Success! Database Updated & Gmail Sent.")
+                        st.success("🚀 Success! Data Saved & Email Sent via Gmail.")
                         st.session_state.audit_queue = []
                         st.rerun()
-                except Exception as e: st.error(f"Error: {e}")
+                    else:
+                        st.error("Data saved but GMAIL failed. Check function code.")
+                except Exception as e:
+                    st.error(f"Error: {e}")
 
     with t2:
-        if not h_df.empty: st.dataframe(h_df, use_container_width=True, hide_index=True)
+        if not h_df.empty:
+            st.dataframe(h_df, use_container_width=True, hide_index=True)
