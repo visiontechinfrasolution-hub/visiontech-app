@@ -410,14 +410,24 @@ with tab6:
 with tab_audit:
     st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Smart Audit Request Form</h3>", unsafe_allow_html=True)
     
-    # --- 1. DATA FETCHING FOR DROPDOWNS ---
-    # Fetch Master Site Data
-    res_master = supabase.table("VIS Portal Site Data").select("PROJECT ID, SITE ID, SITE NAME, CLUSTER").execute()
+# --- 1. DATA FETCHING (WITH QUOTED COLUMNS) ---
+try:
+    # SQL mein spaces wale columns ko hamesha double quotes '"Column Name"' mein dena safe hota hai
+    res_master = supabase.table("VIS Portal Site Data").select(
+        '"PROJECT ID", "SITE ID", "SITE NAME", "CLUSTER"'
+    ).execute()
     m_df = pd.DataFrame(res_master.data) if res_master.data else pd.DataFrame()
+except Exception as e:
+    st.error(f"VIS Portal Table Error: {e}")
+    m_df = pd.DataFrame()
 
-    # Fetch Allowed Users (Supervisors)
+# Fetch Allowed Users
+try:
     res_users = supabase.table("allowed_users").select("name, mobile").execute()
     u_df = pd.DataFrame(res_users.data) if res_users.data else pd.DataFrame()
+except Exception as e:
+    st.error(f"Allowed Users Table Error: {e}")
+    u_df = pd.DataFrame()
 
     # Fetch Audit History
     res_audit = supabase.table("Audit Request").select("*").order("created_at", desc=True).execute()
