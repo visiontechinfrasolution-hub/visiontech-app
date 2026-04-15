@@ -477,122 +477,139 @@ with tab6:
             st.dataframe(df_d[['po_number', 'line_no', 'item_number', 'qty', 'amount', 'project_name', 'site_id']], use_container_width=True, hide_index=True)
 
 # =====================================================================
-# 📝 TAB: AUDIT PORTAL (FINAL STABLE VERSION)
+# 📝 TAB 8: FINAL AUDIT PORTAL (ALL 27 COLUMNS + TRACKING)
 # =====================================================================
 with tab_audit:
-    st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Smart Audit Request Portal</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Professional Audit Management Portal</h3>", unsafe_allow_html=True)
     
-    # --- 1. DATA FETCHING (Using quotes for spaces) ---
+    # --- 1. DATA FETCHING ---
     try:
-        # VIS Portal Site Data se columns uthana
+        # VIS Portal Master Data (Auto-fill source)
         res_m = supabase.table("VIS Portal Site Data").select('"PROJECT ID", "SITE ID", "SITE NAME", "CLUSTER"').execute()
         m_df = pd.DataFrame(res_m.data) if res_m.data else pd.DataFrame()
-    except:
-        st.error("Error: VIS Portal Site Data table check karein (Columns: PROJECT ID, SITE ID)")
-        m_df = pd.DataFrame()
-
-    try:
-        # Allowed Users fetch karna
-        res_u = supabase.table("allowed_users").select("*").execute()
+        
+        # Allowed Users (Supervisor source)
+        res_u = supabase.table("allowed_users").select("name, mobile").execute()
         u_df = pd.DataFrame(res_u.data) if res_u.data else pd.DataFrame()
-    except:
-        u_df = pd.DataFrame()
+        
+        # Indus Data (Lat/Long source)
+        res_ind = supabase.table("Indus Data").select('"Site ID", "Lat", "Long"').execute()
+        ind_df = pd.DataFrame(res_ind.data) if res_ind.data else pd.DataFrame()
 
-    res_audit = supabase.table("Audit Request").select("*").order("created_at", desc=True).execute()
-    a_df = pd.DataFrame(res_audit.data) if res_audit.data else pd.DataFrame()
+        # Audit Request History
+        res_h = supabase.table("Audit Request").select("*").order("created_at", desc=True).execute()
+        h_df = pd.DataFrame(res_h.data) if res_h.data else pd.DataFrame()
+    except Exception as e:
+        st.error(f"Data Fetch Error: {e}")
 
-    t1, t2 = st.tabs(["➕ New Audit Entry", "📜 History & Tracking"])
+    t1, t2 = st.tabs(["➕ Create Audit Entry", "📜 History & Tracking"])
 
     with t1:
-        if not m_df.empty:
-            # Ref. No. Dropdown (Project ID)
-            p_ids = [""] + sorted(m_df["PROJECT ID"].unique().tolist())
-            sel_pid = st.selectbox("🔍 Select Ref. No. (Project ID)", p_ids)
+        # --- AUTO-FILL SELECTION ---
+        st.info("💡 Project ID aur Representative select karein, baaki data apne aap bhar jayega.")
+        c_top1, c_top2 = st.columns(2)
+        
+        with c_top1:
+            p_ids = [""] + sorted(m_df["PROJECT ID"].unique().tolist()) if not m_df.empty else [""]
+            sel_pid = st.selectbox("🔍 Step 1: Select Ref. No. (Project ID)", p_ids)
+        
+        with c_top2:
+            names = [""] + u_df["name"].tolist() if not u_df.empty else [""]
+            sel_rep = st.selectbox("👤 Step 2: Select Representative Name", names)
 
-            s_info = {}
-            lat_val, long_val = "", ""
-            
-            if sel_pid:
-                s_info = m_df[m_df["PROJECT ID"] == sel_pid].iloc[0].to_dict()
-                sid = s_info.get("SITE ID", "")
-                
-                # Indus Data se Lat/Long fetch karna
-                if sid:
+        # Logic for auto-filling from multiple tables
+        s_info, lat_val, long_val, rep_mob = {}, "", "", ""
+        if sel_pid:
+            s_info = m_df[m_df["PROJECT ID"] == sel_pid].iloc[0].to_dict()
+            sid = s_info.get("SITE ID", "")
+            if not ind_df.empty and sid:
+                match = ind_df[ind_df["Site ID"] == sid]
+                if not match.empty:
+                    lat_val, long_val = match.iloc[0]["Lat"], match.iloc[0]["Long"]
+        
+        if sel_rep and not u_df.empty:
+            matched_user = u_df[u_df["name"] == sel_rep]
+            if not matched_user.empty:
+                rep_mob = str(matched_user.iloc[0]["mobile"])
+
+        # --- THE FULL FORM (27 COLUMNS) ---
+        with st.form("full_logic_audit_form", clear_on_submit=True):
+            st.write("---")
+            col1, col2, col3 = st.columns(3)
+            f = {}
+
+            # Row 1
+            f["Circle"] = col1.text_input("Circle", value="Maharashtra")
+            f["Ref. No."] = col1.text_input("Project ID (Ref No)", value=sel_pid, disabled=True)
+            f["Indus ID"] = col2.text_input("Indus ID", value=s_info.get("SITE ID", ""))
+            f["Site Name"] = col2.text_input("Site Name", value=s_info.get("SITE NAME", ""))
+            f["Site Add"] = col3.text_input("Site Add", value=s_info.get("CLUSTER", ""))
+            f["Cluster / Zone"] = col3.text_input("Cluster / Zone", value=s_info.get("CLUSTER", ""))
+
+            # Row 2 (Audit Specific)
+            f["Date of Offerance in ISQ"] = col1.text_input("Date of Offerance in ISQ", value=datetime.now().strftime("%d-%b-%Y"))
+            f["Date Of Audit Planned in ISQ"] = col1.text_input("Date Of Audit Planned in ISQ", value=(datetime.now() + timedelta(days=1)).strftime("%d-%b-%Y"))
+            f["ISQ Offerance Status(Y/N)"] = col2.selectbox("ISQ Offerance Status(Y/N)", ["Y", "N"])
+            f["Documents uploaded in ISQ(Y/N)"] = col2.selectbox("Documents uploaded in ISQ(Y/N)", ["Y", "N"])
+            f["TSP Shared Filled checklist during Offerance for audit (Yes / No)"] = col3.selectbox("TSP Checklist Shared?", ["Yes", "No"])
+            f["TSP Shared Compliance Photographs during audit Offerance (yes / No)"] = col3.selectbox("TSP Photos Shared?", ["Yes", "No"])
+
+            # Row 3 (Project & Tower)
+            f["Project"] = col1.text_input("Project Name", value=s_info.get("PROJECT NAME", ""))
+            f["Tower Type"] = col1.text_input("Tower Type", value="GBT")
+            f["Tower Ht."] = col2.text_input("Tower Ht.", value="40 mtr")
+            f["Stage"] = col2.text_input("Stage", value="Execution")
+            f["TSP Name"] = col3.text_input("TSP Name", value="Visiontech")
+            f["Audit Agency Name"] = col3.text_input("Audit Agency Name", value="Third Party")
+
+            # Row 4 (Representative)
+            f["Representative Name"] = col1.text_input("Representative Name (Final)", value=sel_rep)
+            f["Representative Contact Number"] = col1.text_input("Rep. Contact Number", value=rep_mob)
+            f["Actual ofference date"] = col2.text_input("Actual ofference date", value=datetime.now().strftime("%d-%b-%Y"))
+            f["Audit Engineer Name"] = col2.text_input("Audit Engineer Name")
+            f["Contact Details."] = col3.text_input("Contact Details (Auditor)")
+            f["Actual Audit date"] = col3.text_input("Actual Audit date", value=(datetime.now() + timedelta(days=1)).strftime("%d-%b-%Y"))
+
+            # Row 5 (Time & Location)
+            f["Actual Audit Time"] = col1.text_input("Actual Audit Time", value="10:00 AM")
+            f["Lat"] = col2.text_input("Latitude", value=lat_val)
+            f["Long"] = col3.text_input("Longitude", value=long_val)
+
+            # Hidden Tracking Logic
+            f["Mail Status"] = "Pending"
+            f["Mail Sent Date"] = "-"
+
+            if st.form_submit_button("🚀 Save All Audit Data"):
+                if sel_pid and sel_rep:
                     try:
-                        res_ll = supabase.table("Indus Data").select("Lat, Long").eq("Site ID", sid).execute()
-                        if res_ll.data:
-                            lat_val = res_ll.data[0].get("Lat", "")
-                            long_val = res_ll.data[0].get("Long", "")
-                    except: pass
-
-            # --- FORM ---
-            with st.form("audit_final_form", clear_on_submit=True):
-                c1, c2, c3 = st.columns(3)
-                f = {}
-                
-                # Column 1: Defaults & Auto-fills
-                f["Circle"] = c1.text_input("Circle", value="Maharashtra")
-                f["Ref. No."] = c1.text_input("Project ID", value=sel_pid, disabled=True)
-                f["Indus ID"] = c1.text_input("Indus ID", value=s_info.get("SITE ID", ""))
-                f["Site Name"] = c1.text_input("Site Name", value=s_info.get("SITE NAME", ""))
-                
-                # Column 2: Defaults & Dates
-                f["Site Add"] = c2.text_input("Site Add", value=s_info.get("CLUSTER", ""))
-                f["Cluster / Zone"] = c2.text_input("Cluster / Zone", value=s_info.get("CLUSTER", ""))
-                f["Date of Offerance in ISQ"] = c2.text_input("Date of Offerance in ISQ", value=datetime.now().strftime("%d-%b-%Y"))
-                f["Date Of Audit Planned in ISQ"] = c2.text_input("Date Of Audit Planned in ISQ", value=(datetime.now() + timedelta(days=1)).strftime("%d-%b-%Y"))
-
-                # Column 3: Tower & Representative
-                f["Tower Type"] = c3.text_input("Tower Type", value="GBT")
-                f["Tower Ht."] = c3.text_input("Tower Ht.", value="40 mtr")
-                
-                # Rep Name dropdown
-                user_list = [""] + u_df["name"].tolist() if "name" in u_df.columns else [""]
-                sel_user = c3.selectbox("Representative Name", user_list)
-                
-                # Mobile lookup logic
-                u_mob = ""
-                if sel_user and "mobile" in u_df.columns:
-                    u_mob = u_df[u_df["name"] == sel_user]["mobile"].iloc[0]
-                
-                f["Representative Name"] = sel_user
-                f["Representative Contact Number"] = c3.text_input("Representative Contact Number", value=u_mob)
-
-                st.divider()
-                d1, d2, d3, d4 = st.columns(4)
-                f["Actual ofference date"] = d1.text_input("Actual ofference date", value=datetime.now().strftime("%d-%b-%Y"))
-                f["Actual Audit date"] = d2.text_input("Actual Audit date", value=(datetime.now() + timedelta(days=1)).strftime("%d-%b-%Y"))
-                f["Lat"] = d3.text_input("Lat", value=lat_val)
-                f["Long"] = d4.text_input("Long", value=long_val)
-                
-                # Tracking columns
-                f["Mail Status"] = "Pending"
-                f["Mail Sent Date"] = "-"
-
-                if st.form_submit_button("🚀 Save Audit Entry"):
-                    if sel_pid:
                         supabase.table("Audit Request").insert(f).execute()
-                        st.success("✅ Saved!")
+                        st.success("✅ Saare 27 columns ke sath site save ho gayi!")
                         st.rerun()
-                    else: st.error("Project ID chunein!")
+                    except Exception as e:
+                        st.error(f"Save Error: {e}")
+                else:
+                    st.error("⚠️ Pehle Project ID aur Representative chunein!")
 
     with t2:
-        if not a_df.empty:
-            st.write("### Audit Dispatch History")
+        if not h_df.empty:
+            st.write("### 📜 Audit History & Email Control")
             
-            # Selection and Email logic
-            sel_to_email = st.multiselect("Dispatch ke liye chunein:", a_df.index, 
-                                          format_func=lambda x: f"{a_df.loc[x, 'Indus ID']} - {a_df.loc[x, 'Site Name']}")
+            # Sequence for History View
+            p_cols = ["Mail Status", "Mail Sent Date", "Indus ID", "Site Name", "Ref. No.", "Representative Name", "Actual Audit date"]
+            all_cols = p_cols + [c for c in h_df.columns if c not in p_cols and c not in ['id', 'created_at']]
+
+            # Selection logic
+            to_mail = st.multiselect("Kaunsi sites ka mail bhejna hai?", h_df.index, 
+                                     format_func=lambda x: f"{h_df.loc[x, 'Indus ID']} - {h_df.loc[x, 'Site Name']}")
             
-            if st.button("📧 Send Professional Email", type="primary"):
-                if sel_to_email:
-                    # Yahan wahi send_professional_email function call hoga
-                    if send_professional_email(a_df.loc[sel_to_email]):
-                        sent_now = datetime.now().strftime("%d-%b-%y %H:%M")
-                        for i in sel_to_email:
-                            rid = a_df.loc[i, 'id']
-                            supabase.table("Audit Request").update({"Mail Status": "Mail Sent", "Mail Sent Date": sent_now}).eq("id", rid).execute()
-                        st.success("✅ Email Sent & DB Updated!")
+            if st.button("📧 Send Email & Update Tracking", type="primary"):
+                if to_mail:
+                    if send_professional_email(h_df.loc[to_mail]):
+                        now_str = datetime.now().strftime("%d-%b-%y %H:%M")
+                        for i in to_mail:
+                            rid = h_df.loc[i, 'id']
+                            supabase.table("Audit Request").update({"Mail Status": "Mail Sent", "Mail Sent Date": now_str}).eq("id", rid).execute()
+                        st.success("✅ Emails dispatched & Status updated!")
                         st.rerun()
-            
-            st.dataframe(a_df, use_container_width=True, hide_index=True)
+
+            st.dataframe(h_df[all_cols], use_container_width=True, hide_index=True)
