@@ -74,15 +74,14 @@ def send_professional_email(selected_df):
 
     try:
         import smtplib
-        # NOTE: Agar services@vispltower.com Google Workspace par hai, toh smtp.gmail.com use karein.
-        # Agar kisi aur provider par hai toh uska SMTP host dalein.
-        with smtplib.SMTP('smtp.gmail.com', 587) as server:
-            server.starttls()
-            server.login(SENDER, PWD)
-            server.send_message(msg)
+        # Hostinger ke 465 SSL port ke liye 'SMTP_SSL' use karna zaruri hai
+        server = smtplib.SMTP_SSL('smtp.hostinger.com', 465)
+        server.login(SENDER, PWD) # PWD me aapka Hostinger email password aayega
+        server.send_message(msg)
+        server.quit()
         return True
     except Exception as e:
-        st.error(f"Email Error: {e}")
+        st.error(f"Hostinger Email Error: {e}")
         return False
 
 # --- 2. UI SETUP ---
