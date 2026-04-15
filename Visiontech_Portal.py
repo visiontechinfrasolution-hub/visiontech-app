@@ -445,7 +445,7 @@ with tab5:
             st.dataframe(df_t, use_container_width=True)
 
 # =====================================================================
-# 💰 TAB 7: FINANCE ENTRY (CLEAN & REWRITE LOGIC)
+# 💰 TAB 7: FINANCE ENTRY (STRICT CLEANING & OVERWRITE)
 # =====================================================================
 with tab6:
     st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>💰 Finance Entry (PO Analyzer)</h3>", unsafe_allow_html=True)
@@ -454,25 +454,25 @@ with tab6:
     # Numeric cleaning helper
     def clean_num(val):
         try:
-            # Quotes aur comma remove karke numeric mein badalna
+            if val is None: return 0.0
+            # Sabhi quotes aur commas hatana
             n = str(val).replace('"', '').replace(',', '').strip()
             n = pd.to_numeric(n, errors='coerce')
             return float(n) if pd.notnull(n) else 0.0
         except: return 0.0
 
-    # 1. UPLOAD SECTION WITH PO NUMBER INPUT
-    with st.form("finance_upload_form", clear_on_submit=True):
+    # 1. UPLOAD SECTION
+    with st.form("finance_upload_form_v5", clear_on_submit=True):
         c1, c2 = st.columns([1, 2])
-        user_po_no = c1.text_input("📄 PO Number", placeholder="E.g. 4500123456")
-        po_file = c2.file_uploader("Upload 'export.tsv'", type=['tsv', 'txt'], key="po_fin_v4")
+        user_po_no = c1.text_input("📄 Enter PO Number", placeholder="E.g. 4500123456")
+        po_file = c2.file_uploader("Upload 'export.tsv'", type=['tsv', 'txt'], key="po_fin_v5")
         submit_po = st.form_submit_button("🚀 Process & Overwrite Data", use_container_width=True)
 
     if submit_po:
         if not user_po_no or po_file is None:
-            st.warning("⚠️ PO Number aur File dono zaroori hain!")
+            st.warning("⚠️ PO Number aur File dono bharna zaroori hai!")
         else:
             try:
-                # TSV Read
                 content = po_file.getvalue().decode('ISO-8859-1').splitlines()
                 h_idx = -1
                 for i, line in enumerate(content):
@@ -482,21 +482,22 @@ with tab6:
                     po_file.seek(0)
                     df_raw = pd.read_csv(po_file, sep='\t', skiprows=h_idx, quoting=3, encoding='ISO-8859-1', engine='python')
                     
-                    # 1. Sabse pehle quotes remove karna headers aur data se
+                    # 1. Cleaning Headers & Data (Quotes remove)
                     df_raw.columns = [str(c).replace('"', '').strip() for c in df_raw.columns]
                     for col in df_raw.columns:
-                        df_raw[col] = df_raw[col].astype(str).str.replace('"', '').str.strip()
+                        df_raw[col] = df_raw[col].astype(str).str.replace('"', '').strip()
 
-                    # 2. Qty 0 wali lines delete karna
-                    df_raw['Qty_Num'] = df_raw['Qty'].apply(clean_num)
-                    df_clean = df_raw[df_raw['Qty_Num'] > 0].copy()
+                    # 2. STRICT FILTER: Jaha Qty 0 hai wo line puri delete
+                    df_raw['Qty_Check'] = df_raw['Qty'].apply(clean_num)
+                    df_clean = df_raw[df_raw['Qty_Check'] > 0].copy()
                     
                     if not df_clean.empty:
-                        # 3. Purana data delete karna (Rewrite logic)
-                        supabase.table("po_line_items").delete().eq("po_number", user_po_no).execute()
-                        supabase.table("po_summaries").delete().eq("po_number", user_po_no).execute()
+                        # 3. REWRITE LOGIC: Purana data delete karke naya insert karna
+                        # Note: Iske liye Supabase me DELETE policy honi chahiye
+                        supabase.table("po_line_items").delete().eq("po_number", str(user_po_no)).execute()
+                        supabase.table("po_summaries").delete().eq("po_number", str(user_po_no)).execute()
 
-                        # 4. Line Items Prepare & Insert
+                        # 4. Insert Detailed Items
                         line_items = []
                         for _, r in df_clean.iterrows():
                             line_items.append({
@@ -514,31 +515,33 @@ with tab6:
                             })
                         supabase.table("po_line_items").insert(line_items).execute()
 
-                        # 5. Summary calculation & Insert
-                        summary_df = df_clean.groupby('Project Name')['Amount'].apply(lambda x: sum(clean_num(v) for v in x)).reset_index()
+                        # 5. Insert Summaries (Project-wise total)
+                        # Amount ko saaf karke sum karna
+                        df_clean['Amt_Check'] = df_clean['Amount'].apply(clean_num)
+                        summary_df = df_clean.groupby('Project Name')['Amt_Check'].sum().reset_index()
+                        
                         summaries = []
                         for _, sr in summary_df.iterrows():
                             summaries.append({
                                 "po_number": str(user_po_no),
                                 "project_name": str(sr['Project Name']),
-                                "total_amount": float(sr['Amount'])
+                                "total_amount": float(sr['Amt_Check'])
                             })
                         supabase.table("po_summaries").insert(summaries).execute()
 
-                        st.success(f"✅ PO {user_po_no} processed: Qty 0 lines removed & data overwritten!")
-                        time.sleep(1)
+                        st.success(f"✅ PO {user_po_no} success: Qty 0 rows removed & data overwritten!")
                         st.rerun()
+                    else:
+                        st.error("❌ File me koi bhi valid Qty > 0 wali row nahi mili.")
                 else:
-                    st.error("❌ File error: 'Project Name' column nahi mila.")
+                    st.error("❌ 'Project Name' header nahi mila. Sahi file upload karein.")
             except Exception as e:
-                st.error(f"❌ System Error: {str(e)}")
+                st.error(f"❌ Error: {str(e)}")
 
     st.divider()
 
     # 2. SEARCH & DISPLAY
-    st.markdown("#### 🔎 View Records")
-    g_search = st.text_input("Filter by PO Number, Project, or Site...", key="fin_global_search")
-
+    g_search = st.text_input("🔍 Search Database...", key="fin_search_v5")
     t1, t2 = st.tabs(["📊 Project Summaries", "📋 Detailed Line Items"])
     
     with t1:
@@ -547,22 +550,13 @@ with tab6:
             df_s = pd.DataFrame(res_s.data)
             if g_search:
                 df_s = df_s[df_s.astype(str).apply(lambda x: x.str.contains(g_search, case=False)).any(axis=1)]
-            st.dataframe(df_s[['po_number', 'project_name', 'total_amount', 'created_at']], use_container_width=True, hide_index=True)
+            st.dataframe(df_s[['po_number', 'project_name', 'total_amount']], use_container_width=True, hide_index=True)
             
-            # Download
-            csv_s = df_s.to_csv(index=False).encode('utf-8')
-            st.download_button("📥 Download Summary CSV", csv_s, "PO_Summary.csv", use_container_width=True)
-
     with t2:
         res_d = supabase.table("po_line_items").select("*").order("created_at", desc=True).limit(1000).execute()
         if res_d.data:
             df_d = pd.DataFrame(res_d.data)
             if g_search:
                 df_d = df_d[df_d.astype(str).apply(lambda x: x.str.contains(g_search, case=False)).any(axis=1)]
-            
-            # Reorder columns for better view
-            cols = ['po_number', 'line_no', 'item_number', 'description', 'qty', 'amount', 'project_name', 'site_id']
-            st.dataframe(df_d[cols], use_container_width=True, hide_index=True)
-            
-            csv_d = df_d.to_csv(index=False).encode('utf-8')
-            st.download_button("📥 Download Detail CSV", csv_d, "PO_Detail.csv", use_container_width=True)
+            disp_cols = ['po_number', 'line_no', 'item_number', 'description', 'qty', 'amount', 'project_name', 'site_id']
+            st.dataframe(df_d[disp_cols], use_container_width=True, hide_index=True)
