@@ -445,19 +445,27 @@ with tab5:
             st.dataframe(df_t, use_container_width=True)
 
 # =====================================================================
-# 💰 TAB 7: FINANCE ENTRY (NEW PO ANALYZER - 11 COLUMNS)
+# 💰 TAB 7: FINANCE ENTRY (JSON/NAN FIXED)
 # =====================================================================
 with tab6:
     st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>💰 Finance Entry (PO Analyzer)</h3>", unsafe_allow_html=True)
-    st.divider()
-    po_file = st.file_uploader("Upload 'export.tsv'", type=['tsv', 'txt'], key="po_fin_upload")
+    
+    # Function to handle NaN values specifically for JSON compliance
+    def clean_num(val):
+        try:
+            n = pd.to_numeric(str(val).replace(',', '').strip(), errors='coerce')
+            return float(n) if pd.notnull(n) else 0.0
+        except: return 0.0
+
+    po_file = st.file_uploader("Upload 'export.tsv'", type=['tsv', 'txt'], key="po_fin_fix")
     if po_file is not None:
-        if st.button("🚀 Process & Sync 11 Columns to Database", use_container_width=True):
+        if st.button("🚀 Sync to Database"):
             try:
                 content = po_file.getvalue().decode('ISO-8859-1').splitlines()
                 h_idx = -1
                 for i, line in enumerate(content):
                     if '"Line"' in line and '"Item Num"' in line: h_idx = i; break
+                
                 if h_idx != -1:
                     po_file.seek(0)
                     df_h = pd.read_csv(po_file, sep='\t', nrows=1, encoding='ISO-8859-1')
@@ -466,24 +474,22 @@ with tab6:
                     df_raw = pd.read_csv(po_file, sep='\t', skiprows=h_idx, quoting=3, encoding='ISO-8859-1', engine='python')
                     df_raw.columns = [str(c).strip().replace('"', '') for c in df_raw.columns]
                     df_clean = df_raw.dropna(subset=['Project Name'])
-                    items_payload = []
+                    
+                    payload = []
                     for _, r in df_clean.iterrows():
-                        items_payload.append({
-                            "po_number": po_no, "line_no": str(r.get('Line', '')), "item_number": str(r.get('Item Num', '')),
-                            "description": str(r.get('Description', '')), "uom": str(r.get('UOM', '')),
-                            "qty": float(pd.to_numeric(str(r.get('Qty', '0')).replace(',',''), errors='coerce') or 0),
-                            "price": float(pd.to_numeric(str(r.get('Price', '0')).replace(',',''), errors='coerce') or 0),
-                            "amount": float(pd.to_numeric(str(r.get('Amount', '0')).replace(',',''), errors='coerce') or 0),
-                            "site_id": str(r.get('Site ID', '')), "site_name": str(r.get('Site Name', '')), "project_name": str(r.get('Project Name', ''))
+                        payload.append({
+                            "po_number": po_no,
+                            "line_no": str(r.get('Line', '')),
+                            "item_number": str(r.get('Item Num', '')),
+                            "description": str(r.get('Description', '')),
+                            "uom": str(r.get('UOM', '')),
+                            "qty": clean_num(r.get('Qty')),      # FIXED: NO NAN
+                            "price": clean_num(r.get('Price')),  # FIXED: NO NAN
+                            "amount": clean_num(r.get('Amount')),# FIXED: NO NAN
+                            "site_id": str(r.get('Site ID', '')),
+                            "site_name": str(r.get('Site Name', '')),
+                            "project_name": str(r.get('Project Name', ''))
                         })
-                    supabase.table("po_line_items").insert(items_payload).execute()
-                    st.success(f"✅ PO {po_no} Synced!")
-            except Exception as e: st.error(f"Error: {e}")
-    st.subheader("🔎 Database Explorer")
-    f_tab1, f_tab2 = st.tabs(["📊 Summaries", "📋 Full Details"])
-    with f_tab1:
-        res_s = supabase.table("po_summaries").select("*").execute()
-        if res_s.data: st.dataframe(pd.DataFrame(res_s.data), use_container_width=True, hide_index=True)
-    with f_tab2:
-        res_d = supabase.table("po_line_items").select("*").execute()
-        if res_d.data: st.dataframe(pd.DataFrame(res_d.data), use_container_width=True, hide_index=True)
+                    supabase.table("po_line_items").insert(payload).execute()
+                    st.success(f"✅ PO {po_no} Synced without errors!")
+            except Exception as e: st.error(f"❌ Error: {e}")
