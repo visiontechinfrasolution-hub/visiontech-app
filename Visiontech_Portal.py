@@ -11,6 +11,79 @@ from geopy.geocoders import Nominatim
 URL = "https://sckyflvukpmdqmdzjzhs.supabase.co"
 KEY = "sb_publishable_rAiegSkKYvM0Z9n7sUAI1w_WTgm1S4I" 
 supabase = create_client(URL, KEY)
+# --- EMAIL DISPATCH FUNCTION (Update these details) ---
+def send_professional_email(selected_df):
+    # --- CONFIGURATION (Sample setup) ---
+    SENDER = "services@vispltower.com"  # Sender Email
+    PWD = "your-app-password"           # services@vispltower.com ka App Password yahan dalein
+    RECEIVER = "vispltower@gmail.com"   # Sample Receiver
+    CC = "visiontechinfrasolution@gmail.com" # Sample CC
+    
+    # Tomorrow's Date for Subject
+    tomorrow = (datetime.now() + timedelta(days=1)).strftime('%d-%b-%Y')
+    
+    msg = MIMEMultipart()
+    msg['Subject'] = f"Audit Request_Visiontech_({tomorrow})"
+    msg['From'] = f"Saira Quzi <{SENDER}>"
+    msg['To'] = RECEIVER
+    msg['Cc'] = CC
+
+    # Table Header Style
+    header_style = "background-color: #FFFF00; font-weight: bold; border: 1px solid black; padding: 4px; font-size: 10px; text-align: center; white-space: nowrap; color: black;"
+    td_style = "border: 1px solid black; padding: 4px; font-size: 10px; text-align: center;"
+
+    # All 27 Columns as per your Requirement
+    cols = [
+        "Circle", "Ref. No.", "Indus ID", "Site Name", "Site Add", "Cluster / Zone",
+        "Date of Offerance in ISQ", "Date Of Audit Planned in ISQ", "ISQ Offerance Status(Y/N)",
+        "Documents uploaded in ISQ(Y/N)", "TSP Shared Filled checklist during Offerance for audit (Yes / No)",
+        "TSP Shared Compliance Photographs during audit Offerance (yes / No)", "Project", "Tower Type",
+        "Tower Ht.", "Stage", "TSP Name", "Audit Agency Name", "Representative Name",
+        "Representative Contact Number", "Actual ofference date", "Audit Engineer Name",
+        "Contact Details.", "Actual Audit date", "Actual Audit Time", "Lat", "Long"
+    ]
+
+    h_html = "".join([f"<th style='{header_style}'>{c}</th>" for c in cols])
+    r_html = ""
+    for _, row in selected_df.iterrows():
+        r_html += "<tr>"
+        for col in cols:
+            val = row.get(col, "-")
+            r_html += f"<td style='{td_style}'>{val}</td>"
+        r_html += "</tr>"
+
+    body = f"""
+    <html>
+    <body style="font-family: Calibri, Arial; font-size: 11px;">
+        <p>Hello Sir,</p>
+        <p>Below sites is ready for audit. Kindly arrange auditor for same.</p>
+        <div style="overflow-x: auto;">
+            <table border="1" style="border-collapse: collapse; width: 100%; border: 1px solid black;">
+                <thead><tr style="background-color: #FFFF00;">{h_html}</tr></thead>
+                <tbody>{r_html}</tbody>
+            </table>
+        </div>
+        <br>
+        <p>Thanks,<br>
+        <b>Saira Quzi</b><br>
+        8180827123</p>
+    </body>
+    </html>
+    """
+    msg.attach(MIMEText(body, 'html'))
+
+    try:
+        import smtplib
+        # NOTE: Agar services@vispltower.com Google Workspace par hai, toh smtp.gmail.com use karein.
+        # Agar kisi aur provider par hai toh uska SMTP host dalein.
+        with smtplib.SMTP('smtp.gmail.com', 587) as server:
+            server.starttls()
+            server.login(SENDER, PWD)
+            server.send_message(msg)
+        return True
+    except Exception as e:
+        st.error(f"Email Error: {e}")
+        return False
 
 # --- 2. UI SETUP ---
 st.set_page_config(page_title="Visiontech Infra Portal", layout="wide")
