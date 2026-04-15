@@ -480,7 +480,7 @@ with tab6:
             st.dataframe(df_d[['po_number', 'line_no', 'item_number', 'qty', 'amount', 'project_name', 'site_id']], use_container_width=True, hide_index=True)
 
 # =====================================================================
-# 📝 TAB 8: FINAL AUDIT PORTAL (STABLE LOGIC + EMAIL DROPDOWNS)
+# 📝 TAB 8: FINAL AUDIT PORTAL (SCHEMA SAFE VERSION)
 # =====================================================================
 
 with tab_audit:
@@ -489,48 +489,40 @@ with tab_audit:
     if 'audit_queue' not in st.session_state:
         st.session_state.audit_queue = []
 
-    # --- 1. DATA LOADING (Added Email Table) ---
+    # --- 1. DATA LOADING ---
     m_df, u_df, h_df, e_df = pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
     try:
         m_df = pd.DataFrame(supabase.table("VIS Portal Site Data").select('*').execute().data)
         u_df = pd.DataFrame(supabase.table("allowed_users").select("*").execute().data)
         h_df = pd.DataFrame(supabase.table("Audit Request").select("*").order("created_at", desc=True).execute().data)
-        # Naya table fetch kar rahe hain
         e_df = pd.DataFrame(supabase.table("Email Address").select("Email").execute().data)
     except: pass
 
     t1, t2 = st.tabs(["➕ Create Entry", "📜 History"])
 
     with t1:
-        # --- 📧 EMAIL CONFIGURATION (Naya Section) ---
+        # Email Settings
         st.markdown("#### 📧 Email Configuration")
         c_em1, c_em2 = st.columns(2)
-        
-        # Database se emails nikalna
         db_emails = sorted(e_df["Email"].unique().tolist()) if not e_df.empty else []
-        
-        # Defaults jo aapne bole
         default_to = ["visiontechinfrasolution@gmail.com"]
         default_cc = ["services@vispltower.com", "project.visiontechinfra@gmail.com"]
-        
-        # Ensure defaults list mein hon
         for em in default_to + default_cc:
             if em not in db_emails: db_emails.append(em)
 
-        sel_to = c_em1.multiselect("To:", db_emails, default=default_to, key="audit_v15_to")
-        sel_cc = c_em2.multiselect("Cc:", db_emails, default=default_cc, key="audit_v15_cc")
+        sel_to = c_em1.multiselect("To:", db_emails, default=default_to, key="audit_v16_to")
+        sel_cc = c_em2.multiselect("Cc:", db_emails, default=default_cc, key="audit_v16_cc")
         
         st.divider()
 
-        # --- EXISTING SELECTION LOGIC (0% Change) ---
+        # Selection Logic
         c_top1, c_top2 = st.columns(2)
         p_ids = [""] + sorted(m_df["PROJECT ID"].unique().tolist()) if not m_df.empty else [""]
-        sel_pid = c_top1.selectbox("🔍 Select Project ID", p_ids, key="audit_v15_pid")
-        
+        sel_pid = c_top1.selectbox("🔍 Select Project ID", p_ids, key="audit_v16_pid")
         user_names = [""] + sorted(u_df["name"].tolist()) if not u_df.empty else [""]
-        sel_rep = c_top2.selectbox("👤 Select Representative", user_names, key="audit_v15_rep")
+        sel_rep = c_top2.selectbox("👤 Select Representative", user_names, key="audit_v16_rep")
 
-        # --- PRECISE AUTO-FILL LOGIC (0% Change - Direct Query) ---
+        # Auto-fill Logic
         s_info, rep_mob, lat_val, long_val, linked_sid = {}, "", "", "", ""
         today_dt = datetime.now().strftime("%d-%b-%Y")
         tomorrow_dt = (datetime.now() + timedelta(days=1)).strftime("%d-%b-%Y")
@@ -550,8 +542,8 @@ with tab_audit:
             match_u = u_df[u_df["name"].astype(str).str.strip() == str(sel_rep).strip()]
             if not match_u.empty: rep_mob = str(match_u.iloc[0].get('phone_number', ''))
 
-        # --- EXISTING FORM (0% Change) ---
-        with st.form("audit_v15_form"):
+        # THE FORM
+        with st.form("audit_v16_form"):
             col1, col2, col3 = st.columns(3)
             f = {}
             f["Circle"] = col1.text_input("Circle", value="Maharashtra")
@@ -581,12 +573,15 @@ with tab_audit:
             audit_time_input = col1.time_input("Set Audit Time", value=time(11, 0)) 
             f["Actual Audit Time"] = audit_time_input.strftime("%I:%M %p") 
 
+            # Map fields for Database
             f["Stage"], f["Audit Agency Name"], f["TSP Name"] = "", "", "Visiontech"
             f["Audit Engineer Name"], f["Contact Details."] = "", ""
             f["Mail Status"], f["Mail Sent Date"] = "Pending", "-"
-            f["Documents uploaded in ISQ(Y/N)"] = doc_val
-            f["TSP Shared Filled checklist during Offerance for audit (Yes / No)"] = tsp_chk_val
-            f["TSP Shared Compliance Photographs during audit Offerance (yes / No)"] = tsp_photo_val
+            
+            # Temporary keys to hold values
+            f["DOC_TEMP"] = doc_val
+            f["CHK_TEMP"] = tsp_chk_val
+            f["PHO_TEMP"] = tsp_photo_val
 
             if st.form_submit_button("➕ Add Site to Queue"):
                 if sel_pid and f["Lat"]:
@@ -594,7 +589,7 @@ with tab_audit:
                     st.toast(f"Added {linked_sid}")
                 else: st.error("Missing Data!")
 
-        # --- QUEUE & SUBMIT (Email Logic Updated) ---
+        # --- QUEUE & SAFE SUBMIT ---
         if st.session_state.audit_queue:
             st.divider()
             q_df = pd.DataFrame(st.session_state.audit_queue)
@@ -605,14 +600,32 @@ with tab_audit:
                     st.error("Select 'To' email!")
                 else:
                     try:
-                        # Database save logic
-                        supabase.table("Audit Request").insert(st.session_state.audit_queue).execute()
+                        # 1. Fetch Real DB Column Names
+                        res_schema = supabase.table("Audit Request").select("*").limit(1).execute()
+                        db_cols = res_schema.data[0].keys() if res_schema.data else []
                         
-                        to_str = ", ".join(sel_to)
-                        cc_str = ", ".join(sel_cc)
+                        final_save = []
+                        for item in st.session_state.audit_queue:
+                            clean_item = {}
+                            # Match form data with DB columns
+                            for db_col in db_cols:
+                                db_low = db_col.lower()
+                                # Logic to match complex names
+                                if "documents uploaded" in db_low: clean_item[db_col] = item.get("DOC_TEMP")
+                                elif "checklist" in db_low: clean_item[db_col] = item.get("CHK_TEMP")
+                                elif "photographs" in db_low: clean_item[db_col] = item.get("PHO_TEMP")
+                                elif db_col in item: clean_item[db_col] = item[db_col]
+                                else: clean_item[db_col] = "" # Default empty if missing
+                            
+                            final_save.append(clean_item)
+
+                        # 2. Save
+                        supabase.table("Audit Request").insert(final_save).execute()
                         
+                        # 3. Email
+                        to_str, cc_str = ", ".join(sel_to), ", ".join(sel_cc)
                         if send_professional_email(pd.DataFrame(st.session_state.audit_queue), to_str, cc_str):
-                            st.success("🚀 Sent!")
+                            st.success("🚀 Success!")
                             st.session_state.audit_queue = []
                             st.rerun()
-                    except Exception as e: st.error(str(e))
+                    except Exception as e: st.error(f"Error: {e}")
