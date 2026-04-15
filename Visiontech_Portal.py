@@ -487,20 +487,21 @@ with tab_audit:
     try:
         m_df = pd.DataFrame(supabase.table("VIS Portal Site Data").select('*').execute().data)
         u_df = pd.DataFrame(supabase.table("allowed_users").select("*").execute().data)
-        # Naya table 'Indus_Coordinates' fetch karein
         ind_df = pd.DataFrame(supabase.table("Indus_Coordinates").select("*").execute().data)
         h_df = pd.DataFrame(supabase.table("Audit Request").select("*").order("created_at", desc=True).execute().data)
     except: pass
 
+    # Tabs definition
     t1, t2 = st.tabs(["➕ Create Entry", "📜 History"])
 
     with t1:
+        # Step 1: Selection Dropdowns
         c_top1, c_top2 = st.columns(2)
         p_ids = [""] + sorted(m_df["PROJECT ID"].unique().tolist()) if not m_df.empty else [""]
-        sel_pid = c_top1.selectbox("🔍 Step 1: Select Project ID", p_ids, key="audit_v50_pid")
+        sel_pid = c_top1.selectbox("🔍 Step 1: Select Project ID", p_ids, key="audit_v80_pid")
         
         user_names = [""] + sorted(u_df["name"].tolist()) if not u_df.empty else [""]
-        sel_rep = c_top2.selectbox("👤 Step 2: Select Representative", user_names, key="audit_v50_rep")
+        sel_rep = c_top2.selectbox("👤 Step 2: Select Representative", user_names, key="audit_v80_rep")
 
         # --- STEP 2: AUTO-FILL LOGIC ---
         s_info, rep_mob, lat_val, long_val, linked_sid = {}, "", "", "", ""
@@ -512,7 +513,6 @@ with tab_audit:
             linked_sid = str(s_info.get("SITE ID", "")).strip()
             
             if linked_sid and not ind_df.empty:
-                # Naye table se exact match
                 match = ind_df[ind_df["Site ID"].astype(str).str.strip().str.upper() == linked_sid.upper()]
                 if not match.empty:
                     lat_val = str(match.iloc[0].get('Lat', ''))
@@ -523,12 +523,10 @@ with tab_audit:
             if not match_u.empty:
                 rep_mob = str(match_u.iloc[0].get('phone_number', ''))
 
-# --- STEP 3: THE FORM (EXACT COLUMN NAMES) ---
-        with st.form("audit_v70_form", clear_on_submit=True):
+        # --- STEP 3: THE FORM ---
+        with st.form("audit_v80_form", clear_on_submit=True):
             col1, col2, col3 = st.columns(3)
             f = {}
-            
-            # Row 1
             f["Circle"] = col1.text_input("Circle", value="Maharashtra")
             f["Ref. No."] = col1.text_input("Project ID", value=sel_pid, disabled=True)
             f["Indus ID"] = col2.text_input("Indus ID", value=linked_sid)
@@ -536,71 +534,54 @@ with tab_audit:
             f["Site Add"] = col3.text_input("Site Add", value=s_info.get("CLUSTER", ""))
             f["Cluster / Zone"] = col3.text_input("Cluster / Zone", value=s_info.get("CLUSTER", ""))
             
-            # Row 2
             f["Date of Offerance in ISQ"] = col1.text_input("Offerance Date", value=today_dt)
             f["Date Of Audit Planned in ISQ"] = col2.text_input("Planned Audit Date", value=tomorrow_dt)
-            # 1. Exact Name: ISQ Offerance Status(Y/N)
             f["ISQ Offerance Status(Y/N)"] = col3.selectbox("ISQ Offerance Status", ["Y", "N"])
 
-            # Row 3
             f["Project"] = col1.text_input("Project Name", value=s_info.get("PROJECT NAME", ""))
             f["Tower Type"] = col2.text_input("Tower Type", value="GBT")
             f["Tower Ht."] = col3.text_input("Tower Ht.", value="40 mtr")
 
-            # Row 4 (Checklist Fields - Using Exact Database Names)
-            # 2. Documents uploaded in ISQ(Y/N)
-            f["Documents uploaded in ISQ(Y/N)"] = col1.selectbox("Documents uploaded in ISQ?", ["Y", "N"])
-            
-            # 3. TSP Shared Filled checklist during Offerance for audit  (Yes / No)
-            f["TSP Shared Filled checklist during Offerance for audit  (Yes / No)"] = col2.selectbox("TSP Shared Checklist?", ["Yes", "No"])
-            
-            # 4. TSP Shared Compliance Photographs during audit Offerance (yes / No)
-            f["TSP Shared Compliance Photographs during audit Offerance (yes / No)"] = col3.selectbox("TSP Shared Photographs?", ["yes", "No"])
+            # Checklist Dropdowns (Using exact names for internal logic)
+            doc_val = col1.selectbox("Documents uploaded in ISQ?", ["Y", "N"])
+            tsp_chk_val = col2.selectbox("TSP Shared Checklist?", ["Yes", "No"])
+            tsp_photo_val = col3.selectbox("TSP Shared Photographs?", ["yes", "No"])
 
-            # Row 5
             f["Representative Name"] = col1.text_input("Representative Name", value=sel_rep)
             f["Representative Contact Number"] = col2.text_input("Rep. Mobile", value=rep_mob)
             f["Actual ofference date"] = col3.text_input("Actual ofference date", value=today_dt)
 
-            # Row 6
             f["Lat"] = col1.text_input("Latitude", value=lat_val)
             f["Long"] = col2.text_input("Longitude", value=long_val)
             f["Actual Audit date"] = col3.text_input("Actual Audit date", value=tomorrow_dt)
 
-            # Table extra fields
             f["Actual Audit Time"] = tomorrow_dt
             f["Mail Status"], f["Mail Sent Date"] = "Pending", "-"
 
-if st.form_submit_button("🚀 Save Audit Entry"):
+            if st.form_submit_button("🚀 Save Audit Entry"):
                 if sel_pid:
                     try:
-                        # 1. Database se actual column names uthao (PGRST204 fix)
-                        columns_res = supabase.table("Audit Request").select("*").limit(1).execute()
-                        db_cols = columns_res.data[0].keys() if columns_res.data else []
+                        # Fetch actual DB columns to handle schema cache issues
+                        cols_res = supabase.table("Audit Request").select("*").limit(1).execute()
+                        db_cols = cols_res.data[0].keys() if cols_res.data else []
 
-                        # 2. Checklist values ko map karne ka naya tarika
-                        # Hum dhoondenge ki kaunsa column 'Photographs' word contain karta hai
+                        # Dynamic Mapping based on your provided column names
                         for col in db_cols:
-                            c_clean = col.lower()
-                            if "documents uploaded" in c_clean:
-                                f[col] = f.pop("Documents uploaded in ISQ(Y/N)", "Y")
-                            if "filled checklist" in c_clean:
-                                # Yeh us do spaces waale lafde ko khatam kar dega
-                                f[col] = f.pop("TSP Shared Filled checklist during Offerance for audit  (Yes / No)", "Yes")
-                            if "compliance photographs" in c_clean:
-                                # Yeh aapke error waale column ko automatic dhoond lega
-                                f[col] = f.pop("TSP Shared Compliance Photographs during audit Offerance (yes / No)", "yes")
+                            c_low = col.lower()
+                            if "documents uploaded" in c_low: f[col] = doc_val
+                            if "filled checklist" in c_low: f[col] = tsp_chk_val
+                            if "compliance photographs" in c_low: f[col] = tsp_photo_val
 
-                        # 3. Final Insert
                         supabase.table("Audit Request").insert(f).execute()
-                        st.success("✅ Saved Successfully!")
+                        st.success("✅ Saved!")
                         st.rerun()
                     except Exception as e:
-                        st.error(f"Database Error: {e}")
-                        # Agar fir bhi fail ho, toh yahan columns print honge debugging ke liye
-                        if 'db_cols' in locals():
-                            st.write("Available Columns in DB:", list(db_cols))
+                        st.error(f"Save Error: {e}")
 
+    # --- THIS WAS THE ERROR POINT: Fixed Indentation ---
     with t2:
+        st.subheader("Audit History")
         if not h_df.empty:
             st.dataframe(h_df, use_container_width=True, hide_index=True)
+        else:
+            st.info("No audit history found.")
