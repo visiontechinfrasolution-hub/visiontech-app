@@ -482,23 +482,23 @@ with tab6:
 with tab_audit:
     st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Audit Management Portal</h3>", unsafe_allow_html=True)
     
-    # --- 1. DATA LOADING (SUPER SAFE) ---
+    # --- 1. DATA LOADING (SUPER SAFE & COMPLETE) ---
     m_df, u_df, ind_df, h_df = pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
     try:
-        # VIS Portal Site Data
+        # VIS Portal Site Data (PROJECT NAME ke liye)
         res_m = supabase.table("VIS Portal Site Data").select('*').execute()
         if res_m.data: m_df = pd.DataFrame(res_m.data)
         
-        # Allowed Users
+        # Allowed Users (Mobile ke liye)
         res_u = supabase.table("allowed_users").select("*").execute()
         if res_u.data: u_df = pd.DataFrame(res_u.data)
         
-        # Indus Data
+        # Indus Data (Lat/Long ke liye)
         res_ind = supabase.table("Indus Data").select("*").execute()
         if res_ind.data: ind_df = pd.DataFrame(res_ind.data)
 
-        # Audit Request History
+        # History
         res_h = supabase.table("Audit Request").select("*").order("created_at", desc=True).execute()
         if res_h.data: h_df = pd.DataFrame(res_h.data)
     except Exception as e:
@@ -507,47 +507,48 @@ with tab_audit:
     t1, t2 = st.tabs(["➕ Create Entry", "📜 History"])
 
     with t1:
-        # Step 1: Dropdowns setup
+        # Step 1: Dropdowns
         p_ids = [""]
         if not m_df.empty:
             p_ids += sorted(m_df["PROJECT ID"].unique().tolist())
         
         user_names = [""]
         if not u_df.empty:
-            user_names += u_df["name"].tolist()
+            user_names += sorted(u_df["name"].tolist())
 
         c_top1, c_top2 = st.columns(2)
-        sel_pid = c_top1.selectbox("🔍 Select Project ID (Ref. No.)", p_ids)
-        sel_rep = c_top2.selectbox("👤 Select Representative", user_names)
+        sel_pid = c_top1.selectbox("🔍 Step 1: Select Project ID (Ref. No.)", p_ids)
+        sel_rep = c_top2.selectbox("👤 Step 2: Select Representative", user_names)
 
-        # Step 2: Auto-fill Logic (Fixing Lat, Long, Project Name, Rep Mobile)
+        # Step 2: Auto-fill Logic Fix
         s_info, rep_mob, lat_val, long_val = {}, "", "", ""
         
+        # Project & Lat/Long Info
         if sel_pid and not m_df.empty:
-            # Fetch Project Details
             s_info = m_df[m_df["PROJECT ID"] == sel_pid].iloc[0].to_dict()
-            site_id = s_info.get("SITE ID", "")
+            site_id_from_master = s_info.get("SITE ID", "")
             
-            # Fetch Lat/Long from Indus Data based on Site ID
-            if site_id and not ind_df.empty:
-                # Dhyan dein: Yahan "Site ID" ki spelling database se match honi chahiye
-                match = ind_df[ind_df["Site ID"] == site_id]
-                if not match.empty:
-                    lat_val = str(match.iloc[0].get("Lat", ""))
-                    long_val = str(match.iloc[0].get("Long", ""))
+            # Indus Data se Lat/Long dhundna (Based on SITE ID)
+            if site_id_from_master and not ind_df.empty:
+                # Dhyan dein: Indus Data table mein "Site ID" column hona chahiye
+                match_ind = ind_df[ind_df["Site ID"] == site_id_from_master]
+                if not match_ind.empty:
+                    lat_val = str(match_ind.iloc[0].get("Lat", ""))
+                    long_val = str(match_ind.iloc[0].get("Long", ""))
         
+        # Representative Mobile Info
         if sel_rep and not u_df.empty:
-            matched_user = u_df[u_df["name"] == sel_rep]
-            if not matched_user.empty:
-                # Column name 'mobile' check karein supabase mein
-                rep_mob = str(matched_user.iloc[0].get("mobile", ""))
+            match_user = u_df[u_df["name"] == sel_rep]
+            if not match_user.empty:
+                # Column 'mobile' check karein supabase mein
+                rep_mob = str(match_user.iloc[0].get("mobile", ""))
 
         # --- STEP 3: THE FORM ---
-        with st.form("final_logic_form", clear_on_submit=True):
+        with st.form("final_logic_form_v2", clear_on_submit=True):
             col1, col2, col3 = st.columns(3)
             f = {}
 
-            # Field Mapping as per your instructions
+            # Row 1
             f["Circle"] = col1.text_input("Circle", value="Maharashtra")
             f["Ref. No."] = col1.text_input("Project ID (Ref No)", value=sel_pid, disabled=True)
             f["Indus ID"] = col2.text_input("Indus ID", value=s_info.get("SITE ID", ""))
@@ -555,45 +556,44 @@ with tab_audit:
             f["Site Add"] = col3.text_input("Site Add", value=s_info.get("CLUSTER", ""))
             f["Cluster / Zone"] = col3.text_input("Cluster / Zone", value=s_info.get("CLUSTER", ""))
 
-            # Dates & Status
+            # Row 2
             f["Date of Offerance in ISQ"] = col1.text_input("Offerance Date", value=datetime.now().strftime("%d-%b-%Y"))
             f["Date Of Audit Planned in ISQ"] = col2.text_input("Planned Audit Date", value=(datetime.now() + timedelta(days=1)).strftime("%d-%b-%Y"))
             f["ISQ Offerance Status(Y/N)"] = col3.selectbox("ISQ Offerance Status", ["Y", "N"])
 
-            # Project & Tower
-            # PROJECT NAME VIS Portal Site Data se liya gaya hai
+            # Row 3 (PROJECT NAME ab VIS Portal Site Data se aayega)
             f["Project"] = col1.text_input("Project Name", value=s_info.get("PROJECT NAME", ""))
             f["Tower Type"] = col2.text_input("Tower Type", value="GBT")
             f["Tower Ht."] = col3.text_input("Tower Ht.", value="40 mtr")
 
-            # Blank Boxes as requested
+            # Row 4 (Blank boxes as requested)
             f["Stage"] = col1.text_input("Stage", value="") 
             f["Audit Agency Name"] = col2.text_input("Audit Agency Name", value="")
             f["TSP Name"] = col3.text_input("TSP Name", value="Visiontech")
 
-            # Representative Details
+            # Row 5 (Representative & Mobile)
             f["Representative Name"] = col1.text_input("Representative Name", value=sel_rep)
             f["Representative Contact Number"] = col2.text_input("Rep. Mobile", value=rep_mob)
             f["Actual ofference date"] = col3.text_input("Actual ofference date", value=datetime.now().strftime("%d-%b-%Y"))
 
-            # COORDINATES (Auto-fetched from Indus Data)
+            # Row 6 (Coordinates)
             f["Lat"] = col1.text_input("Latitude", value=lat_val)
             f["Long"] = col2.text_input("Longitude", value=long_val)
             f["Actual Audit date"] = col3.text_input("Actual Audit date", value=(datetime.now() + timedelta(days=1)).strftime("%d-%b-%Y"))
 
-            # Tracking
+            # Tracking Hidden
             f["Mail Status"], f["Mail Sent Date"] = "Pending", "-"
 
             if st.form_submit_button("🚀 Save Entry"):
                 if sel_pid:
                     try:
                         supabase.table("Audit Request").insert(f).execute()
-                        st.success("✅ Saved Successfully!")
+                        st.success("✅ Entry Saved! Rep: " + sel_rep + " Mobile: " + rep_mob)
                         st.rerun()
                     except Exception as e:
                         st.error(f"Save Error: {e}")
                 else:
-                    st.warning("Pehle Project ID select karein.")
+                    st.warning("⚠️ Pehle Project ID select karein.")
 
     with t2:
         if not h_df.empty:
