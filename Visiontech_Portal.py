@@ -514,44 +514,35 @@ with tab_audit:
         sel_pid = c_top1.selectbox("🔍 Step 1: Select Project ID (Ref. No.)", p_ids)
         sel_rep = c_top2.selectbox("👤 Step 2: Select Representative", user_names)
 
-        # Step 2: Auto-fill Logic (LAT/LONG & MOBILE FIX)
+# Step 2: Auto-fill Logic (DIRECT COLUMN MATCHING)
         s_info, rep_mob, lat_val, long_val = {}, "", "", ""
         
         if sel_pid and not m_df.empty:
+            # 1. VIS Portal se details nikalna
             s_info = m_df[m_df["PROJECT ID"] == sel_pid].iloc[0].to_dict()
-            # Master data se Site ID uthana aur clean karna
-            site_id_val = str(s_info.get("SITE ID", "")).strip().upper()
             
-            # --- LAT/LONG LOOKUP (Enhanced) ---
+            # Master data se Site ID nikalna (Ensure it's a clean string)
+            site_id_val = str(s_info.get("SITE ID", "")).strip()
+            
+            # --- LAT/LONG LOOKUP (Using your exact column names) ---
             if site_id_val and not ind_df.empty:
-                # 1. Indus Table ke columns ke extra spaces khatam karein
-                ind_df.columns = [str(c).strip() for c in ind_df.columns]
+                # Database ke Site ID column ko string mein badal kar match karna
+                # Taki agar ek jagah ID '123' (number) ho aur dusri jagah '123' (text), toh bhi match ho jaye
+                ind_df['Site ID'] = ind_df['Site ID'].astype(str).str.strip()
                 
-                # 2. Site ID column ko identify karein (Jo bhi pehla column ho ya jisme 'site' likha ho)
-                site_col = next((c for c in ind_df.columns if "site" in c.lower()), ind_df.columns[0])
-                
-                # 3. Indus Data mein Site ID ko clean karke match karein
-                ind_df[site_col] = ind_df[site_col].astype(str).str.strip().str.upper()
-                match_ind = ind_df[ind_df[site_col] == site_id_val]
+                match_ind = ind_df[ind_df['Site ID'] == site_id_val]
                 
                 if not match_ind.empty:
-                    # 4. Lat aur Long columns ko flexible tarike se dhoondein
-                    for col in ind_df.columns:
-                        c_low = col.lower()
-                        if "lat" in c_low: 
-                            lat_val = str(match_ind.iloc[0][col])
-                        if "long" in c_low or "lng" in c_low: 
-                            long_val = str(match_ind.iloc[0][col])
+                    # Aapke bataye hue exact column names 'Lat' aur 'Long'
+                    lat_val = str(match_ind.iloc[0].get('Lat', ''))
+                    long_val = str(match_ind.iloc[0].get('Long', ''))
         
-        # --- MOBILE LOOKUP (Flexible) ---
+        # --- MOBILE LOOKUP (Same direct logic) ---
         if sel_rep and not u_df.empty:
-            u_df.columns = [c.strip() for c in u_df.columns]
+            # 'name' column match karna
             match_u = u_df[u_df["name"] == sel_rep]
             if not match_u.empty:
-                for col in u_df.columns:
-                    if "mobile" in col.lower() or "contact" in col.lower() or "phone" in col.lower():
-                        rep_mob = str(match_u.iloc[0][col])
-
+                rep_mob = str(match_u.iloc[0].get("mobile", ""))
         # --- STEP 3: THE FORM ---
         with st.form("final_logic_v3", clear_on_submit=True):
             col1, col2, col3 = st.columns(3)
