@@ -445,118 +445,124 @@ with tab5:
             st.dataframe(df_t, use_container_width=True)
 
 # =====================================================================
-# 💰 TAB 7: FINANCE ENTRY (ADVANCED SEARCH & TABLE SYNC)
+# 💰 TAB 7: FINANCE ENTRY (CLEAN & REWRITE LOGIC)
 # =====================================================================
 with tab6:
     st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>💰 Finance Entry (PO Analyzer)</h3>", unsafe_allow_html=True)
     st.divider()
     
-    # 1. UPLOAD SECTION WITH FORM
-    with st.form("finance_upload_form", clear_on_submit=True):
-        po_file = st.file_uploader("Upload 'export.tsv'", type=['tsv', 'txt'], key="po_fin_v3")
-        submit_po = st.form_submit_button("🚀 Upload & Sync to Database", use_container_width=True)
-
-    # numeric cleaning function (to avoid JSON NaN error)
+    # Numeric cleaning helper
     def clean_num(val):
         try:
-            n = pd.to_numeric(str(val).replace(',', '').replace('"', '').strip(), errors='coerce')
+            # Quotes aur comma remove karke numeric mein badalna
+            n = str(val).replace('"', '').replace(',', '').strip()
+            n = pd.to_numeric(n, errors='coerce')
             return float(n) if pd.notnull(n) else 0.0
         except: return 0.0
 
-    if po_file is not None and submit_po:
-        try:
-            content = po_file.getvalue().decode('ISO-8859-1').splitlines()
-            h_idx = -1
-            for i, line in enumerate(content):
-                if "Project Name" in line: h_idx = i; break
-            
-            if h_idx != -1:
-                po_file.seek(0)
-                # PO Number extraction (Header line se)
-                df_h = pd.read_csv(po_file, sep='\t', nrows=1, encoding='ISO-8859-1')
-                po_no = str(df_h.columns[0]).replace('"', '').strip()
-                
-                po_file.seek(0)
-                df_raw = pd.read_csv(po_file, sep='\t', skiprows=h_idx, quoting=3, encoding='ISO-8859-1', engine='python')
-                df_raw.columns = [str(c).strip().replace('"', '') for c in df_raw.columns]
-                df_clean = df_raw.dropna(subset=['Project Name'])
-                
-                # Prepare Detailed Items
-                line_items = []
-                for _, r in df_clean.iterrows():
-                    amt = clean_num(r.get('Amount'))
-                    qty = clean_num(r.get('Qty'))
-                    if qty > 0: # Sirf valid items
-                        line_items.append({
-                            "po_number": po_no,
-                            "line_no": str(r.get('Line', '')),
-                            "item_number": str(r.get('Item Num', '')),
-                            "description": str(r.get('Description', '')),
-                            "uom": str(r.get('UOM', '')),
-                            "qty": qty,
-                            "price": clean_num(r.get('Price')),
-                            "amount": amt,
-                            "site_id": str(r.get('Site ID', '')),
-                            "site_name": str(r.get('Site Name', '')),
-                            "project_name": str(r.get('Project Name', ''))
-                        })
-                
-                # Prepare Summaries (Grouped by Project)
-                summary_map = {}
-                for item in line_items:
-                    p_name = item['project_name']
-                    summary_map[p_name] = summary_map.get(p_name, 0.0) + item['amount']
-                
-                summaries = [{"po_number": po_no, "project_name": k, "total_amount": v} for k, v in summary_map.items()]
+    # 1. UPLOAD SECTION WITH PO NUMBER INPUT
+    with st.form("finance_upload_form", clear_on_submit=True):
+        c1, c2 = st.columns([1, 2])
+        user_po_no = c1.text_input("📄 PO Number", placeholder="E.g. 4500123456")
+        po_file = c2.file_uploader("Upload 'export.tsv'", type=['tsv', 'txt'], key="po_fin_v4")
+        submit_po = st.form_submit_button("🚀 Process & Overwrite Data", use_container_width=True)
 
-                # SYNC TO SUPABASE
-                if line_items:
-                    supabase.table("po_line_items").insert(line_items).execute()
-                if summaries:
-                    supabase.table("po_summaries").insert(summaries).execute()
+    if submit_po:
+        if not user_po_no or po_file is None:
+            st.warning("⚠️ PO Number aur File dono zaroori hain!")
+        else:
+            try:
+                # TSV Read
+                content = po_file.getvalue().decode('ISO-8859-1').splitlines()
+                h_idx = -1
+                for i, line in enumerate(content):
+                    if "Project Name" in line: h_idx = i; break
                 
-                st.success(f"✅ PO {po_no} processed and synced successfully!")
-                time.sleep(1)
-                st.rerun()
-            else:
-                st.error("Header match nahi hua. 'Project Name' nahi mila.")
-        except Exception as e:
-            st.error(f"❌ Error: {str(e)}")
+                if h_idx != -1:
+                    po_file.seek(0)
+                    df_raw = pd.read_csv(po_file, sep='\t', skiprows=h_idx, quoting=3, encoding='ISO-8859-1', engine='python')
+                    
+                    # 1. Sabse pehle quotes remove karna headers aur data se
+                    df_raw.columns = [str(c).replace('"', '').strip() for c in df_raw.columns]
+                    for col in df_raw.columns:
+                        df_raw[col] = df_raw[col].astype(str).str.replace('"', '').str.strip()
+
+                    # 2. Qty 0 wali lines delete karna
+                    df_raw['Qty_Num'] = df_raw['Qty'].apply(clean_num)
+                    df_clean = df_raw[df_raw['Qty_Num'] > 0].copy()
+                    
+                    if not df_clean.empty:
+                        # 3. Purana data delete karna (Rewrite logic)
+                        supabase.table("po_line_items").delete().eq("po_number", user_po_no).execute()
+                        supabase.table("po_summaries").delete().eq("po_number", user_po_no).execute()
+
+                        # 4. Line Items Prepare & Insert
+                        line_items = []
+                        for _, r in df_clean.iterrows():
+                            line_items.append({
+                                "po_number": str(user_po_no),
+                                "line_no": str(r.get('Line', '')),
+                                "item_number": str(r.get('Item Num', '')),
+                                "description": str(r.get('Description', '')),
+                                "uom": str(r.get('UOM', '')),
+                                "qty": clean_num(r.get('Qty')),
+                                "price": clean_num(r.get('Price')),
+                                "amount": clean_num(r.get('Amount')),
+                                "site_id": str(r.get('Site ID', '')),
+                                "site_name": str(r.get('Site Name', '')),
+                                "project_name": str(r.get('Project Name', ''))
+                            })
+                        supabase.table("po_line_items").insert(line_items).execute()
+
+                        # 5. Summary calculation & Insert
+                        summary_df = df_clean.groupby('Project Name')['Amount'].apply(lambda x: sum(clean_num(v) for v in x)).reset_index()
+                        summaries = []
+                        for _, sr in summary_df.iterrows():
+                            summaries.append({
+                                "po_number": str(user_po_no),
+                                "project_name": str(sr['Project Name']),
+                                "total_amount": float(sr['Amount'])
+                            })
+                        supabase.table("po_summaries").insert(summaries).execute()
+
+                        st.success(f"✅ PO {user_po_no} processed: Qty 0 lines removed & data overwritten!")
+                        time.sleep(1)
+                        st.rerun()
+                else:
+                    st.error("❌ File error: 'Project Name' column nahi mila.")
+            except Exception as e:
+                st.error(f"❌ System Error: {str(e)}")
 
     st.divider()
 
-    # 2. SEARCH INTERFACE
-    st.markdown("#### 🔎 Search Data from Database")
-    global_search = st.text_input("Search PO Number, Project ID or Site Name...", placeholder="Type to filter tables below...")
+    # 2. SEARCH & DISPLAY
+    st.markdown("#### 🔎 View Records")
+    g_search = st.text_input("Filter by PO Number, Project, or Site...", key="fin_global_search")
 
-    f_tab1, f_tab2 = st.tabs(["📊 Project Summaries", "📋 Detailed Line Items"])
+    t1, t2 = st.tabs(["📊 Project Summaries", "📋 Detailed Line Items"])
     
-    with f_tab1:
+    with t1:
         res_s = supabase.table("po_summaries").select("*").order("created_at", desc=True).execute()
         if res_s.data:
             df_s = pd.DataFrame(res_s.data)
-            # Filter logic
-            if global_search:
-                df_s = df_s[df_s.astype(str).apply(lambda x: x.str.contains(global_search, case=False)).any(axis=1)]
-            
+            if g_search:
+                df_s = df_s[df_s.astype(str).apply(lambda x: x.str.contains(g_search, case=False)).any(axis=1)]
             st.dataframe(df_s[['po_number', 'project_name', 'total_amount', 'created_at']], use_container_width=True, hide_index=True)
             
-            # Excel Download for Summary
-            output_s = io.BytesIO()
-            df_s.to_excel(output_s, index=False)
-            st.download_button("📥 Download Summary Excel", output_s.getvalue(), "PO_Summary.xlsx", use_container_width=True)
+            # Download
+            csv_s = df_s.to_csv(index=False).encode('utf-8')
+            st.download_button("📥 Download Summary CSV", csv_s, "PO_Summary.csv", use_container_width=True)
 
-    with f_tab2:
+    with t2:
         res_d = supabase.table("po_line_items").select("*").order("created_at", desc=True).limit(1000).execute()
         if res_d.data:
             df_d = pd.DataFrame(res_d.data)
-            # Filter logic
-            if global_search:
-                df_d = df_d[df_d.astype(str).apply(lambda x: x.str.contains(global_search, case=False)).any(axis=1)]
+            if g_search:
+                df_d = df_d[df_d.astype(str).apply(lambda x: x.str.contains(g_search, case=False)).any(axis=1)]
             
-            st.dataframe(df_d[['po_number', 'line_no', 'item_number', 'description', 'qty', 'amount', 'project_name', 'site_id']], use_container_width=True, hide_index=True)
+            # Reorder columns for better view
+            cols = ['po_number', 'line_no', 'item_number', 'description', 'qty', 'amount', 'project_name', 'site_id']
+            st.dataframe(df_d[cols], use_container_width=True, hide_index=True)
             
-            # Excel Download for Details
-            output_d = io.BytesIO()
-            df_d.to_excel(output_d, index=False)
-            st.download_button("📥 Download Detailed Excel", output_d.getvalue(), "PO_Detailed.xlsx", use_container_width=True)
+            csv_d = df_d.to_csv(index=False).encode('utf-8')
+            st.download_button("📥 Download Detail CSV", csv_d, "PO_Detail.csv", use_container_width=True)
