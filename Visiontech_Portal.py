@@ -480,86 +480,61 @@ with tab6:
             st.dataframe(df_d[['po_number', 'line_no', 'item_number', 'qty', 'amount', 'project_name', 'site_id']], use_container_width=True, hide_index=True)
 
 # =====================================================================
-# 📝 TAB 8: FINAL AUDIT PORTAL (DEBUG VERSION)
+# 📝 TAB 8: FINAL AUDIT PORTAL (LAT/LONG FIXED VERSION)
 # =====================================================================
 with tab_audit:
     st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Audit Management Portal</h3>", unsafe_allow_html=True)
     
-    # --- 1. SESSION STATE ---
     if 'audit_queue' not in st.session_state:
         st.session_state.audit_queue = []
 
-    # --- 2. DATA LOADING ---
+    # --- 1. DATA LOADING ---
+    m_df, u_df, h_df = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
     try:
         m_df = pd.DataFrame(supabase.table("VIS Portal Site Data").select('*').execute().data)
         u_df = pd.DataFrame(supabase.table("allowed_users").select("*").execute().data)
         h_df = pd.DataFrame(supabase.table("Audit Request").select("*").order("created_at", desc=True).execute().data)
-        
-        # --- CRITICAL CHECK: Indus_Coordinates Table ---
-        ind_res = supabase.table("Indus_Coordinates").select("*").execute()
-        ind_df = pd.DataFrame(ind_res.data) if ind_res.data else pd.DataFrame()
-        
-        if ind_df.empty:
-            st.error("❌ 'Indus_Coordinates' table khali hai! Supabase mein data check karein.")
-        else:
-            # Sirf debugging ke liye: Table ke columns dikhayega (baad mein hata sakte hain)
-            # st.write("Table Columns:", ind_df.columns.tolist()) 
-            pass
-            
-    except Exception as e:
-        st.error(f"Sync Error: {e}")
+    except: pass
 
     t1, t2 = st.tabs(["➕ Create Entry", "📜 History"])
 
     with t1:
         c_top1, c_top2 = st.columns(2)
         p_ids = [""] + sorted(m_df["PROJECT ID"].unique().tolist()) if not m_df.empty else [""]
-        sel_pid = c_top1.selectbox("🔍 Step 1: Select Project ID", p_ids, key="audit_v700_pid")
+        sel_pid = c_top1.selectbox("🔍 Step 1: Select Project ID", p_ids, key="audit_v800_pid")
         
         user_names = [""] + sorted(u_df["name"].tolist()) if not u_df.empty else [""]
-        sel_rep = c_top2.selectbox("👤 Step 2: Select Representative", user_names, key="audit_v700_rep")
+        sel_rep = c_top2.selectbox("👤 Step 2: Select Representative", user_names, key="audit_v800_rep")
 
-        # --- AUTO-FILL LOGIC ---
-# --- AUTO-FILL LOGIC (SUPER STABLE MATCHER) ---
+        # --- STEP 2: PRECISE AUTO-FILL (Wahi Logic jo pehle chala tha) ---
         s_info, rep_mob, lat_val, long_val, linked_sid = {}, "", "", "", ""
         today_dt = datetime.now().strftime("%d-%b-%Y")
         tomorrow_dt = (datetime.now() + timedelta(days=1)).strftime("%d-%b-%Y")
         
         if sel_pid and not m_df.empty:
-            s_match = m_df[m_df["PROJECT ID"] == sel_pid]
-            if not s_match.empty:
-                s_info = s_match.iloc[0].to_dict()
-                # Site ID ko ekdam saaf (clean) karein
-                linked_sid = str(s_info.get("SITE ID", "")).strip().upper()
-                
-                if linked_sid and not ind_df.empty:
-                    # --- UNIVERSAL MATCHER LOGIC ---
-                    # 1. Database ke columns check karein
-                    pos_id_cols = ["Site ID", "SITE ID", "site_id", "SiteID"]
-                    actual_col = next((c for c in pos_id_cols if c in ind_df.columns), ind_df.columns[0])
-                    
-                    # 2. Dono taraf ke data ko 'Clean String' mein convert karein
-                    # Taki spaces aur data-type ka lafda khatam ho jaye
-                    ind_df["CLEAN_ID"] = ind_df[actual_col].astype(str).str.strip().str.upper()
-                    
-                    # 3. Exact Match dhoondhein
-                    match_coord = ind_df[ind_df["CLEAN_ID"] == linked_sid]
-                    
-                    if not match_coord.empty:
-                        lat_val = str(match_coord.iloc[0].get('Lat', ''))
-                        long_val = str(match_coord.iloc[0].get('Long', ''))
-                        st.toast(f"✅ Found Coordinates for {linked_sid}", icon="📍")
-                    else:
-                        # 4. Agar fir bhi na mile, toh screen par dikhao ki system kya dhoond raha hai
-                        st.sidebar.error(f"Debug: Dhoond raha hoon '{linked_sid}'")
-                        st.sidebar.write("Table mein maujood IDs:", ind_df["CLEAN_ID"].head(5).tolist())
+            # 1. Project ID se Site Details nikalna
+            s_info = m_df[m_df["PROJECT ID"] == sel_pid].iloc[0].to_dict()
+            linked_sid = str(s_info.get("SITE ID", "")).strip()
+            
+            # 2. Direct Query to 'Indus_Coordinates' for Lat/Long
+            if linked_sid:
+                try:
+                    res_coord = supabase.table("Indus_Coordinates").select("Lat", "Long").eq("Site ID", linked_sid).execute()
+                    if res_coord.data:
+                        match = res_coord.data[0]
+                        lat_val = str(match.get("Lat", ""))
+                        long_val = str(match.get("Long", ""))
+                except Exception as e:
+                    st.caption(f"Note: Coordinate fetch error: {e}")
 
+        # 3. Representative Mobile Lookup
         if sel_rep and not u_df.empty:
-            match_u = u_df[u_df["name"] == sel_rep]
-            if not match_u.empty: rep_mob = str(match_u.iloc[0].get('phone_number', ''))
+            match_u = u_df[u_df["name"].astype(str).str.strip() == str(sel_rep).strip()]
+            if not match_u.empty:
+                rep_mob = str(match_u.iloc[0].get('phone_number', ''))
 
-        # --- THE FORM ---
-        with st.form("audit_v700_form"):
+        # --- STEP 3: THE FORM ---
+        with st.form("audit_v800_form"):
             col1, col2, col3 = st.columns(3)
             f = {}
             f["Circle"] = col1.text_input("Circle", value="Maharashtra")
@@ -589,7 +564,7 @@ with tab_audit:
             f["Long"] = col2.text_input("Longitude", value=long_val)
             f["Actual Audit date"] = col3.text_input("Actual Audit date", value=tomorrow_dt)
 
-            # Extra mapping
+            # Hidden Mapping
             f["Stage"], f["Audit Agency Name"], f["TSP Name"] = "", "", "Visiontech"
             f["Actual Audit Time"] = tomorrow_dt
             f["Audit Engineer Name"], f["Contact Details."] = "", ""
@@ -601,7 +576,7 @@ with tab_audit:
             if st.form_submit_button("➕ Add Site to Queue"):
                 if sel_pid and f["Lat"] != "":
                     st.session_state.audit_queue.append(f.copy())
-                    st.toast(f"Added {linked_sid}")
+                    st.toast(f"✅ Added {linked_sid}")
                 else: st.error("Lat/Long box khali hai!")
 
         # --- QUEUE & SUBMIT ---
@@ -610,16 +585,30 @@ with tab_audit:
             q_df = pd.DataFrame(st.session_state.audit_queue)
             st.table(q_df[["Indus ID", "Ref. No.", "Lat", "Long"]])
 
-            if st.button("📧 Submit & Send Combined Gmail (wpiw vkys mblb tunw)", type="primary"):
-                # Save & Email Logic (Wahi same rahega)
+            if st.button("📧 Submit & Send Combined Gmail", type="primary"):
                 try:
-                    # Schema mapping logic yahan rahegi...
-                    supabase.table("Audit Request").insert(st.session_state.audit_queue).execute()
+                    # Sync DB Schema
+                    cols_res = supabase.table("Audit Request").select("*").limit(1).execute()
+                    db_cols = cols_res.data[0].keys() if cols_res.data else []
+                    
+                    final_save = []
+                    for item in st.session_state.audit_queue:
+                        temp = item.copy()
+                        for col in db_cols:
+                            clow = col.lower()
+                            if "documents uploaded" in clow: temp[col] = temp.pop("Documents uploaded in ISQ(Y/N)", "Y")
+                            if "filled checklist" in clow: temp[col] = temp.pop("TSP Shared Filled checklist during Offerance for audit (Yes / No)", "Yes")
+                            if "compliance photographs" in clow: temp[col] = temp.pop("TSP Shared Compliance Photographs during audit Offerance (yes / No)", "yes")
+                        final_save.append(temp)
+
+                    supabase.table("Audit Request").insert(final_save).execute()
+                    
+                    # Send Gmail via wpiw vkys mblb tunw
                     if send_professional_email(pd.DataFrame(st.session_state.audit_queue)):
-                        st.success("Sent!")
+                        st.success("Sent Successfully!")
                         st.session_state.audit_queue = []
                         st.rerun()
-                except Exception as e: st.error(str(e))
+                except Exception as e: st.error(f"Error: {e}")
 
     with t2:
         if not h_df.empty: st.dataframe(h_df, use_container_width=True, hide_index=True)
