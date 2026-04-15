@@ -130,7 +130,7 @@ with tab4:
             if res_ind.data: st.dataframe(pd.DataFrame(res_ind.data))
 
 # =====================================================================
-# 📡 TAB 5: WCC TRACKER (EDIT & WHATSAPP BUTTONS RESTORED)
+# 📡 TAB 5: WCC TRACKER (AS PER ORIGINAL Logic)
 # =====================================================================
 with tab_wcc:
     def fetch_wcc():
@@ -143,7 +143,7 @@ with tab_wcc:
     st.title("📡 WCC Status Tracker")
     if "wcc_role" not in st.session_state: st.session_state.wcc_role = None
     if not st.session_state.wcc_role:
-        pwd = st.text_input("Enter Password:", type="password", key="wcc_pwd_style")
+        pwd = st.text_input("Enter Password:", type="password", key="wcc_pwd_v24_style")
         if st.button("🔓 Unlock Folder"):
             if pwd == "Vision@321": st.session_state.wcc_role = "requester"
             elif pwd == "Account@321": st.session_state.wcc_role = "accountant"
@@ -159,10 +159,14 @@ with tab_wcc:
                     c1, c2 = st.columns(2)
                     v_proj = c1.text_input("Project", value=str(row_data.get("Project", "")) if is_edit else "")
                     v_pid = c2.text_input("Project ID *", value=str(row_data.get("Project ID", "")) if is_edit else "", disabled=is_edit)
-                    v_sid = st.text_input("Site ID", value=str(row_data.get("Site ID", "")) if is_edit else "")
-                    v_snm = st.text_input("Site Name", value=str(row_data.get("Site Name", "")) if is_edit else "")
-                    v_po = st.text_input("PO Number", value=str(row_data.get("PO Number", "")) if is_edit else "")
+                    c3, c4 = st.columns(2)
+                    v_sid = c3.text_input("Site ID", value=str(row_data.get("Site ID", "")) if is_edit else "")
+                    v_snm = c4.text_input("Site Name", value=str(row_data.get("Site Name", "")) if is_edit else "")
+                    c5, v_po = st.columns(2), st.text_input("PO Number", value=str(row_data.get("PO Number", "")) if is_edit else "")
                     v_dt = st.date_input("Request Date", value=datetime.now().date())
+                    st.markdown("### Status Tracking")
+                    v_pht = st.selectbox("Photo", ["Pending", "Available on Portal"], index=1)
+                    v_jms = st.selectbox("JMS", ["Pending", "Available on Portal", "Create by You"], index=2)
                     v_sts = st.selectbox("WCC Status", ["Creation Pending", "Pending for Approval", "Proceed", "Rejected", "Cancel"], index=0)
                     v_wno = row_data.get("WCC Number") if is_edit else None 
                 else:
@@ -171,7 +175,7 @@ with tab_wcc:
                 if st.form_submit_button("💾 Save Changes"):
                     def cn(v): return ''.join(filter(str.isdigit, str(v))) if v else None
                     p = {"Project ID": v_pid, "WCC Number": cn(v_wno)}
-                    if role == "requester": p.update({"Project": v_proj, "Site ID": v_sid, "Site Name": v_snm, "PO Number": cn(v_po), "Reqeust Date": str(v_dt), "WCC Status": v_sts})
+                    if role == "requester": p.update({"Project": v_proj, "Site ID": v_sid, "Site Name": v_snm, "PO Number": cn(v_po), "Reqeust Date": str(v_dt), "Photo": v_pht, "JMS": v_jms, "WCC Status": v_sts})
                     if save_wcc_data(p): st.rerun()
 
         raw_w = fetch_wcc()
@@ -179,16 +183,20 @@ with tab_wcc:
         if role == "requester" and st.button("➕ Add Site Request"): wcc_modal()
         if not df_wcc.empty:
             st.markdown("""<style>.site-badge { background-color: #E0F2FE; color: #0369A1; padding: 4px 10px; border-radius: 20px; font-weight: 600; border: 1px solid #BAE6FD; } .wa-btn { background-color: #25D366; color: white !important; padding: 6px 12px; border-radius: 8px; font-weight: bold; text-decoration: none; }</style>""", unsafe_allow_html=True)
+            h_cols = st.columns([0.6, 0.4, 1, 1.2, 1, 1.2, 1, 1, 1, 1, 1, 1])
+            fields = ["Actions", "Sr.", "Project", "Project ID", "Site ID", "Site Name", "PO No", "Date", "Photo", "JMS", "WCC No", "Status"]
+            for col, name in zip(h_cols, fields): col.markdown(f"**{name}**")
             for i, row in df_wcc.iterrows():
-                c_act, c_proj, c_sid, c_sts = st.columns([1, 2, 2, 2])
-                with c_act:
-                    if st.button("✏️", key=f"ed_{row['Project ID']}"): wcc_modal(row)
+                r_cols = st.columns([0.6, 0.4, 1, 1.2, 1, 1.2, 1, 1, 1, 1, 1, 1])
+                with r_cols[0]:
+                    b1, b2 = st.columns(2)
+                    if b1.button("✏️", key=f"ed_btn_{row['Project ID']}"): wcc_modal(row)
                     if role == 'requester':
-                        msg = f"Hello Prkash Ji,\nRaise WCC urgently...\n\n*Project ID* :- {row.get('Project ID')}"
-                        st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(msg)}" class="wa-btn">💬</a>', unsafe_allow_html=True)
-                c_proj.write(row.get('Project ID'))
-                c_sid.markdown(f'<span class="site-badge">{row.get("Site ID")}</span>', unsafe_allow_html=True)
-                c_sts.write(row.get('WCC Status'))
+                        msg = f"Hello Prkash Ji,\nRaise WCC urgently...\n\n*Project ID* :- {row.get('Project ID')}\n*Site Name* :- {row.get('Site Name')}"
+                        b2.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(msg)}" class="wa-btn">💬</a>', unsafe_allow_html=True)
+                r_cols[1].write(i+1)
+                r_cols[4].markdown(f'<span class="site-badge">{row.get("Site ID")}</span>', unsafe_allow_html=True)
+                r_cols[11].write(row.get('WCC Status'))
 
 # =====================================================================
 # 📁 TAB 6: DATA ENTRY (DOCUMENT CENTER)
