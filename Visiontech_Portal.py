@@ -480,7 +480,7 @@ with tab6:
             st.dataframe(df_d[['po_number', 'line_no', 'item_number', 'qty', 'amount', 'project_name', 'site_id']], use_container_width=True, hide_index=True)
 
 # =====================================================================
-# 📝 TAB 8: FINAL AUDIT PORTAL (WITH ROW DELETE & STABLE LOGIC)
+# 📝 TAB 8: FINAL AUDIT PORTAL (STABLE LOGIC + MULTI-DELETE + GMAIL)
 # =====================================================================
 
 with tab_audit:
@@ -497,33 +497,41 @@ with tab_audit:
         u_df = pd.DataFrame(supabase.table("allowed_users").select("*").execute().data)
         h_df = pd.DataFrame(supabase.table("Audit Request").select("*").order("created_at", desc=True).execute().data)
         e_df = pd.DataFrame(supabase.table("Email Address").select("Email").execute().data)
-    except: pass
+    except Exception as e:
+        st.error(f"Sync Error: {e}")
 
     t1, t2 = st.tabs(["➕ Create Entry", "📜 History"])
 
     with t1:
-        # --- EMAIL SETTINGS ---
+        # --- 📧 EMAIL CONFIGURATION ---
         st.markdown("#### 📧 Email Configuration")
         c_em1, c_em2 = st.columns(2)
+        
+        # Database se emails list taiyar karna
         db_emails = sorted(e_df["Email"].unique().tolist()) if not e_df.empty else []
+        
+        # Default settings as per your request
         default_to = ["visiontechinfrasolution@gmail.com"]
         default_cc = ["services@vispltower.com", "project.visiontechinfra@gmail.com"]
+        
+        # Ensure default emails are in the list
         for em in default_to + default_cc:
             if em not in db_emails: db_emails.append(em)
 
-        sel_to = c_em1.multiselect("To:", db_emails, default=default_to, key="audit_v17_to")
-        sel_cc = c_em2.multiselect("Cc:", db_emails, default=default_cc, key="audit_v17_cc")
+        sel_to = c_em1.multiselect("To:", db_emails, default=default_to, key="audit_v18_to")
+        sel_cc = c_em2.multiselect("Cc:", db_emails, default=default_cc, key="audit_v18_cc")
         
         st.divider()
 
-        # --- SELECTION LOGIC ---
+        # --- SELECTION DROPDOWNS ---
         c_top1, c_top2 = st.columns(2)
         p_ids = [""] + sorted(m_df["PROJECT ID"].unique().tolist()) if not m_df.empty else [""]
-        sel_pid = c_top1.selectbox("🔍 Select Project ID", p_ids, key="audit_v17_pid")
+        sel_pid = c_top1.selectbox("🔍 Select Project ID", p_ids, key="audit_v18_pid")
+        
         user_names = [""] + sorted(u_df["name"].tolist()) if not u_df.empty else [""]
-        sel_rep = c_top2.selectbox("👤 Select Representative", user_names, key="audit_v17_rep")
+        sel_rep = c_top2.selectbox("👤 Select Representative", user_names, key="audit_v18_rep")
 
-        # --- AUTO-FILL LOGIC (Direct Query - No Change) ---
+        # --- PRECISE AUTO-FILL LOGIC (EXISTING LOGIC - NO CHANGE) ---
         s_info, rep_mob, lat_val, long_val, linked_sid = {}, "", "", "", ""
         today_dt = datetime.now().strftime("%d-%b-%Y")
         tomorrow_dt = (datetime.now() + timedelta(days=1)).strftime("%d-%b-%Y")
@@ -531,20 +539,24 @@ with tab_audit:
         if sel_pid and not m_df.empty:
             s_info = m_df[m_df["PROJECT ID"] == sel_pid].iloc[0].to_dict()
             linked_sid = str(s_info.get("SITE ID", "")).strip()
+            
             if linked_sid:
                 try:
                     res_coord = supabase.table("Indus_Coordinates").select("Lat", "Long").eq("Site ID", linked_sid).execute()
                     if res_coord.data:
                         match = res_coord.data[0]
-                        lat_val, long_val = str(match.get("Lat", "")), str(match.get("Long", ""))
-                except: pass
+                        lat_val = str(match.get("Lat", ""))
+                        long_val = str(match.get("Long", ""))
+                except Exception as e:
+                    st.caption(f"Coordinate Error: {e}")
 
         if sel_rep and not u_df.empty:
             match_u = u_df[u_df["name"].astype(str).str.strip() == str(sel_rep).strip()]
-            if not match_u.empty: rep_mob = str(match_u.iloc[0].get('phone_number', ''))
+            if not match_u.empty:
+                rep_mob = str(match_u.iloc[0].get('phone_number', ''))
 
-        # --- THE FORM ---
-        with st.form("audit_v17_form"):
+        # --- THE ENTRY FORM ---
+        with st.form("audit_v18_form"):
             col1, col2, col3 = st.columns(3)
             f = {}
             f["Circle"] = col1.text_input("Circle", value="Maharashtra")
@@ -553,25 +565,33 @@ with tab_audit:
             f["Site Name"] = col2.text_input("Site Name", value=s_info.get("SITE NAME", ""))
             f["Site Add"] = col3.text_input("Site Add", value=s_info.get("CLUSTER", ""))
             f["Cluster / Zone"] = col3.text_input("Cluster / Zone", value=s_info.get("CLUSTER", ""))
+            
             f["Date of Offerance in ISQ"] = col1.text_input("Offerance Date", value=today_dt)
             f["Date Of Audit Planned in ISQ"] = col2.text_input("Planned Audit Date", value=tomorrow_dt)
             f["ISQ Offerance Status(Y/N)"] = col3.selectbox("ISQ Offerance Status", ["Y", "N"])
+
             f["Project"] = col1.text_input("Project Name", value=s_info.get("PROJECT NAME", ""))
             f["Tower Type"] = col2.text_input("Tower Type", value="GBT")
             f["Tower Ht."] = col3.text_input("Tower Ht.", value="40 mtr")
+
             doc_val = col1.selectbox("Documents uploaded?", ["Y", "N"])
             tsp_chk_val = col2.selectbox("Checklist Shared?", ["Yes", "No"])
             tsp_photo_val = col3.selectbox("Photographs Shared?", ["yes", "No"])
+
             f["Representative Name"] = col1.text_input("Representative Name", value=sel_rep)
             f["Representative Contact Number"] = col2.text_input("Rep. Mobile", value=rep_mob)
             f["Actual ofference date"] = col3.text_input("Actual ofference date", value=today_dt)
-            f["Lat"], f["Long"] = col1.text_input("Lat", value=lat_val), col2.text_input("Long", value=long_val)
+
+            f["Lat"] = col1.text_input("Latitude", value=lat_val)
+            f["Long"] = col2.text_input("Longitude", value=long_val)
             f["Actual Audit date"] = col3.text_input("Actual Audit date", value=tomorrow_dt)
+
+            # --- MANUAL AUDIT TIME SELECTION (Default 11 AM) ---
             from datetime import time
-            audit_time_input = col1.time_input("Set Audit Time", value=time(11, 0)) 
+            audit_time_input = col1.time_input("Actual Audit Time", value=time(11, 0)) 
             f["Actual Audit Time"] = audit_time_input.strftime("%I:%M %p") 
 
-            # DB Temp Mapping
+            # Hidden Mapping for Database
             f["DOC_TEMP"], f["CHK_TEMP"], f["PHO_TEMP"] = doc_val, tsp_chk_val, tsp_photo_val
             f["Stage"], f["Audit Agency Name"], f["TSP Name"] = "", "", "Visiontech"
             f["Audit Engineer Name"], f["Contact Details."], f["Mail Status"], f["Mail Sent Date"] = "", "", "Pending", "-"
@@ -579,32 +599,34 @@ with tab_audit:
             if st.form_submit_button("➕ Add Site to Queue"):
                 if sel_pid and f["Lat"]:
                     st.session_state.audit_queue.append(f.copy())
-                    st.toast(f"✅ Added {linked_sid}")
-                else: st.error("Missing Data!")
+                    st.toast(f"✅ Added {linked_sid} to Queue")
+                else: st.error("Missing Project ID or Lat/Long!")
 
         # --- QUEUE MANAGEMENT (WITH DELETE OPTION) ---
         if st.session_state.audit_queue:
             st.divider()
             st.subheader(f"📋 Queued Sites ({len(st.session_state.audit_queue)})")
             
-            # Custom Table with Delete Button
+            # Row-wise display with individual delete button
             for i, item in enumerate(st.session_state.audit_queue):
                 q_col1, q_col2, q_col3, q_col4 = st.columns([3, 3, 2, 1])
-                q_col1.write(f"**ID:** {item['Indus ID']} ({item['Ref. No.']})")
+                q_col1.write(f"**ID:** {item['Indus ID']}")
                 q_col2.write(f"**Site:** {item['Site Name']}")
                 q_col3.write(f"**Time:** {item['Actual Audit Time']}")
-                if q_col4.button("❌", key=f"del_{i}"):
+                if q_col4.button("❌", key=f"del_v18_{i}"):
                     st.session_state.audit_queue.pop(i)
                     st.rerun()
 
             st.divider()
-            if st.button("📧 Submit & Send Email", type="primary", use_container_width=True):
+            if st.button("📧 Submit & Send Combined Email", type="primary", use_container_width=True):
                 if not sel_to:
-                    st.error("Select 'To' email!")
+                    st.error("At least one 'To' email address is required!")
                 else:
                     try:
+                        # 1. Fetch DB schema to avoid column mismatch
                         res_schema = supabase.table("Audit Request").select("*").limit(1).execute()
                         db_cols = res_schema.data[0].keys() if res_schema.data else []
+                        
                         final_save = []
                         for item in st.session_state.audit_queue:
                             clean_item = {}
@@ -618,13 +640,20 @@ with tab_audit:
                                     if val != "": clean_item[db_col] = val
                             final_save.append(clean_item)
 
+                        # 2. Save to Supabase
                         supabase.table("Audit Request").insert(final_save).execute()
-                        to_str, cc_str = ", ".join(sel_to), ", ".join(sel_cc)
+                        
+                        # 3. Trigger Gmail Email
+                        to_str = ", ".join(sel_to)
+                        cc_str = ", ".join(sel_cc)
+                        
                         if send_professional_email(pd.DataFrame(st.session_state.audit_queue), to_str, cc_str):
                             st.success("🚀 Success! Data Saved & Email Sent.")
                             st.session_state.audit_queue = []
                             st.rerun()
-                    except Exception as e: st.error(f"Error: {e}")
+                    except Exception as e:
+                        st.error(f"Error during submission: {e}")
 
     with t2:
-        if not h_df.empty: st.dataframe(h_df, use_container_width=True, hide_index=True)
+        if not h_df.empty:
+            st.dataframe(h_df, use_container_width=True, hide_index=True)
