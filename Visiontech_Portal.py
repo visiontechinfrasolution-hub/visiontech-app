@@ -27,7 +27,7 @@ tab1, tab2, tab3, tab4, tab_wcc, tab5, tab6 = st.tabs([
 ])
 
 # =====================================================================
-# 🟩 TAB 1: BOQ REPORT (ORIGINAL CODE - NO CHANGE)
+# 🟩 TAB 1: BOQ REPORT (NO CHANGE IN LOGIC)
 # =====================================================================
 with tab1:
     st.markdown("""
@@ -36,188 +36,380 @@ with tab1:
             div[data-testid="stDataTableBody"]::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
             div[data-testid="stDataTableBody"]::-webkit-scrollbar-thumb { background: #888; border-radius: 10px; border: 2px solid #f1f1f1; }
             div[data-testid="stDataTableBody"]::-webkit-scrollbar-thumb:hover { background: #555; }
+            .stDataFrame div::-webkit-scrollbar { width: 14px !important; height: 14px !important; }
+            .stDataFrame div::-webkit-scrollbar-thumb { background-color: #007bff !important; border-radius: 10px !important; }
         </style>
     """, unsafe_allow_html=True)    
-    st.markdown("<h3 style='text-align: center;'>🔍 Visiontech Infra Solutions</h3>", unsafe_allow_html=True)
-    
+    st.markdown("<h3 style='text-align: center; margin-bottom: 0px;'>🔍 Visiontech Infra Solutions</h3>", unsafe_allow_html=True)
     mera_sequence = ['Sr. No.', 'Site ID', 'Product', 'Transaction Type', 'Issue From', 'Project Number', 'BOQ', 'Item Code', 'Item Description', 'Qty A', 'Qty B', 'Qty C', 'Dispatch Date', 'Parent/Child', 'Line Status', 'Transporter', 'TSP Partner Name', 'LR Number', 'Vehicle Number', 'Challan Number', 'BOQ Date', 'Department', 'Item Category', 'Source Of Fulfilment']
 
-    if 'cleared' not in st.session_state: st.session_state.cleared = False
+    if 'cleared' not in st.session_state:
+        st.session_state.cleared = False
 
     with st.form("search_form", clear_on_submit=st.session_state.cleared):
-        c1, c2, c3, c4, c5, c6, c7 = st.columns([1.1, 1.0, 1.1, 1.0, 1.1, 1.1, 1.2])
+        c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([1.1, 1.0, 1.1, 1.0, 1.1, 1.1, 1.2, 0.1])
         with c1: project_query = st.text_input("📁 Project No.", key="boq_p_v5")
         with c2: site_query = st.text_input("📍 Site ID", key="boq_s_v5")
         with c3: boq_query = st.text_input("📄 BOQ", key="boq_b_v5")
         with c4: dispatch_date_inp = st.date_input("📅 Date", value=None, key="boq_d_v5")
-        with c5: transporter = st.selectbox("🚚 Transporter", ["", "visiontech", "Safexpress", "Delhivery"], key="boq_t_v5")
-        with c6: tsp_partner = st.selectbox("🤝 TSP Partner", ["", "visiontech", "Ericsson", "Nokia"], key="boq_tsp_v5")
+        with c5: transporter = st.selectbox("🚚 Transporter", ["", "visiontech", "Safexpress", "Delhivery", "VRL Logistics", "TCI Express", "Gati"], key="boq_t_v5")
+        with c6: tsp_partner = st.selectbox("🤝 TSP Partner", ["", "visiontech", "Partner A", "Partner B", "Partner C", "Ericsson", "Nokia"], key="boq_tsp_v5")
         with c7:
             st.write("") 
             col_btn1, col_btn2 = st.columns(2)
-            submit_search = col_btn1.form_submit_button("🔍 Search")
-            if col_btn2.form_submit_button("🗑️ Clear"):
-                st.session_state.cleared = True; st.session_state.pop('boq_df', None); st.rerun()
+            with col_btn1:
+                submit_search = st.form_submit_button("🔍 Search")
+                if submit_search: st.session_state.cleared = False
+            with col_btn2:
+                if st.form_submit_button("🗑️ Clear"):
+                    st.session_state.cleared = True
+                    st.session_state.pop('boq_df', None)
+                    st.session_state.pop('wa_site_name', None)
+                    st.rerun()
+        with c8: st.empty()
 
     st.divider()
     r1, r2, r3, r4 = st.columns([2, 1.5, 2, 2])
     with r1: stn_pending_btn = st.button("🚨 STN Pending Sites", use_container_width=True)
     with r2: boq_date_pick = st.date_input("Select Date", value=None, label_visibility="collapsed", key="boq_q_d_v5")
-    
     gen_new_boq = False
-    if r3.button("📄 Generate New BOQ", use_container_width=True):
-        if boq_date_pick: gen_new_boq = True
-        else: st.warning("Select Date!")
-    update_click = r4.button("🔄 Update", use_container_width=True)
+    with r3:
+        if st.button("📄 Generate New BOQ", use_container_width=True):
+            if boq_date_pick: gen_new_boq = True
+            else: st.warning("Select Date!")
+    with r4: update_click = st.button("🔄 Update", use_container_width=True)
 
     if submit_search or stn_pending_btn or gen_new_boq or update_click:
         query = supabase.table("BOQ Report").select("*").limit(50000)
-        # ... (Old BOQ API Logic continues below)
+        if update_click:
+            try:
+                sd_res = supabase.table("Site Data").select("*").execute()
+                if sd_res.data:
+                    p_list = list(set([str(x.get('Project Number', '')).strip() for x in sd_res.data if x.get('Project Number')]))
+                    if p_list:
+                        yesterday_str = (datetime.now() - timedelta(days=1)).strftime('%d-%b-%Y')
+                        query = query.in_("Project Number", p_list).eq("Dispatch Date", yesterday_str)
+            except Exception as e: st.error(f"API Error: {e}")
+        elif gen_new_boq:
+            formatted_date_str = boq_date_pick.strftime('%d-%b-%Y')
+            query = query.eq("BOQ Date", formatted_date_str)
+        elif not stn_pending_btn:
+            if project_query: query = query.ilike("Project Number", f"%{project_query.strip()}%")
+            if site_query: query = query.ilike("Site ID", f"%{site_query.strip()}%")
+            if boq_query: query = query.ilike("BOQ", f"%{boq_query.strip()}%")
+        
         response = query.execute()
         if response.data:
             df_res = pd.DataFrame(response.data)
+            qty_cols = ['Qty A', 'Qty B', 'Qty C']
+            for col in qty_cols:
+                if col in df_res.columns: df_res[col] = pd.to_numeric(df_res[col], errors='coerce').fillna(0).astype(int)
+            if update_click: display_sequence = ['Project Number', 'Dispatch Date']
+            else:
+                display_sequence = mera_sequence
+                if 'Item Code' in df_res.columns:
+                    df_res['TempGroupKey'] = df_res.apply(lambda x: x['Sr. No.'] if str(x['Item Code']).strip() == '' else x['Item Code'], axis=1)
+                    agg_dict = {col: 'sum' if col in qty_cols else 'first' for col in df_res.columns if col not in ['TempGroupKey']}
+                    df_res = df_res.groupby('TempGroupKey', as_index=False).agg(agg_dict)
+            st.session_state['display_cols'] = display_sequence
+            site_id_for_wa = df_res['Site ID'].iloc[0] if not df_res.empty and 'Site ID' in df_res.columns else None
+            indus_wa_block = ""
+            current_site_name = "-"
+            if site_id_for_wa:
+                ind_res = supabase.table("Indus Data").select("*").ilike("Site ID", f"%{site_id_for_wa}%").execute()
+                if ind_res.data:
+                    row_i = ind_res.data[0]
+                    current_site_name = row_i.get('Site Name', '-')
+                    indus_wa_block = f"\n📍 *INDUS SITE DATA*\n*Area* :- {row_i.get('Area Name','-')}\n*Tech Name* :- {row_i.get('Tech Name','-')}\n*Tech Number* :- {row_i.get('Tech Number','-')}\n*FSE* :- {row_i.get('FSE','-')}\n*FSE Number* :- {row_i.get('FSE Number','-')}\n*AOM Name* :- {row_i.get('AOM Name','-')}\n*AOM Number* :- {row_i.get('AOM Number','-')}\n*Lat Long* :- {row_i.get('Lat','')} {row_i.get('Long','')}\n"
+            st.session_state['wa_indus_data'] = indus_wa_block
+            st.session_state['wa_site_name'] = current_site_name
+            if 'Sr. No.' in df_res.columns:
+                df_res['Sr. No.'] = pd.to_numeric(df_res['Sr. No.'], errors='coerce')
+                df_res = df_res.sort_values(by='Sr. No.')
+            for col in ['Dispatch Date', 'BOQ Date']:
+                if col in df_res.columns: df_res[col] = pd.to_datetime(df_res[col], errors='coerce').dt.strftime('%d-%b-%Y')
+            df_res = df_res.fillna('').astype(str).replace(['None', 'nan', 'NULL', 'NaT'], '')
             st.session_state['boq_df'] = df_res
 
     if 'boq_df' in st.session_state:
-        st.dataframe(st.session_state['boq_df'], use_container_width=True, hide_index=True)
+        df = st.session_state['boq_df']
+        current_cols = st.session_state.get('display_cols', mera_sequence)
+        final_cols = [c for c in current_cols if c in df.columns]
+        st.dataframe(df[final_cols], use_container_width=True, hide_index=True)
+        st.markdown("### 📤 Export & Share")
+        btn_col1, btn_col2 = st.columns([1, 4])
+        p_val = df['Project Number'].iloc[0] if not df.empty and 'Project Number' in df.columns else "NA"
+        s_id = df['Site ID'].iloc[0] if not df.empty and 'Site ID' in df.columns else "NA"
+        s_name = st.session_state.get('wa_site_name', '-')
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer: df.to_excel(writer, index=False, sheet_name='BOQ_Report')
+        processed_data = output.getvalue()
+        with btn_col1: st.download_button(label="📥 Download Excel", data=processed_data, file_name=f"{p_val}_{s_id}.xlsx", use_container_width=True)
+        with btn_col2:
+            df_sorted = df.copy()
+            if 'Sr. No.' in df_sorted.columns:
+                df_sorted['Sr. No.'] = pd.to_numeric(df_sorted['Sr. No.'], errors='coerce')
+                df_sorted = df_sorted.sort_values(by='Sr. No.')
+            df_sorted = df_sorted.reset_index(drop=True)
+            wa_msg = f"📦 *BOQ REPORT* : {p_val}\n*Project Number* - {p_val}\n*Site ID* - {s_id}\n*Site Name* - {s_name}\n\n"
+            for index, row in df_sorted.iterrows():
+                wa_msg += f"{index + 1}.\n*Transaction Type* - {row.get('Transaction Type', '-')}\n*BOQ Number* - {row.get('BOQ', '-')}\n*Item Code* - {row.get('Item Code', '-')}\n*Item Description* - {row.get('Item Description', '-')}\n*BOQ Qty* - {row.get('Qty A', '0')}\n*Dispatched Qty* - {row.get('Qty B', '0')}\n*STN Qty* - {row.get('Qty C', '0')}\n*Parent* - {row.get('Parent/Child', '-')}\n*Dispatched Date* - {row.get('Dispatch Date', '-')}\n*Transporter Name* - {row.get('Transporter', '-')}\n*TSP Name* - {row.get('TSP Partner Name', '-')}\n--------------------\n"
+            wa_msg += st.session_state.get('wa_indus_data', "")
+            st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(wa_msg)}" target="_blank"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">🚀 Share Full Report</button></a>', unsafe_allow_html=True)
 
 # =====================================================================
-# 🧾 TAB 2: PO REPORT (ORIGINAL)
+# 🧾 TAB 2: PO REPORT (NO CHANGE)
 # =====================================================================
 with tab2:
     st.markdown("<h3 style='text-align: center;'>🧾 PO Report Search</h3>", unsafe_allow_html=True)
     if not st.session_state.get('po_unlocked', False):
-        if st.text_input("Password PO:", type="password") == "1234":
-            st.session_state.po_unlocked = True; st.rerun()
+        if st.text_input("Password PO:", type="password", key="p_lock_v5") == "1234":
+            st.session_state.po_unlocked = True
+            st.rerun()
     else:
         with st.form("po_form_v5"):
             c1, c2, c3, c4 = st.columns(4)
-            s_po = c1.text_input("📄 PO Number")
-            sub_po = c4.form_submit_button("🔍 Search PO")
-            if sub_po:
-                res_po = supabase.table("PO Report").select("*").ilike("PO Number", f"%{s_po}%").execute()
-                if res_po.data: st.dataframe(pd.DataFrame(res_po.data), use_container_width=True)
+            with c1: s_po = st.text_input("📄 PO Number")
+            with c2: s_sh = st.text_input("🚚 Shipment Number")
+            with c3: s_re = st.text_input("🧾 Receipt Number")
+            with c4: st.write(""); sub_po = st.form_submit_button("🔍 Search PO")
+        if sub_po:
+            try:
+                q_po = supabase.table("PO Report").select("*")
+                if s_po.strip():
+                    if s_po.strip().isdigit(): q_po = q_po.eq("PO Number", int(s_po.strip()))
+                    else: q_po = q_po.ilike("PO Number", f"%{s_po.strip()}%")
+                if s_sh.strip():
+                    if s_sh.strip().isdigit(): q_po = q_po.eq("Shipment Number", int(s_sh.strip()))
+                    else: q_po = q_po.ilike("Shipment Number", f"%{s_sh.strip()}%")
+                if s_re.strip(): q_po = q_po.ilike("Receipt Number", f"%{s_re.strip()}%")
+                res_po = q_po.execute()
+                if res_po.data:
+                    df_po = pd.DataFrame(res_po.data)
+                    st.write("📋 **Full Details**")
+                    st.dataframe(df_po, use_container_width=True, hide_index=True)
+                    st.divider()
+                    st.write("📌 **Unique Summary**")
+                    col_l, col_r = st.columns([0.4, 0.6])
+                    with col_l:
+                        sum_df = df_po[['PO Number', 'Shipment Number', 'Receipt Number']].drop_duplicates()
+                        st.dataframe(sum_df, use_container_width=True, hide_index=True)
+                else: st.info("No PO data found.")
+            except Exception as e: st.error(f"❌ Error: {e}")
 
 # =====================================================================
-# 🏗️ TAB 3: SITE DETAIL (ORIGINAL)
+# 🏗️ TAB 3: SITE DETAIL (NO CHANGE)
 # =====================================================================
 with tab3:
     st.markdown("<h3 style='text-align: center;'>🏗️ Site Detail</h3>", unsafe_allow_html=True)
     with st.form("sd_form_v5"):
-        site_id_sd = st.text_input("📍 Site ID Search")
+        s1, s2 = st.columns(2)
+        with s1: p_id_sd = st.text_input("📁 Project Number Search")
+        with s2: site_id_sd = st.text_input("📍 Site ID Search")
         if st.form_submit_button("🔍 Search Detail"):
             res_sd = supabase.table("Site Data").select("*").ilike("SITE ID", f"%{site_id_sd}%").execute()
-            if res_sd.data: st.write(res_sd.data)
+            if res_sd.data:
+                for row in res_sd.data:
+                    st.markdown(f"**Project**: {row.get('Project Number','-')} | **SITE ID**: {row.get('SITE ID','-')} | **Site Name**: {row.get('Site Name','-')}")
 
 # =====================================================================
-# 📊 TAB 4: INDUS BASIC DATA (ORIGINAL)
+# 📊 TAB 4: INDUS DATA (NO CHANGE)
 # =====================================================================
 with tab4:
     st.markdown("<h3 style='text-align: center;'>📊 Indus Basic Data</h3>", unsafe_allow_html=True)
     with st.form("ind_form_v5"):
-        in_id = st.text_input("📍 Site ID Search")
-        if st.form_submit_button("🔍 Search Indus"):
-            res_ind = supabase.table("Indus Data").select("*").ilike("Site ID", f"%{in_id}%").execute()
-            if res_ind.data: st.dataframe(pd.DataFrame(res_ind.data))
+        i1, i2, i3 = st.columns(3)
+        with i1: in_id = st.text_input("📍 Site ID Search")
+        with i2: in_nm = st.text_input("🏢 Site Name Search")
+        with i3: st.write(""); sub_ind = st.form_submit_button("🔍 Search Indus")
+    if sub_ind:
+        res_ind = supabase.table("Indus Data").select("*").ilike("Site ID", f"%{in_id}%").execute()
+        if res_ind.data:
+            df_ind = pd.DataFrame(res_ind.data)
+            st.dataframe(df_ind, use_container_width=True, hide_index=True)
+            st.divider(); st.subheader("📌 Vertical Site Details")
+            row_in = res_ind.data[0]
+            def call_html(label, name, num):
+                if num and str(num).strip() not in ['-', '', 'None', 'nan']:
+                    return f'{label}: **{name}** ({num}) <a href="tel:{num}"><button style="background-color:#007bff;color:white;border:none;padding:2px 10px;border-radius:5px;cursor:pointer;font-weight:bold;">📞 Call</button></a>'
+                return f'{label}: **{name}** (-)'
+            v1, v2 = st.columns(2)
+            with v1:
+                st.markdown(f"🛰️ **Area Name** :- {row_in.get('Area Name','-')}")
+                st.markdown(call_html("👨‍🔧 **Tech Name**", row_in.get('Tech Name','-'), row_in.get('Tech Number','-')), unsafe_allow_html=True)
+                st.markdown(call_html("👷 **FSE**", row_in.get('FSE','-'), row_in.get('FSE Number','-')), unsafe_allow_html=True)
+            with v2:
+                st.markdown(call_html("👨‍💼 **AOM Name**", row_in.get('AOM Name','-'), row_in.get('AOM Number','-')), unsafe_allow_html=True)
+                lat, lon = row_in.get('Lat', ''), row_in.get('Long', '')
+                if lat and lon and str(lat).strip() not in ['-', '', 'None', 'nan']:
+                    maps_url = f"https://www.google.com/maps?q={lat},{lon}"
+                    st.markdown(f"📍 **Lat/Long** :- {lat} / {lon} <a href='{maps_url}' target='_blank'><button style='background-color:#EA4335;color:white;border:none;padding:2px 10px;border-radius:5px;cursor:pointer;font-weight:bold;'>📍 Direction</button></a>", unsafe_allow_html=True)
+                else: st.markdown(f"📍 **Lat/Long** :- {lat if lat else '-'} / {lon if lon else '-'}")
+        st.divider(); st.subheader("🧭 Route Plan")
+        if 'route_list' not in st.session_state: st.session_state.route_list = []
+        with st.expander("🛠️ Create New Route Plan", expanded=False):
+            c1, c2 = st.columns(2)
+            with c1: start_coords = st.text_input("🏠 Start Location", placeholder="Pune")
+            with c2: end_coords = st.text_input("🏁 End Location", placeholder="Mumbai")
+            with st.form("add_site_form", clear_on_submit=True):
+                add_sid = st.text_input("📍 Add Indus Site ID")
+                if st.form_submit_button("➕ Add +"):
+                    if add_sid:
+                        s_res = supabase.table("Indus Data").select("*").ilike("Site ID", f"%{add_sid.strip()}%").execute()
+                        if s_res.data: st.session_state.route_list.append(s_res.data[0]); st.success(f"Site {add_sid} added!")
+                        else: st.error("Site ID not found!")
+        if st.button("🚀 Calculate Best Route", use_container_width=True):
+            if start_coords and end_coords and st.session_state.route_list:
+                try:
+                    geolocator = Nominatim(user_agent="vis_route_planner")
+                    def get_lat_lon(loc):
+                        if ',' in loc and any(c.isdigit() for c in loc): return [float(x.strip()) for x in loc.split(',')]
+                        l = geolocator.geocode(loc); return [l.latitude, l.longitude] if l else None
+                    curr_p, end_p = get_lat_lon(start_coords), get_lat_lon(end_coords)
+                    if curr_p and end_p:
+                        unvisited = st.session_state.route_list.copy(); final_path = []
+                        while unvisited:
+                            valid_sites = [s for s in unvisited if s.get('Lat') and s.get('Long') and str(s.get('Lat')).strip() != '-']
+                            if not valid_sites: break
+                            next_s = min(valid_sites, key=lambda x: geodesic(curr_p, (float(x['Lat']), float(x['Long']))).km)
+                            final_path.append(next_s); curr_p = (float(next_s['Lat']), float(next_s['Long'])); unvisited.remove(next_s)
+                        route_data = [{"Serial No": "0", "Task": "START", "Site ID": "Home/Office", "Location": start_coords}]
+                        for i, s in enumerate(final_path, 1): route_data.append({"Serial No": str(i), "Task": "Visit", "Site ID": s['Site ID'], "Location": f"{s['Lat']}, {s['Long']}"})
+                        route_data.append({"Serial No": str(len(final_path)+1), "Task": "END", "Site ID": "Destination", "Location": end_coords})
+                        st.table(pd.DataFrame(route_data))
+                        coords_str = "/".join([start_coords] + [f"{s['Lat']},{s['Long']}" for s in final_path] + [end_coords])
+                        st.markdown(f'<a href="https://www.google.com/maps?q=lat,long{coords_str}" target="_blank"><button style="width:100%; background-color:#4285F4; color:white; border:none; padding:10px; border-radius:5px; font-weight:bold; cursor:pointer;">🗺️ Open Full Route in Maps</button></a>', unsafe_allow_html=True)
+                except Exception as e: st.error(f"Error: {e}")
 
 # =====================================================================
-# 📡 TAB 5: WCC TRACKER (ORIGINAL - NO CHANGE)
+# 📡 TAB 5: WCC TRACKER (NO CHANGE)
 # =====================================================================
 with tab_wcc:
-    # --- Yahan aapka pura WCC logic (Password, Form, Whatsapp Button) hai ---
-    def fetch_wcc(): return supabase.table("WCC Status").select("*").execute().data
+    def fetch_wcc():
+        try: res = supabase.table("WCC Status").select("*").execute(); return res.data
+        except: return []
+    def save_wcc_data(payload):
+        try: return supabase.table("WCC Status").upsert(payload).execute()
+        except: return None
     st.title("📡 WCC Status Tracker")
-    raw_wcc = fetch_wcc()
-    if raw_wcc: st.dataframe(pd.DataFrame(raw_wcc), use_container_width=True)
+    if "wcc_role" not in st.session_state: st.session_state.wcc_role = None
+    if not st.session_state.wcc_role:
+        pwd = st.text_input("Enter Password:", type="password", key="wcc_pwd_style")
+        if st.button("🔓 Unlock Folder"):
+            if pwd == "Vision@321": st.session_state.wcc_role = "requester"
+            elif pwd == "Account@321": st.session_state.wcc_role = "accountant"
+            else: st.error("❌ Wrong Password!"); st.rerun()
+    else:
+        role = st.session_state.wcc_role
+        st.info(f"Logged in as: **{role.upper()}**")
+        @st.dialog("📝 WCC Details Form", width="large")
+        def wcc_modal(row_data=None):
+            is_edit = row_data is not None
+            with st.form("wcc_form_v24"):
+                if role == "requester":
+                    c1, c2 = st.columns(2)
+                    v_proj = c1.text_input("Project", value=str(row_data.get("Project", "")) if is_edit else "")
+                    v_pid = c2.text_input("Project ID *", value=str(row_data.get("Project ID", "")) if is_edit else "", disabled=is_edit)
+                    c3, c4 = st.columns(2)
+                    v_sid = c3.text_input("Site ID", value=str(row_data.get("Site ID", "")) if is_edit else "")
+                    v_snm = c4.text_input("Site Name", value=str(row_data.get("Site Name", "")) if is_edit else "")
+                    c5, c6 = st.columns(2)
+                    v_po = c5.text_input("PO Number", value=str(row_data.get("PO Number", "")) if is_edit else "")
+                    v_dt = st.date_input("Request Date", value=datetime.now().date())
+                    v_pht = st.selectbox("Photo", ["Pending", "Available on Portal"], index=1)
+                    v_jms = st.selectbox("JMS", ["Pending", "Available on Portal", "Create by You"], index=2)
+                    v_sts = st.selectbox("WCC Status", ["Creation Pending", "Pending for Approval", "Proceed", "Rejected", "Cancel"], index=0)
+                    v_wno = row_data.get("WCC Number") if is_edit else None 
+                else:
+                    v_pid = row_data.get('Project ID')
+                    v_wno = st.text_input("Enter WCC Number", value=str(row_data.get("WCC Number", "")) if is_edit else "")
+                if st.form_submit_button("💾 Save Changes"):
+                    def cn(v): return ''.join(filter(str.isdigit, str(v))) if v else None
+                    p = {"Project ID": v_pid, "WCC Number": cn(v_wno)}
+                    if role == "requester": p.update({"Project": v_proj, "Site ID": v_sid, "Site Name": v_snm, "PO Number": cn(v_po), "Reqeust Date": str(v_dt), "Photo": v_pht, "JMS": v_jms, "WCC Status": v_sts})
+                    if save_wcc_data(p): st.rerun()
+
+        raw_w = fetch_wcc()
+        df_wcc = pd.DataFrame(raw_w) if raw_w else pd.DataFrame()
+        if role == "requester" and st.button("➕ Add Site Request"): wcc_modal()
+        if not df_wcc.empty:
+            st.dataframe(df_wcc, use_container_width=True, hide_index=True)
+            for i, row in df_wcc.iterrows():
+                if st.button(f"✏️ Edit {row['Project ID']}"): wcc_modal(row)
 
 # =====================================================================
-# 📁 TAB 6: DATA ENTRY (NOW DOCUMENT CENTER)
+# 📁 TAB 6: DATA ENTRY (DOCUMENT CENTER)
 # =====================================================================
 with tab5:
-    st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Visiontech Document Center</h3>", unsafe_allow_html=True)
-    st.divider()
-
-    doc_sub1, doc_sub2, doc_sub3 = st.tabs(["📤 Manager Upload", "🔍 Team Search", "📊 Upload Status Tracker"])
-
-    with doc_sub1:
-        with st.form("doc_upload_final", clear_on_submit=True):
-            c1, c2 = st.columns(2)
-            u_proj = c1.text_input("📁 Project Number")
-            u_indus = c2.text_input("📍 Indus ID")
-            u_site = c1.text_input("🏢 Site Name")
-            u_type = c2.selectbox("📄 Doc Type", ["Photo", "SRC", "DC", "STN", "REPORT"])
-            u_files = st.file_uploader("Upload Files", accept_multiple_files=True)
-            if st.form_submit_button("🚀 Upload All Files"):
+    st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center</h3>", unsafe_allow_html=True)
+    d_sub1, d_sub2, d_sub3 = st.tabs(["📤 Upload", "🔍 Search", "📊 Status"])
+    with d_sub1:
+        with st.form("doc_upload_v1", clear_on_submit=True):
+            col_u1, col_u2 = st.columns(2)
+            u_proj = col_u1.text_input("📁 Project Number")
+            u_indus = col_u2.text_input("📍 Indus ID")
+            u_site = col_u1.text_input("🏢 Site Name")
+            u_type = col_u2.selectbox("📄 Doc Type", ["Photo", "SRC", "DC", "STN", "REPORT"])
+            u_files = st.file_uploader("Select Files", accept_multiple_files=True)
+            if st.form_submit_button("🚀 Upload"):
                 if u_files and u_proj:
-                    # (Upload logic here - same as before)
+                    for i, single_file in enumerate(u_files):
+                        fname = f"{u_proj.replace('/','-')}_{u_indus}_{u_type}_{i}.{single_file.name.split('.')[-1]}"
+                        supabase.storage.from_("site_documents").upload(path=fname, file=single_file.getvalue(), file_options={"x-upsert": "true"})
+                        p_url = f"{URL}/storage/v1/object/public/site_documents/{fname}"
+                        supabase.table("site_documents_master").upsert({"project_number": u_proj, "indus_id": u_indus, "site_name": u_site, "doc_type": u_type, "file_name": fname, "file_url": p_url}, on_conflict="file_name").execute()
                     st.success("Uploaded!")
-
-    with doc_sub2:
-        q_search = st.text_input("🔍 Search Documents", key="doc_search_v1")
-        if q_search:
-            res_db = supabase.table("site_documents_master").select("*").or_(f"project_number.ilike.%{q_search}%,indus_id.ilike.%{q_search}%").execute()
-            if res_db.data: st.write(res_db.data)
-
-    with doc_sub3:
-        st.subheader("📊 Site-wise Document Status")
-        res_t = supabase.table("site_documents_master").select("*").execute()
-        if res_t.data:
-            # (Status tracker logic here)
-            st.info("Tracker Data Available")
+    with d_sub2:
+        q_s = st.text_input("Search...")
+        if q_s:
+            r = supabase.table("site_documents_master").select("*").or_(f"project_number.ilike.%{q_s}%,indus_id.ilike.%{q_s}%").execute()
+            if r.data: st.write(r.data)
+    with d_sub3:
+        r_t = supabase.table("site_documents_master").select("*").execute()
+        if r_t.data:
+            df_t = pd.DataFrame(r_t.data)
+            st.dataframe(df_t, use_container_width=True)
 
 # =====================================================================
-# 💰 TAB 7: FINANCE ENTRY (NOW PO ANALYZER WITH 11 COLUMNS)
+# 💰 TAB 7: FINANCE ENTRY (NEW PO ANALYZER - 11 COLUMNS)
 # =====================================================================
 with tab6:
     st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>💰 Finance Entry (PO Analyzer)</h3>", unsafe_allow_html=True)
     st.divider()
-
-    po_file = st.file_uploader("Upload 'export.tsv'", type=['tsv', 'txt'], key="po_fin_v10")
-
+    po_file = st.file_uploader("Upload 'export.tsv'", type=['tsv', 'txt'], key="po_fin_upload")
     if po_file is not None:
-        if st.button("🚀 Sync 11 Columns to Database", use_container_width=True):
+        if st.button("🚀 Process & Sync 11 Columns to Database", use_container_width=True):
             try:
                 content = po_file.getvalue().decode('ISO-8859-1').splitlines()
                 h_idx = -1
                 for i, line in enumerate(content):
                     if '"Line"' in line and '"Item Num"' in line: h_idx = i; break
-                
                 if h_idx != -1:
                     po_file.seek(0)
                     df_h = pd.read_csv(po_file, sep='\t', nrows=1, encoding='ISO-8859-1')
                     po_no = str(df_h.columns[0]).replace('"', '').strip()
-                    
                     po_file.seek(0)
                     df_raw = pd.read_csv(po_file, sep='\t', skiprows=h_idx, quoting=3, encoding='ISO-8859-1', engine='python')
                     df_raw.columns = [str(c).strip().replace('"', '') for c in df_raw.columns]
-
-                    # Numeric Cleaning & Filter
                     df_clean = df_raw.dropna(subset=['Project Name'])
-                    
                     items_payload = []
                     for _, r in df_clean.iterrows():
                         items_payload.append({
-                            "po_number": po_no,
-                            "line_no": str(r.get('Line', '')),
-                            "item_number": str(r.get('Item Num', '')),
-                            "description": str(r.get('Description', '')),
-                            "uom": str(r.get('UOM', '')),
+                            "po_number": po_no, "line_no": str(r.get('Line', '')), "item_number": str(r.get('Item Num', '')),
+                            "description": str(r.get('Description', '')), "uom": str(r.get('UOM', '')),
                             "qty": float(pd.to_numeric(str(r.get('Qty', '0')).replace(',',''), errors='coerce') or 0),
                             "price": float(pd.to_numeric(str(r.get('Price', '0')).replace(',',''), errors='coerce') or 0),
                             "amount": float(pd.to_numeric(str(r.get('Amount', '0')).replace(',',''), errors='coerce') or 0),
-                            "site_id": str(r.get('Site ID', '')),
-                            "site_name": str(r.get('Site Name', '')),
-                            "project_name": str(r.get('Project Name', ''))
+                            "site_id": str(r.get('Site ID', '')), "site_name": str(r.get('Site Name', '')), "project_name": str(r.get('Project Name', ''))
                         })
                     supabase.table("po_line_items").insert(items_payload).execute()
                     st.success(f"✅ PO {po_no} Synced!")
             except Exception as e: st.error(f"Error: {e}")
-
     st.subheader("🔎 Database Explorer")
     f_tab1, f_tab2 = st.tabs(["📊 Summaries", "📋 Full Details"])
     with f_tab1:
         res_s = supabase.table("po_summaries").select("*").execute()
-        if res_s.data: st.dataframe(pd.DataFrame(res_s.data), use_container_width=True)
+        if res_s.data: st.dataframe(pd.DataFrame(res_s.data), use_container_width=True, hide_index=True)
     with f_tab2:
         res_d = supabase.table("po_line_items").select("*").execute()
-        if res_d.data: st.dataframe(pd.DataFrame(res_d.data), use_container_width=True)
+        if res_d.data: st.dataframe(pd.DataFrame(res_d.data), use_container_width=True, hide_index=True)
