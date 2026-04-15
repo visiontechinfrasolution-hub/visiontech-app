@@ -282,26 +282,40 @@ with tab4:
                 except Exception as e: st.error(f"Error: {e}")
 
 # =====================================================================
-# 📡 TAB 5: WCC TRACKER (NO CHANGE)
+# 📡 TAB 5: WCC TRACKER (RESTORED TO ORIGINAL WITH EDIT & WHATSAPP)
 # =====================================================================
 with tab_wcc:
     def fetch_wcc():
-        try: res = supabase.table("WCC Status").select("*").execute(); return res.data
+        try: 
+            res = supabase.table("WCC Status").select("*").execute()
+            return res.data
         except: return []
+
     def save_wcc_data(payload):
-        try: return supabase.table("WCC Status").upsert(payload).execute()
-        except: return None
+        try:
+            return supabase.table("WCC Status").upsert(payload).execute()
+        except Exception as e:
+            st.error(f"❌ Database Error: {e}")
+            return None
+
     st.title("📡 WCC Status Tracker")
+
     if "wcc_role" not in st.session_state: st.session_state.wcc_role = None
+
     if not st.session_state.wcc_role:
-        pwd = st.text_input("Enter Password:", type="password", key="wcc_pwd_style")
+        pwd = st.text_input("Enter Password:", type="password", key="wcc_pwd_v24_style")
         if st.button("🔓 Unlock Folder"):
             if pwd == "Vision@321": st.session_state.wcc_role = "requester"
             elif pwd == "Account@321": st.session_state.wcc_role = "accountant"
-            else: st.error("❌ Wrong Password!"); st.rerun()
+            else: st.error("❌ Wrong Password!")
+            st.rerun()
     else:
         role = st.session_state.wcc_role
         st.info(f"Logged in as: **{role.upper()}**")
+        if st.sidebar.button("🔒 Logout WCC"):
+            st.session_state.wcc_role = None
+            st.rerun()
+
         @st.dialog("📝 WCC Details Form", width="large")
         def wcc_modal(row_data=None):
             is_edit = row_data is not None
@@ -315,27 +329,87 @@ with tab_wcc:
                     v_snm = c4.text_input("Site Name", value=str(row_data.get("Site Name", "")) if is_edit else "")
                     c5, c6 = st.columns(2)
                     v_po = c5.text_input("PO Number", value=str(row_data.get("PO Number", "")) if is_edit else "")
-                    v_dt = st.date_input("Request Date", value=datetime.now().date())
-                    v_pht = st.selectbox("Photo", ["Pending", "Available on Portal"], index=1)
-                    v_jms = st.selectbox("JMS", ["Pending", "Available on Portal", "Create by You"], index=2)
-                    v_sts = st.selectbox("WCC Status", ["Creation Pending", "Pending for Approval", "Proceed", "Rejected", "Cancel"], index=0)
+                    d_val = datetime.now().date()
+                    if is_edit and row_data.get("Reqeust Date"):
+                        try: d_val = pd.to_datetime(row_data.get("Reqeust Date")).date()
+                        except: d_val = datetime.now().date()
+                    v_dt = st.date_input("Request Date", value=d_val)
+                    st.markdown("### Status Tracking")
+                    c7, c8, c9 = st.columns(3)
+                    p_opts = ["Pending", "Available on Portal"]
+                    v_pht = c7.selectbox("Photo", p_opts, index=p_opts.index(row_data.get("Photo", "Available on Portal")) if is_edit and row_data.get("Photo") in p_opts else 1)
+                    j_opts = ["Pending", "Available on Portal", "Create by You"]
+                    v_jms = c8.selectbox("JMS", j_opts, index=j_opts.index(row_data.get("JMS", "Create by You")) if is_edit and row_data.get("JMS") in j_opts else 2)
+                    s_opts = ["Creation Pending", "Pending for Approval", "Proceed", "Rejected", "Cancel"]
+                    v_sts = c9.selectbox("WCC Status", s_opts, index=s_opts.index(row_data.get("WCC Status", "Creation Pending")) if is_edit and row_data.get("WCC Status") in s_opts else 0)
                     v_wno = row_data.get("WCC Number") if is_edit else None 
                 else:
                     v_pid = row_data.get('Project ID')
                     v_wno = st.text_input("Enter WCC Number", value=str(row_data.get("WCC Number", "")) if is_edit else "")
-                if st.form_submit_button("💾 Save Changes"):
-                    def cn(v): return ''.join(filter(str.isdigit, str(v))) if v else None
-                    p = {"Project ID": v_pid, "WCC Number": cn(v_wno)}
-                    if role == "requester": p.update({"Project": v_proj, "Site ID": v_sid, "Site Name": v_snm, "PO Number": cn(v_po), "Reqeust Date": str(v_dt), "Photo": v_pht, "JMS": v_jms, "WCC Status": v_sts})
-                    if save_wcc_data(p): st.rerun()
 
-        raw_w = fetch_wcc()
-        df_wcc = pd.DataFrame(raw_w) if raw_w else pd.DataFrame()
-        if role == "requester" and st.button("➕ Add Site Request"): wcc_modal()
+                submitted = st.form_submit_button("💾 Save Changes", use_container_width=True)
+                if submitted:
+                    def clean_numeric(val):
+                        if not val or str(val).strip() in ["", "None", "nan"]: return None
+                        num_only = ''.join(filter(str.isdigit, str(val)))
+                        return num_only if num_only != "" else None
+                    payload = {"Project ID": v_pid, "WCC Number": clean_numeric(v_wno)}
+                    if role == "requester":
+                        payload.update({"Project": v_proj, "Site ID": v_sid, "Site Name": v_snm, "PO Number": clean_numeric(v_po), "Reqeust Date": str(v_dt), "Photo": v_pht, "JMS": v_jms, "WCC Status": v_sts})
+                    if save_wcc_data(payload): st.rerun()
+
+        raw_data = fetch_wcc()
+        df_wcc = pd.DataFrame(raw_data) if raw_data else pd.DataFrame()
+        
+        c_top1, c_top2 = st.columns(2)
+        with c_top1:
+            if role == "requester" and st.button("➕ Add New Site Request", type="primary", use_container_width=True): wcc_modal()
+        with c_top2:
+            if not df_wcc.empty:
+                output = io.BytesIO()
+                with pd.ExcelWriter(output, engine='xlsxwriter') as writer: df_wcc.to_excel(writer, index=False)
+                st.download_button(label="📥 Download Excel Report", data=output.getvalue(), file_name="WCC_Report.xlsx", use_container_width=True)
+
+        st.divider()
+
         if not df_wcc.empty:
-            st.dataframe(df_wcc, use_container_width=True, hide_index=True)
+            st.markdown("""
+                <style>
+                .main-header { font-size: 20px; font-weight: bold; color: #1E3A8A; margin-bottom: 10px; }
+                .site-badge { background-color: #E0F2FE; color: #0369A1; padding: 4px 10px; border-radius: 20px; font-weight: 600; font-size: 12px; border: 1px solid #BAE6FD; }
+                .wa-btn { background-color: #25D366; color: white !important; padding: 6px 12px; border-radius: 8px; text-decoration: none; font-size: 12px; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+                .wa-btn:hover { background-color: #128C7E; }
+                </style>
+            """, unsafe_allow_html=True)
+
+            h_cols = st.columns([0.6, 0.4, 1, 1.2, 1, 1.2, 1, 1, 1, 1, 1, 1])
+            fields = ["Actions", "Sr.", "Project", "Project ID", "Site ID", "Site Name", "PO No", "Date", "Photo", "JMS", "WCC No", "Status"]
+            for col, name in zip(h_cols, fields): col.markdown(f"<p style='color:#1E3A8A; font-weight:bold; font-size:14px;'>{name}</p>", unsafe_allow_html=True)
+            st.markdown("<hr style='margin:0; border-top: 2px solid #1E3A8A;'>", unsafe_allow_html=True)
+
             for i, row in df_wcc.iterrows():
-                if st.button(f"✏️ Edit {row['Project ID']}"): wcc_modal(row)
+                r_cols = st.columns([0.6, 0.4, 1, 1.2, 1, 1.2, 1, 1, 1, 1, 1, 1])
+                with r_cols[0]:
+                    b1, b2 = st.columns(2)
+                    if b1.button("✏️", key=f"sty_ed_{row['Project ID']}"): wcc_modal(row)
+                    if role == 'requester':
+                        msg = (f"Hello Prkash Ji,\nRaise WCC urgently...\n\n*Project* :- {row.get('Project')}\n*Project ID* :- {row.get('Project ID')}\n*Site ID* :- {row.get('Site ID')}\n*Site Name* :- {row.get('Site Name')}\n*PO Number* :- {row.get('PO Number')}\n*Reqeust Date* :- {row.get('Reqeust Date')}\n*WCC Number* :- {row.get('WCC Number')}\n*WCC Status* :- {row.get('WCC Status')}\n\nThanks,\nMayur Patil\n7350533473")
+                        url = f"whatsapp://send?text={urllib.parse.quote(msg)}"
+                        b2.markdown(f'<a href="{url}" class="wa-btn">💬</a>', unsafe_allow_html=True)
+
+                r_cols[1].write(f"<p style='font-size:13px;'>{i+1}</p>", unsafe_allow_html=True)
+                r_cols[2].write(f"<p style='font-size:13px;'>{row.get('Project','')}</p>", unsafe_allow_html=True)
+                r_cols[3].write(f"<p style='font-size:13px;'>{row.get('Project ID','')}</p>", unsafe_allow_html=True)
+                r_cols[4].markdown(f'<span class="site-badge">{row.get("Site ID","")}</span>', unsafe_allow_html=True)
+                r_cols[5].write(f"<p style='font-size:13px;'>{row.get('Site Name','')}</p>", unsafe_allow_html=True)
+                r_cols[6].write(f"<p style='font-size:13px;'>{row.get('PO Number','')}</p>", unsafe_allow_html=True)
+                r_cols[7].write(f"<p style='font-size:13px;'>{row.get('Reqeust Date','')}</p>", unsafe_allow_html=True)
+                r_cols[8].write(f"<p style='font-size:13px;'>{row.get('Photo','')}</p>", unsafe_allow_html=True)
+                r_cols[9].write(f"<p style='font-size:13px;'>{row.get('JMS','')}</p>", unsafe_allow_html=True)
+                r_cols[10].markdown(f"<p style='color:#DC2626; font-weight:bold; font-size:13px;'>{row.get('WCC Number','-')}</p>", unsafe_allow_html=True)
+                r_cols[11].write(f"<p style='font-size:13px;'>{row.get('WCC Status','')}</p>", unsafe_allow_html=True)
+                st.markdown("<hr style='margin:0; border-top: 1px solid #E5E7EB;'>", unsafe_allow_html=True)
+        else: st.info("No records found.")
 
 # =====================================================================
 # 📁 TAB 6: DATA ENTRY (DOCUMENT CENTER)
