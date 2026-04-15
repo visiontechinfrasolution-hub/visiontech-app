@@ -480,89 +480,16 @@ with tab6:
             st.dataframe(df_d[['po_number', 'line_no', 'item_number', 'qty', 'amount', 'project_name', 'site_id']], use_container_width=True, hide_index=True)
 
 # =====================================================================
-# 📝 TAB 8: FINAL AUDIT PORTAL (FULL STABLE CODE)
+# 📝 TAB 8: FINAL AUDIT PORTAL (MANUAL TIME INPUT VERSION)
 # =====================================================================
 
-# --- 1. GMAIL EMAIL FUNCTION (Isme Hostinger ka koi zikr nahi hai) ---
-def send_professional_email(selected_df):
-    import smtplib
-    from email.mime.multipart import MIMEMultipart
-    from email.mime.text import MIMEText
-    from datetime import datetime, timedelta
-
-    # GMAIL CONFIGURATION
-    SENDER = "vispltower@gmail.com" 
-    PWD = "wpiw vkys mblb tunw" # Aapka Gmail App Password
-    RECEIVER = "services@vispltower.com" 
-    CC = "visiontechinfrasolution@gmail.com"
-    
-    tomorrow = (datetime.now() + timedelta(days=1)).strftime('%d-%b-%Y')
-    
-    msg = MIMEMultipart()
-    msg['Subject'] = f"Audit Request_Visiontech_({tomorrow})"
-    msg['From'] = f"Visiontech Portal <{SENDER}>"
-    msg['To'] = RECEIVER
-    msg['Cc'] = CC
-
-    # HTML Table Styling (27 Columns)
-    header_style = "background-color: #FFFF00; font-weight: bold; border: 1px solid black; padding: 4px; font-size: 10px; text-align: center; color: black;"
-    td_style = "border: 1px solid black; padding: 4px; font-size: 10px; text-align: center;"
-
-    cols = [
-        "Circle", "Ref. No.", "Indus ID", "Site Name", "Site Add", "Cluster / Zone",
-        "Date of Offerance in ISQ", "Date Of Audit Planned in ISQ", "ISQ Offerance Status(Y/N)",
-        "Documents uploaded in ISQ(Y/N)", "TSP Shared Filled checklist during Offerance for audit (Yes / No)",
-        "TSP Shared Compliance Photographs during audit Offerance (yes / No)", "Project", "Tower Type",
-        "Tower Ht.", "Stage", "TSP Name", "Audit Agency Name", "Representative Name",
-        "Representative Contact Number", "Actual ofference date", "Audit Engineer Name",
-        "Contact Details.", "Actual Audit date", "Actual Audit Time", "Lat", "Long"
-    ]
-
-    h_html = "".join([f"<th style='{header_style}'>{c}</th>" for c in cols])
-    r_html = ""
-    for _, row in selected_df.iterrows():
-        r_html += "<tr>"
-        for col in cols:
-            val = row.get(col, "-")
-            r_html += f"<td style='{td_style}'>{val}</td>"
-        r_html += "</tr>"
-
-    body = f"""
-    <html>
-    <body style="font-family: Calibri, Arial; font-size: 11px;">
-        <p>Hello Sir,</p>
-        <p>Please find the audit request for the following sites:</p>
-        <table border="1" style="border-collapse: collapse; width: 100%; border: 1px solid black;">
-            <thead><tr style="background-color: #FFFF00;">{h_html}</tr></thead>
-            <tbody>{r_html}</tbody>
-        </table>
-        <br>
-        <p>Thanks,<br><b>Saira Quzi</b></p>
-    </body>
-    </html>
-    """
-    msg.attach(MIMEText(body, 'html'))
-
-    try:
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls() 
-        server.login(SENDER, PWD)
-        server.send_message(msg)
-        server.quit()
-        return True
-    except Exception as e:
-        import streamlit as st
-        st.error(f"GMAIL SMTP Error: {e}")
-        return False
-
-# --- 2. TAB 8 UI & LOGIC ---
 with tab_audit:
     st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Audit Management Portal</h3>", unsafe_allow_html=True)
     
     if 'audit_queue' not in st.session_state:
         st.session_state.audit_queue = []
 
-    # Data Loading
+    # --- 1. DATA LOADING ---
     m_df, u_df, h_df = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
     try:
         m_df = pd.DataFrame(supabase.table("VIS Portal Site Data").select('*').execute().data)
@@ -575,12 +502,12 @@ with tab_audit:
     with t1:
         c_top1, c_top2 = st.columns(2)
         p_ids = [""] + sorted(m_df["PROJECT ID"].unique().tolist()) if not m_df.empty else [""]
-        sel_pid = c_top1.selectbox("🔍 Step 1: Select Project ID", p_ids, key="audit_v900_pid")
+        sel_pid = c_top1.selectbox("🔍 Step 1: Select Project ID", p_ids, key="audit_v11_pid")
         
         user_names = [""] + sorted(u_df["name"].tolist()) if not u_df.empty else [""]
-        sel_rep = c_top2.selectbox("👤 Step 2: Select Representative", user_names, key="audit_v900_rep")
+        sel_rep = c_top2.selectbox("👤 Step 2: Select Representative", user_names, key="audit_v11_rep")
 
-        # --- PRECISE AUTO-FILL (Direct Lat/Long Query) ---
+        # --- PRECISE AUTO-FILL LOGIC ---
         s_info, rep_mob, lat_val, long_val, linked_sid = {}, "", "", "", ""
         today_dt = datetime.now().strftime("%d-%b-%Y")
         tomorrow_dt = (datetime.now() + timedelta(days=1)).strftime("%d-%b-%Y")
@@ -604,8 +531,8 @@ with tab_audit:
             if not match_u.empty:
                 rep_mob = str(match_u.iloc[0].get('phone_number', ''))
 
-        # THE FORM
-        with st.form("audit_v900_form"):
+        # --- THE FORM ---
+        with st.form("audit_v11_form"):
             col1, col2, col3 = st.columns(3)
             f = {}
             f["Circle"] = col1.text_input("Circle", value="Maharashtra")
@@ -635,9 +562,14 @@ with tab_audit:
             f["Long"] = col2.text_input("Longitude", value=long_val)
             f["Actual Audit date"] = col3.text_input("Actual Audit date", value=tomorrow_dt)
 
-            # Extra mapping for Database Schema
+            # --- ACTUAL AUDIT TIME COLUMN (By Default 11:00 AM) ---
+            from datetime import time
+            # User can change this time
+            audit_time_input = col1.time_input("Set Audit Time", value=time(11, 0)) 
+            f["Actual Audit Time"] = audit_time_input.strftime("%I:%M %p") 
+
+            # Hidden/Static Mapping for DB
             f["Stage"], f["Audit Agency Name"], f["TSP Name"] = "", "", "Visiontech"
-            f["Actual Audit Time"] = tomorrow_dt
             f["Audit Engineer Name"], f["Contact Details."] = "", ""
             f["Mail Status"], f["Mail Sent Date"] = "Pending", "-"
             f["Documents uploaded in ISQ(Y/N)"] = doc_val
@@ -647,18 +579,19 @@ with tab_audit:
             if st.form_submit_button("➕ Add Site to Queue"):
                 if sel_pid and f["Lat"] != "":
                     st.session_state.audit_queue.append(f.copy())
-                    st.toast(f"✅ Added {linked_sid}")
+                    st.toast(f"✅ Added {linked_sid} at {f['Actual Audit Time']}")
                 else: st.error("Lat/Long missing!")
 
-        # Queue and Final Submission
+        # --- QUEUE & SUBMIT ---
         if st.session_state.audit_queue:
             st.divider()
+            st.subheader(f"📋 Queued Sites ({len(st.session_state.audit_queue)})")
             q_df = pd.DataFrame(st.session_state.audit_queue)
-            st.table(q_df[["Indus ID", "Ref. No.", "Lat", "Long"]])
+            # Displaying Time in the table as well
+            st.table(q_df[["Indus ID", "Ref. No.", "Lat", "Long", "Actual Audit Time"]])
 
             if st.button("📧 Submit & Send Combined Gmail", type="primary", use_container_width=True):
                 try:
-                    # Sync DB Columns
                     res_cols = supabase.table("Audit Request").select("*").limit(1).execute()
                     db_cols = res_cols.data[0].keys() if res_cols.data else []
                     
@@ -672,7 +605,6 @@ with tab_audit:
                             if "compliance photographs" in clow: temp[col] = temp.pop("TSP Shared Compliance Photographs during audit Offerance (yes / No)", "yes")
                         final_save.append(temp)
 
-                    # Save and Email
                     supabase.table("Audit Request").insert(final_save).execute()
                     if send_professional_email(pd.DataFrame(st.session_state.audit_queue)):
                         st.success("🚀 Success! Data Saved & Email Sent.")
