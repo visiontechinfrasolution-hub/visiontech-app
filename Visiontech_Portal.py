@@ -482,62 +482,82 @@ with tab6:
 with tab_audit:
     st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Audit Management Portal</h3>", unsafe_allow_html=True)
     
-    # --- 1. DATA LOADING ---
-    m_df, u_df, ind_df, h_df = pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+    # --- 1. DATA LOADING (INDIVIDUAL FETCHING) ---
+    m_df = pd.DataFrame()
+    u_df = pd.DataFrame()
+    ind_df = pd.DataFrame()
+    h_df = pd.DataFrame()
+
+    # VIS Portal Data
     try:
-        m_df = pd.DataFrame(supabase.table("VIS Portal Site Data").select('*').execute().data)
-        u_df = pd.DataFrame(supabase.table("allowed_users").select("*").execute().data)
-        ind_df = pd.DataFrame(supabase.table("Indus Data").select("*").execute().data)
-        h_df = pd.DataFrame(supabase.table("Audit Request").select("*").order("created_at", desc=True).execute().data)
-    except: pass
+        res_m = supabase.table("VIS Portal Site Data").select('*').execute()
+        if res_m.data: m_df = pd.DataFrame(res_m.data)
+    except Exception as e: st.error(f"VIS Portal Table Error: {e}")
+
+    # Allowed Users
+    try:
+        res_u = supabase.table("allowed_users").select("*").execute()
+        if res_u.data: u_df = pd.DataFrame(res_u.data)
+    except Exception as e: st.error(f"Users Table Error: {e}")
+
+    # Indus Data (Lat/Long)
+    try:
+        res_ind = supabase.table("Indus Data").select("*").execute()
+        if res_ind.data: ind_df = pd.DataFrame(res_ind.data)
+    except Exception as e: st.error(f"Indus Data Table Error: {e}")
+
+    # History (Audit Request)
+    try:
+        res_h = supabase.table("Audit Request").select("*").order("created_at", desc=True).execute()
+        if res_h.data: h_df = pd.DataFrame(res_h.data)
+    except Exception as e: st.error(f"History Table Error: {e}")
 
     t1, t2 = st.tabs(["➕ Create Entry", "📜 History"])
 
     with t1:
+        # Step 1: Selection Dropdowns
         c_top1, c_top2 = st.columns(2)
-        p_ids = [""] + sorted(m_df["PROJECT ID"].unique().tolist()) if not m_df.empty else [""]
-        sel_pid = c_top1.selectbox("🔍 Step 1: Select Project ID", p_ids, key="final_audit_p")
         
-        user_names = [""] + sorted(u_df["name"].tolist()) if not u_df.empty else [""]
-        sel_rep = c_top2.selectbox("👤 Step 2: Select Representative", user_names, key="final_audit_u")
+        p_ids = [""]
+        if not m_df.empty: p_ids += sorted(m_df["PROJECT ID"].unique().tolist())
+        sel_pid = c_top1.selectbox("🔍 Step 1: Select Project ID", p_ids, key="audit_p_v30")
+        
+        u_names = [""]
+        if not u_df.empty: u_names += sorted(u_df["name"].tolist())
+        sel_rep = c_top2.selectbox("👤 Step 2: Select Representative", u_names, key="audit_u_v30")
 
-        # --- STEP 2: LOGIC (PARTIAL MATCHING) ---
+        # --- STEP 2: AUTO-FILL LOGIC ---
         s_info, rep_mob, lat_val, long_val, linked_sid = {}, "", "", "", ""
         
         if sel_pid and not m_df.empty:
             s_info = m_df[m_df["PROJECT ID"] == sel_pid].iloc[0].to_dict()
             linked_sid = str(s_info.get("SITE ID", "")).strip()
             
-            # --- LAT/LONG LOOKUP (Super Flexible) ---
+            # Lat/Long Match Logic
             if linked_sid and not ind_df.empty:
-                # 1. Site ID se sirf numbers nikalna (e.g. IN-123 -> 123)
+                ind_df.columns = [str(c).strip() for c in ind_df.columns]
+                # Flexible Search: Full ID ya sirf Digits match
                 only_digits = ''.join(filter(str.isdigit, linked_sid))
                 
-                # 2. Indus Data ke pehle column mein search karna
-                # Hum check karenge ki kya linked_sid usme hai, ya sirf numbers usme hain
-                ind_df.columns = [str(c).strip() for c in ind_df.columns]
-                
-                # Match logic: Full match ya Digit match
                 match_ind = ind_df[
                     (ind_df.iloc[:, 0].astype(str).str.contains(linked_sid, case=False, na=False)) | 
                     (ind_df.iloc[:, 0].astype(str).str.contains(only_digits, case=False, na=False))
                 ]
                 
                 if not match_ind.empty:
-                    # 3. Keyword Search for Lat/Long
                     for col in ind_df.columns:
                         c_low = str(col).lower()
                         if "lat" in c_low: lat_val = str(match_ind.iloc[0][col])
                         if "long" in c_low or "lng" in c_low: long_val = str(match_ind.iloc[0][col])
 
-        # Mobile Lookup (phone_number)
+        # Mobile Match
         if sel_rep and not u_df.empty:
             match_u = u_df[u_df["name"] == sel_rep]
             if not match_u.empty:
                 rep_mob = str(match_u.iloc[0].get('phone_number', ''))
 
         # --- STEP 3: THE FORM ---
-        with st.form("audit_form_final_v25"):
+        with st.form("audit_v30_form"):
             col1, col2, col3 = st.columns(3)
             f = {}
             f["Circle"] = col1.text_input("Circle", value="Maharashtra")
@@ -575,4 +595,11 @@ with tab_audit:
                         supabase.table("Audit Request").insert(f).execute()
                         st.success("✅ Saved!")
                         st.rerun()
-                    except Exception as e: st.error(f"Error: {e}")
+                    except Exception as e: st.error(f"Save Error: {e}")
+
+    with t2:
+        st.subheader("Saved Audit Requests")
+        if not h_df.empty:
+            st.dataframe(h_df, use_container_width=True, hide_index=True)
+        else:
+            st.info("No history found in 'Audit Request' table.")
