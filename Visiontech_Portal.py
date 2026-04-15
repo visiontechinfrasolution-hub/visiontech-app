@@ -503,45 +503,49 @@ with tab_audit:
     t1, t2 = st.tabs(["➕ Create Entry", "📜 History"])
 
     with t1:
-        # Step 1: Dropdowns setup (Keep them OUTSIDE the form)
-        c_top1, c_top2 = st.columns(2)
-        
+        # Step 1: Dropdowns
         p_ids = [""]
         if not m_df.empty: p_ids += sorted(m_df["PROJECT ID"].unique().tolist())
-        sel_pid = c_top1.selectbox("🔍 Step 1: Select Project ID", p_ids)
+        sel_pid = st.selectbox("🔍 Step 1: Select Project ID", p_ids)
         
         user_names = [""]
         if not u_df.empty: user_names += sorted(u_df["name"].tolist())
-        sel_rep = c_top2.selectbox("👤 Step 2: Select Representative", user_names)
+        sel_rep = st.selectbox("👤 Step 2: Select Representative", user_names)
 
-        # Step 2: Independent Auto-fill Logic
+        # Step 2: Super-Logic (Bina Column Name ke data nikalna)
         s_info, rep_mob, lat_val, long_val = {}, "", "", ""
         
-        # --- A. Fetch Project & Site ID ---
+        # --- A. Master Data Lookup ---
         if sel_pid and not m_df.empty:
             s_info = m_df[m_df["PROJECT ID"] == sel_pid].iloc[0].to_dict()
             cur_site_id = str(s_info.get("SITE ID", "")).strip().upper()
 
-            # --- B. Fetch Lat/Long (Independent Block) ---
+            # --- B. Lat/Long Lookup (Index based fallback) ---
             if cur_site_id and not ind_df.empty:
-                # Direct Match logic
+                # Cleaning ind_df Site ID column
+                # Hum maan ke chal rahe hain 1st column Site ID hai, 2nd Lat, 3rd Long
                 temp_ind = ind_df.copy()
-                temp_ind['Site ID'] = temp_ind['Site ID'].astype(str).str.strip().str.upper()
-                match_ind = temp_ind[temp_ind['Site ID'] == cur_site_id]
+                # Pehla column jo bhi ho use Site ID maan kar match karna
+                match_ind = temp_ind[temp_ind.iloc[:, 0].astype(str).str.strip().str.upper() == cur_site_id]
+                
                 if not match_ind.empty:
-                    lat_val = str(match_ind.iloc[0].get('Lat', ''))
-                    long_val = str(match_ind.iloc[0].get('Long', ''))
+                    # Agar 'Lat' 'Long' naam se nahi mil raha, toh column position se uthayega
+                    lat_val = str(match_ind.iloc[0].get('Lat', match_ind.iloc[0, 1]))
+                    long_val = str(match_ind.iloc[0].get('Long', match_ind.iloc[0, 2]))
 
-        # --- C. Fetch Mobile (Independent Block) ---
+        # --- C. Mobile Lookup (Flexible) ---
         if sel_rep and not u_df.empty:
-            temp_u = u_df.copy()
-            temp_u['name'] = temp_u['name'].astype(str).str.strip()
-            match_u = temp_u[temp_u['name'] == str(sel_rep).strip()]
+            match_u = u_df[u_df["name"].astype(str).str.strip() == str(sel_rep).strip()]
             if not match_u.empty:
-                rep_mob = str(match_u.iloc[0].get('mobile', ''))
+                # Agar 'mobile' naam se column nahi mil raha, toh 'mobile' keyword wala column dhundega
+                mob_col = [c for c in u_df.columns if 'mob' in c.lower()]
+                if mob_col:
+                    rep_mob = str(match_u.iloc[0][mob_col[0]])
+                else:
+                    rep_mob = str(match_u.iloc[0].get('mobile', ''))
 
         # --- STEP 3: THE FORM ---
-        with st.form("audit_form_v5", clear_on_submit=True):
+        with st.form("audit_form_v_final", clear_on_submit=True):
             col1, col2, col3 = st.columns(3)
             f = {}
             f["Circle"] = col1.text_input("Circle", value="Maharashtra")
@@ -577,7 +581,7 @@ with tab_audit:
                 if sel_pid:
                     try:
                         supabase.table("Audit Request").insert(f).execute()
-                        st.success("✅ Entry Saved!")
+                        st.success(f"✅ Entry Saved!")
                         st.rerun()
                     except Exception as e: st.error(f"Save Error: {e}")
                 else: st.warning("⚠️ Pehle Project ID select karein.")
