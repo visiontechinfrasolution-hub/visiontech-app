@@ -480,7 +480,7 @@ with tab6:
             st.dataframe(df_d[['po_number', 'line_no', 'item_number', 'qty', 'amount', 'project_name', 'site_id']], use_container_width=True, hide_index=True)
 
 # =====================================================================
-# 📝 TAB 8: FINAL AUDIT PORTAL (LAT/LONG FIXED VERSION)
+# 📝 TAB 8: FINAL AUDIT PORTAL (STABLE LAT/LONG + GMAIL SMTP)
 # =====================================================================
 with tab_audit:
     st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Audit Management Portal</h3>", unsafe_allow_html=True)
@@ -501,22 +501,20 @@ with tab_audit:
     with t1:
         c_top1, c_top2 = st.columns(2)
         p_ids = [""] + sorted(m_df["PROJECT ID"].unique().tolist()) if not m_df.empty else [""]
-        sel_pid = c_top1.selectbox("🔍 Step 1: Select Project ID", p_ids, key="audit_v800_pid")
+        sel_pid = c_top1.selectbox("🔍 Step 1: Select Project ID", p_ids, key="audit_final_stable_pid")
         
         user_names = [""] + sorted(u_df["name"].tolist()) if not u_df.empty else [""]
-        sel_rep = c_top2.selectbox("👤 Step 2: Select Representative", user_names, key="audit_v800_rep")
+        sel_rep = c_top2.selectbox("👤 Step 2: Select Representative", user_names, key="audit_final_stable_rep")
 
-        # --- STEP 2: PRECISE AUTO-FILL (Wahi Logic jo pehle chala tha) ---
+        # --- STEP 2: PRECISE AUTO-FILL (Working Logic) ---
         s_info, rep_mob, lat_val, long_val, linked_sid = {}, "", "", "", ""
         today_dt = datetime.now().strftime("%d-%b-%Y")
         tomorrow_dt = (datetime.now() + timedelta(days=1)).strftime("%d-%b-%Y")
         
         if sel_pid and not m_df.empty:
-            # 1. Project ID se Site Details nikalna
             s_info = m_df[m_df["PROJECT ID"] == sel_pid].iloc[0].to_dict()
             linked_sid = str(s_info.get("SITE ID", "")).strip()
             
-            # 2. Direct Query to 'Indus_Coordinates' for Lat/Long
             if linked_sid:
                 try:
                     res_coord = supabase.table("Indus_Coordinates").select("Lat", "Long").eq("Site ID", linked_sid).execute()
@@ -527,14 +525,13 @@ with tab_audit:
                 except Exception as e:
                     st.caption(f"Note: Coordinate fetch error: {e}")
 
-        # 3. Representative Mobile Lookup
         if sel_rep and not u_df.empty:
             match_u = u_df[u_df["name"].astype(str).str.strip() == str(sel_rep).strip()]
             if not match_u.empty:
                 rep_mob = str(match_u.iloc[0].get('phone_number', ''))
 
         # --- STEP 3: THE FORM ---
-        with st.form("audit_v800_form"):
+        with st.form("audit_stable_form"):
             col1, col2, col3 = st.columns(3)
             f = {}
             f["Circle"] = col1.text_input("Circle", value="Maharashtra")
@@ -564,7 +561,7 @@ with tab_audit:
             f["Long"] = col2.text_input("Longitude", value=long_val)
             f["Actual Audit date"] = col3.text_input("Actual Audit date", value=tomorrow_dt)
 
-            # Hidden Mapping
+            # Hidden/Static Mapping
             f["Stage"], f["Audit Agency Name"], f["TSP Name"] = "", "", "Visiontech"
             f["Actual Audit Time"] = tomorrow_dt
             f["Audit Engineer Name"], f["Contact Details."] = "", ""
@@ -577,15 +574,15 @@ with tab_audit:
                 if sel_pid and f["Lat"] != "":
                     st.session_state.audit_queue.append(f.copy())
                     st.toast(f"✅ Added {linked_sid}")
-                else: st.error("Lat/Long box khali hai!")
+                else: st.error("Lat/Long empty!")
 
-        # --- QUEUE & SUBMIT ---
+        # --- STEP 4: QUEUE & GMAIL SUBMISSION ---
         if st.session_state.audit_queue:
             st.divider()
             q_df = pd.DataFrame(st.session_state.audit_queue)
             st.table(q_df[["Indus ID", "Ref. No.", "Lat", "Long"]])
 
-            if st.button("📧 Submit & Send Combined Gmail", type="primary"):
+            if st.button("📧 Submit & Send Combined Gmail", type="primary", use_container_width=True):
                 try:
                     # Sync DB Schema
                     cols_res = supabase.table("Audit Request").select("*").limit(1).execute()
@@ -601,11 +598,12 @@ with tab_audit:
                             if "compliance photographs" in clow: temp[col] = temp.pop("TSP Shared Compliance Photographs during audit Offerance (yes / No)", "yes")
                         final_save.append(temp)
 
+                    # Save to DB
                     supabase.table("Audit Request").insert(final_save).execute()
                     
-                    # Send Gmail via wpiw vkys mblb tunw
+                    # Send Gmail via App Password
                     if send_professional_email(pd.DataFrame(st.session_state.audit_queue)):
-                        st.success("Sent Successfully!")
+                        st.success("🚀 Success! Database Updated & Gmail Sent.")
                         st.session_state.audit_queue = []
                         st.rerun()
                 except Exception as e: st.error(f"Error: {e}")
