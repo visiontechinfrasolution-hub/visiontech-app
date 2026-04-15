@@ -520,6 +520,7 @@ with tab_audit:
         sel_rep = c_top2.selectbox("👤 Step 2: Select Representative", user_names, key="audit_v700_rep")
 
         # --- AUTO-FILL LOGIC ---
+# --- AUTO-FILL LOGIC (SUPER STABLE MATCHER) ---
         s_info, rep_mob, lat_val, long_val, linked_sid = {}, "", "", "", ""
         today_dt = datetime.now().strftime("%d-%b-%Y")
         tomorrow_dt = (datetime.now() + timedelta(days=1)).strftime("%d-%b-%Y")
@@ -528,23 +529,30 @@ with tab_audit:
             s_match = m_df[m_df["PROJECT ID"] == sel_pid]
             if not s_match.empty:
                 s_info = s_match.iloc[0].to_dict()
-                linked_sid = str(s_info.get("SITE ID", "")).strip()
+                # Site ID ko ekdam saaf (clean) karein
+                linked_sid = str(s_info.get("SITE ID", "")).strip().upper()
                 
-                # --- MATCHING LOGIC ---
                 if linked_sid and not ind_df.empty:
-                    # 'Site ID' column name exact match check (Case sensitive)
-                    # Agar column ka naam 'Site ID' ki jagah kuch aur hai toh change karein
-                    col_name = "Site ID" if "Site ID" in ind_df.columns else ind_df.columns[0]
+                    # --- UNIVERSAL MATCHER LOGIC ---
+                    # 1. Database ke columns check karein
+                    pos_id_cols = ["Site ID", "SITE ID", "site_id", "SiteID"]
+                    actual_col = next((c for c in pos_id_cols if c in ind_df.columns), ind_df.columns[0])
                     
-                    ind_df["TEMP_MATCH"] = ind_df[col_name].astype(str).str.strip().str.upper()
-                    match_coord = ind_df[ind_df["TEMP_MATCH"] == linked_sid.upper()]
+                    # 2. Dono taraf ke data ko 'Clean String' mein convert karein
+                    # Taki spaces aur data-type ka lafda khatam ho jaye
+                    ind_df["CLEAN_ID"] = ind_df[actual_col].astype(str).str.strip().str.upper()
+                    
+                    # 3. Exact Match dhoondhein
+                    match_coord = ind_df[ind_df["CLEAN_ID"] == linked_sid]
                     
                     if not match_coord.empty:
                         lat_val = str(match_coord.iloc[0].get('Lat', ''))
                         long_val = str(match_coord.iloc[0].get('Long', ''))
-                        st.success(f"📍 Coordinates Found for {linked_sid}!")
+                        st.toast(f"✅ Found Coordinates for {linked_sid}", icon="📍")
                     else:
-                        st.warning(f"⚠️ {linked_sid} nahi mila. Table mein IDs: {ind_df[col_name].head().tolist()}...")
+                        # 4. Agar fir bhi na mile, toh screen par dikhao ki system kya dhoond raha hai
+                        st.sidebar.error(f"Debug: Dhoond raha hoon '{linked_sid}'")
+                        st.sidebar.write("Table mein maujood IDs:", ind_df["CLEAN_ID"].head(5).tolist())
 
         if sel_rep and not u_df.empty:
             match_u = u_df[u_df["name"] == sel_rep]
