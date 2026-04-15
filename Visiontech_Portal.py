@@ -482,52 +482,58 @@ with tab6:
 with tab_audit:
     st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Audit Management Portal</h3>", unsafe_allow_html=True)
     
-    # --- 1. DATA LOADING ---
+    # --- 1. DATA LOADING (Force Refresh) ---
     m_df, u_df, ind_df, h_df = pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
     try:
         m_df = pd.DataFrame(supabase.table("VIS Portal Site Data").select('*').execute().data)
         u_df = pd.DataFrame(supabase.table("allowed_users").select("*").execute().data)
-        ind_df = pd.DataFrame(supabase.table("Indus Data").select("*").execute().data)
+        # Indus Data ko pure scan ke liye fetch kar rahe hain
+        ind_res = supabase.table("Indus Data").select("*").execute()
+        if ind_res.data:
+            ind_df = pd.DataFrame(ind_res.data)
         h_df = pd.DataFrame(supabase.table("Audit Request").select("*").order("created_at", desc=True).execute().data)
-    except: pass
+    except Exception as e:
+        st.error(f"Data Load Error: {e}")
 
     t1, t2 = st.tabs(["➕ Create Entry", "📜 History"])
 
     with t1:
-        # Step 1: Dropdowns
         c_top1, c_top2 = st.columns(2)
-        
         p_ids = [""] + sorted(m_df["PROJECT ID"].unique().tolist()) if not m_df.empty else [""]
-        sel_pid = c_top1.selectbox("🔍 Step 1: Select Project ID (Ref. No.)", p_ids, key="final_p_id")
+        sel_pid = c_top1.selectbox("🔍 Step 1: Select Project ID", p_ids, key="final_p_id_v21")
         
         user_names = [""] + sorted(u_df["name"].tolist()) if not u_df.empty else [""]
-        sel_rep = c_top2.selectbox("👤 Step 2: Select Representative", user_names, key="final_u_rep")
+        sel_rep = c_top2.selectbox("👤 Step 2: Select Representative", user_names, key="final_u_rep_v21")
 
-        # --- STEP 2: AUTO-FETCH LOGIC ---
+        # --- STEP 2: LOGIC ---
         s_info, rep_mob, lat_val, long_val, linked_sid = {}, "", "", "", ""
         
-        # Project Selection ke base par Site ID nikalna
         if sel_pid and not m_df.empty:
             s_info = m_df[m_df["PROJECT ID"] == sel_pid].iloc[0].to_dict()
             linked_sid = str(s_info.get("SITE ID", "")).strip()
             
-            # Aapki demand ke mutabiq chota info box:
             if linked_sid:
-                st.info(f"🔗 Linked Site ID for this Project: **{linked_sid}**")
+                st.caption(f"✅ Auto-detected Site ID: {linked_sid}") # Chota text dikhayega
             
-            # --- LAT/LONG LOOKUP (Using linked_sid directly) ---
+            # --- LAT/LONG FETCH (Independent Block) ---
             if linked_sid and not ind_df.empty:
-                # Cleaning ind_df Site ID column for matching
-                clean_sid = linked_sid.upper()
-                # Assuming first column of Indus Data is Site ID
-                match_ind = ind_df[ind_df.iloc[:, 0].astype(str).str.strip().str.upper() == clean_sid]
+                # 1. Sabhi columns clean karein
+                ind_df.columns = [str(c).strip() for c in ind_df.columns]
+                # 2. Site ID Match (Case Insensitive)
+                # Hum pehle column ko Site ID maan rahe hain (As per your previous screenshot)
+                match_ind = ind_df[ind_df.iloc[:, 0].astype(str).str.strip().str.upper() == linked_sid.upper()]
                 
                 if not match_ind.empty:
-                    # Search by Keyword
+                    # 3. Flexible Keyword Search
                     for col in ind_df.columns:
-                        c_low = str(col).lower().strip()
+                        c_low = str(col).lower()
                         if "lat" in c_low: lat_val = str(match_ind.iloc[0][col])
                         if "long" in c_low or "lng" in c_low: long_val = str(match_ind.iloc[0][col])
+                    
+                    # Agar abhi bhi empty hai, toh index fallback (Based on your screenshot sequence)
+                    if not lat_val and len(ind_df.columns) >= 3:
+                        lat_val = str(match_ind.iloc[0].get('Lat', ''))
+                        long_val = str(match_ind.iloc[0].get('Long', ''))
 
         # Mobile Lookup
         if sel_rep and not u_df.empty:
@@ -536,10 +542,9 @@ with tab_audit:
                 rep_mob = str(match_u.iloc[0].get('phone_number', ''))
 
         # --- STEP 3: THE FORM ---
-        with st.form("audit_final_form_v20", clear_on_submit=True):
+        with st.form("audit_final_form_v21", clear_on_submit=True):
             col1, col2, col3 = st.columns(3)
             f = {}
-            # Row 1
             f["Circle"] = col1.text_input("Circle", value="Maharashtra")
             f["Ref. No."] = col1.text_input("Project ID", value=sel_pid, disabled=True)
             f["Indus ID"] = col2.text_input("Indus ID", value=linked_sid)
@@ -547,27 +552,23 @@ with tab_audit:
             f["Site Add"] = col3.text_input("Site Add", value=s_info.get("CLUSTER", ""))
             f["Cluster / Zone"] = col3.text_input("Cluster / Zone", value=s_info.get("CLUSTER", ""))
             
-            # Row 2 (Dates)
             f["Date of Offerance in ISQ"] = col1.text_input("Offerance Date", value=datetime.now().strftime("%d-%b-%Y"))
             f["Date Of Audit Planned in ISQ"] = col2.text_input("Planned Audit Date", value=(datetime.now() + timedelta(days=1)).strftime("%d-%b-%Y"))
             f["ISQ Offerance Status(Y/N)"] = col3.selectbox("ISQ Offerance Status", ["Y", "N"])
 
-            # Row 3 (Tower Info)
             f["Project"] = col1.text_input("Project Name", value=s_info.get("PROJECT NAME", ""))
             f["Tower Type"] = col2.text_input("Tower Type", value="GBT")
             f["Tower Ht."] = col3.text_input("Tower Ht.", value="40 mtr")
 
-            # Row 4 (Manual)
             f["Stage"] = col1.text_input("Stage", value="") 
             f["Audit Agency Name"] = col2.text_input("Audit Agency Name", value="")
             f["TSP Name"] = col3.text_input("TSP Name", value="Visiontech")
 
-            # Row 5 (Rep Info)
             f["Representative Name"] = col1.text_input("Representative Name", value=sel_rep)
             f["Representative Contact Number"] = col2.text_input("Rep. Mobile", value=rep_mob)
             f["Actual ofference date"] = col3.text_input("Actual ofference date", value=datetime.now().strftime("%d-%b-%Y"))
 
-            # Row 6 (Coordinates - Lat/Long)
+            # Lat/Long (Final Auto-fill)
             f["Lat"] = col1.text_input("Latitude", value=lat_val)
             f["Long"] = col2.text_input("Longitude", value=long_val)
             f["Actual Audit date"] = col3.text_input("Actual Audit date", value=(datetime.now() + timedelta(days=1)).strftime("%d-%b-%Y"))
@@ -578,10 +579,10 @@ with tab_audit:
                 if sel_pid:
                     try:
                         supabase.table("Audit Request").insert(f).execute()
-                        st.success("✅ Saved Successfully!")
+                        st.success("✅ Saved!")
                         st.rerun()
-                    except Exception as e: st.error(f"Save Error: {e}")
-                else: st.warning("Pehle Project ID select karein.")
+                    except Exception as e: st.error(f"Error: {e}")
+                else: st.warning("Select Project ID first.")
 
     with t2:
         if not h_df.empty:
