@@ -15,7 +15,7 @@ supabase = create_client(URL, KEY)
 def send_professional_email(selected_df):
     # --- CONFIGURATION (Sample setup) ---
     SENDER = "services@vispltower.com"  # Sender Email
-    PWD = "your-app-password"           # services@vispltower.com ka App Password yahan dalein
+    PWD = "Bhavikajaju@123"           # services@vispltower.com ka App Password yahan dalein
     RECEIVER = "vispltower@gmail.com"   # Sample Receiver
     CC = "visiontechinfrasolution@gmail.com" # Sample CC
     
