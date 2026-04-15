@@ -526,33 +526,31 @@ with tab_audit:
         if not u_df.empty: u_names += sorted(u_df["name"].tolist())
         sel_rep = c_top2.selectbox("👤 Step 2: Select Representative", u_names, key="audit_u_v30")
 
-        # --- STEP 2: AUTO-FILL LOGIC ---
+# --- STEP 2: PRECISE AUTO-FILL (Using NEW Table 'Indus_Coordinates') ---
         s_info, rep_mob, lat_val, long_val, linked_sid = {}, "", "", "", ""
         
         if sel_pid and not m_df.empty:
+            # 1. VIS Portal se Project details nikalna
             s_info = m_df[m_df["PROJECT ID"] == sel_pid].iloc[0].to_dict()
             linked_sid = str(s_info.get("SITE ID", "")).strip()
             
-            # Lat/Long Match Logic
-            if linked_sid and not ind_df.empty:
-                ind_df.columns = [str(c).strip() for c in ind_df.columns]
-                # Flexible Search: Full ID ya sirf Digits match
-                only_digits = ''.join(filter(str.isdigit, linked_sid))
-                
-                match_ind = ind_df[
-                    (ind_df.iloc[:, 0].astype(str).str.contains(linked_sid, case=False, na=False)) | 
-                    (ind_df.iloc[:, 0].astype(str).str.contains(only_digits, case=False, na=False))
-                ]
-                
-                if not match_ind.empty:
-                    for col in ind_df.columns:
-                        c_low = str(col).lower()
-                        if "lat" in c_low: lat_val = str(match_ind.iloc[0][col])
-                        if "long" in c_low or "lng" in c_low: long_val = str(match_ind.iloc[0][col])
-
-        # Mobile Match
+            # 2. Lat/Long Fetch from NEW table
+            if linked_sid:
+                try:
+                    # Seedha naye table 'Indus_Coordinates' se fetch karein
+                    res_coord = supabase.table("Indus_Coordinates").select("Lat", "Long").eq("Site ID", linked_sid).execute()
+                    
+                    if res_coord.data:
+                        match = res_coord.data[0]
+                        lat_val = str(match.get("Lat", ""))
+                        long_val = str(match.get("Long", ""))
+                except Exception as e:
+                    # Agar naya table na mile toh purane table par fallback karein (Just in case)
+                    st.caption(f"Note: Fetching coordinates from fallback...")
+        
+        # 3. Mobile Lookup (Sahi wala column 'phone_number')
         if sel_rep and not u_df.empty:
-            match_u = u_df[u_df["name"] == sel_rep]
+            match_u = u_df[u_df["name"].astype(str).str.strip() == str(sel_rep).strip()]
             if not match_u.empty:
                 rep_mob = str(match_u.iloc[0].get('phone_number', ''))
 
