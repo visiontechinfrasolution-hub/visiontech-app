@@ -483,20 +483,18 @@ with tab_audit:
     st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Audit Management Portal</h3>", unsafe_allow_html=True)
     
     # --- 1. DATA LOADING ---
-    m_df, u_df, ind_df, h_df = pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
-
     try:
         res_m = supabase.table("VIS Portal Site Data").select('*').execute()
-        if res_m.data: m_df = pd.DataFrame(res_m.data)
+        m_df = pd.DataFrame(res_m.data) if res_m.data else pd.DataFrame()
         
         res_u = supabase.table("allowed_users").select("*").execute()
-        if res_u.data: u_df = pd.DataFrame(res_u.data)
+        u_df = pd.DataFrame(res_u.data) if res_u.data else pd.DataFrame()
         
         res_ind = supabase.table("Indus Data").select("*").execute()
-        if res_ind.data: ind_df = pd.DataFrame(res_ind.data)
+        ind_df = pd.DataFrame(res_ind.data) if res_ind.data else pd.DataFrame()
 
         res_h = supabase.table("Audit Request").select("*").order("created_at", desc=True).execute()
-        if res_h.data: h_df = pd.DataFrame(res_h.data)
+        h_df = pd.DataFrame(res_h.data) if res_h.data else pd.DataFrame()
     except Exception as e:
         st.error(f"Sync Error: {e}")
 
@@ -504,52 +502,46 @@ with tab_audit:
 
     with t1:
         # Step 1: Dropdowns
-        p_ids = [""]
-        if not m_df.empty: p_ids += sorted(m_df["PROJECT ID"].unique().tolist())
-        sel_pid = st.selectbox("🔍 Step 1: Select Project ID", p_ids)
+        c_top1, c_top2 = st.columns(2)
         
-        user_names = [""]
-        if not u_df.empty: user_names += sorted(u_df["name"].tolist())
-        sel_rep = st.selectbox("👤 Step 2: Select Representative", user_names)
+        # Project Selection
+        p_ids = [""] + sorted(m_df["PROJECT ID"].unique().tolist()) if not m_df.empty else [""]
+        sel_pid = c_top1.selectbox("🔍 Step 1: Select Project ID", p_ids, key="audit_pid")
+        
+        # Representative Selection
+        user_names = [""] + sorted(u_df["name"].tolist()) if not u_df.empty else [""]
+        sel_rep = c_top2.selectbox("👤 Step 2: Select Representative", user_names, key="audit_rep")
 
-        # Step 2: Super-Logic (Bina Column Name ke data nikalna)
+        # --- STEP 2: INDEPENDENT LOOKUP LOGIC ---
         s_info, rep_mob, lat_val, long_val = {}, "", "", ""
         
-        # --- A. Master Data Lookup ---
+        # Mobile Lookup (Direct Search in DataFrame)
+        if sel_rep and not u_df.empty:
+            match_user = u_df[u_df['name'].astype(str).str.strip() == str(sel_rep).strip()]
+            if not match_user.empty:
+                # Column 'mobile' ya index 1 (agar spelling galat ho)
+                rep_mob = str(match_user.iloc[0].get('mobile', match_user.iloc[0, 1] if len(match_user.columns) > 1 else ""))
+
+        # Lat/Long Lookup
         if sel_pid and not m_df.empty:
             s_info = m_df[m_df["PROJECT ID"] == sel_pid].iloc[0].to_dict()
-            cur_site_id = str(s_info.get("SITE ID", "")).strip().upper()
-
-            # --- B. Lat/Long Lookup (Index based fallback) ---
-            if cur_site_id and not ind_df.empty:
-                # Cleaning ind_df Site ID column
-                # Hum maan ke chal rahe hain 1st column Site ID hai, 2nd Lat, 3rd Long
-                temp_ind = ind_df.copy()
-                # Pehla column jo bhi ho use Site ID maan kar match karna
-                match_ind = temp_ind[temp_ind.iloc[:, 0].astype(str).str.strip().str.upper() == cur_site_id]
-                
+            cur_sid = str(s_info.get("SITE ID", "")).strip().upper()
+            
+            if cur_sid and not ind_df.empty:
+                # Column indexing se search (Tension free logic)
+                # Hum pehle column ko Site ID maan rahe hain
+                match_ind = ind_df[ind_df.iloc[:, 0].astype(str).str.strip().str.upper() == cur_sid]
                 if not match_ind.empty:
-                    # Agar 'Lat' 'Long' naam se nahi mil raha, toh column position se uthayega
+                    # Column 2 aur 3 ko Lat/Long maan rahe hain fallback ke liye
                     lat_val = str(match_ind.iloc[0].get('Lat', match_ind.iloc[0, 1]))
                     long_val = str(match_ind.iloc[0].get('Long', match_ind.iloc[0, 2]))
 
-        # --- C. Mobile Lookup (Flexible) ---
-        if sel_rep and not u_df.empty:
-            match_u = u_df[u_df["name"].astype(str).str.strip() == str(sel_rep).strip()]
-            if not match_u.empty:
-                # Agar 'mobile' naam se column nahi mil raha, toh 'mobile' keyword wala column dhundega
-                mob_col = [c for c in u_df.columns if 'mob' in c.lower()]
-                if mob_col:
-                    rep_mob = str(match_u.iloc[0][mob_col[0]])
-                else:
-                    rep_mob = str(match_u.iloc[0].get('mobile', ''))
-
         # --- STEP 3: THE FORM ---
-        with st.form("audit_form_v_final", clear_on_submit=True):
+        with st.form("audit_v7_form"):
             col1, col2, col3 = st.columns(3)
             f = {}
             f["Circle"] = col1.text_input("Circle", value="Maharashtra")
-            f["Ref. No."] = col1.text_input("Project ID (Ref No)", value=sel_pid, disabled=True)
+            f["Ref. No."] = col1.text_input("Project ID", value=sel_pid, disabled=True)
             f["Indus ID"] = col2.text_input("Indus ID", value=s_info.get("SITE ID", ""))
             f["Site Name"] = col2.text_input("Site Name", value=s_info.get("SITE NAME", ""))
             f["Site Add"] = col3.text_input("Site Add", value=s_info.get("CLUSTER", ""))
@@ -577,14 +569,18 @@ with tab_audit:
 
             f["Mail Status"], f["Mail Sent Date"] = "Pending", "-"
 
-            if st.form_submit_button("🚀 Save Audit Data"):
+            # --- SUBMIT BUTTON ---
+            sub_btn = st.form_submit_button("🚀 Save Audit Entry")
+            if sub_btn:
                 if sel_pid:
                     try:
                         supabase.table("Audit Request").insert(f).execute()
-                        st.success(f"✅ Entry Saved!")
+                        st.success("✅ Entry Saved Successfully!")
                         st.rerun()
-                    except Exception as e: st.error(f"Save Error: {e}")
-                else: st.warning("⚠️ Pehle Project ID select karein.")
+                    except Exception as e:
+                        st.error(f"Save Error: {e}")
+                else:
+                    st.warning("Pehle Project ID select karein.")
 
     with t2:
         if not h_df.empty:
