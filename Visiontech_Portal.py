@@ -130,10 +130,9 @@ with tab4:
             if res_ind.data: st.dataframe(pd.DataFrame(res_ind.data))
 
 # =====================================================================
-# 📡 TAB 5: WCC TRACKER (RESTORED ORIGINAL COMPACT FORMAT)
+# 📡 TAB 5: WCC TRACKER (SIMPLE FETCH & COMPACT FORMAT)
 # =====================================================================
 with tab_wcc:
-    # --- UI STYLING FOR WCC TABLE ---
     st.markdown("""
         <style>
             .site-badge { 
@@ -144,18 +143,18 @@ with tab_wcc:
                 background-color: #25D366; color: white !important; padding: 4px 8px; 
                 border-radius: 6px; font-weight: bold; text-decoration: none; font-size: 12px;
             }
-            .edit-btn-style { font-size: 14px; cursor: pointer; }
-            
-            /* Table Centering */
             [data-testid="column"] { display: flex; align-items: center; justify-content: center; }
         </style>
     """, unsafe_allow_html=True)
 
-    def fetch_wcc_data():
+    def fetch_wcc_data_simple():
         try: 
-            res = supabase.table("WCC Status").select("*").order("created_at", desc=True).execute()
+            # Simple select bina kisi order ke taaki agar column missing ho toh crash na ho
+            res = supabase.table("WCC Status").select("*").execute()
             return res.data
-        except: return []
+        except Exception as e:
+            st.error(f"Fetch Error: {e}")
+            return []
 
     def update_wcc_record(payload):
         try: return supabase.table("WCC Status").upsert(payload).execute()
@@ -166,7 +165,7 @@ with tab_wcc:
     if "wcc_role" not in st.session_state: st.session_state.wcc_role = None
     
     if not st.session_state.wcc_role:
-        pwd_input = st.text_input("Enter Password:", type="password", key="wcc_login_pwd")
+        pwd_input = st.text_input("Enter Password:", type="password", key="wcc_login_pwd_v2")
         if st.button("🔓 Unlock Tracker"):
             if pwd_input == "Vision@321": st.session_state.wcc_role = "requester"
             elif pwd_input == "Account@321": st.session_state.wcc_role = "accountant"
@@ -175,11 +174,10 @@ with tab_wcc:
     else:
         role = st.session_state.wcc_role
         
-        # --- ORIGINAL MODAL DIALOG ---
         @st.dialog("📝 WCC Details Form", width="large")
         def wcc_edit_modal(row_data=None):
             is_edit = row_data is not None
-            with st.form("wcc_form_original_logic"):
+            with st.form("wcc_form_v25"):
                 if role == "requester":
                     c1, c2 = st.columns(2)
                     v_proj = c1.text_input("Project", value=str(row_data.get("Project", "")) if is_edit else "")
@@ -189,11 +187,7 @@ with tab_wcc:
                     v_snm = c4.text_input("Site Name", value=str(row_data.get("Site Name", "")) if is_edit else "")
                     c5, c6 = st.columns(2)
                     v_po = c5.text_input("PO Number", value=str(row_data.get("PO Number", "")) if is_edit else "")
-                    d_init = datetime.now().date()
-                    if is_edit and row_data.get("Reqeust Date"):
-                        try: d_init = pd.to_datetime(row_data.get("Reqeust Date")).date()
-                        except: pass
-                    v_dt = st.date_input("Request Date", value=d_init)
+                    v_dt = st.date_input("Request Date", value=datetime.now().date())
                     v_sts = st.selectbox("WCC Status", ["Creation Pending", "Pending for Approval", "Proceed", "Rejected", "Cancel"], 
                                          index=0 if not is_edit else ["Creation Pending", "Pending for Approval", "Proceed", "Rejected", "Cancel"].index(row_data.get("WCC Status", "Creation Pending")))
                     v_wno = row_data.get("WCC Number") if is_edit else None 
@@ -208,7 +202,7 @@ with tab_wcc:
                         payload.update({"Project": v_proj, "Site ID": v_sid, "Site Name": v_snm, "PO Number": clean_id(v_po), "Reqeust Date": str(v_dt), "WCC Status": v_sts})
                     if update_wcc_record(payload): st.rerun()
 
-        data_list = fetch_wcc_data()
+        data_list = fetch_wcc_data_simple()
         df_wcc = pd.DataFrame(data_list) if data_list else pd.DataFrame()
         
         if role == "requester":
@@ -227,8 +221,6 @@ with tab_wcc:
             # --- TABLE ROWS ---
             for i, row in df_wcc.iterrows():
                 r_cols = st.columns([1, 0.5, 1.2, 1.5, 1, 1.2, 1, 1.2])
-                
-                # Actions: Edit & WhatsApp
                 with r_cols[0]:
                     b1, b2 = st.columns(2)
                     if b1.button("✏️", key=f"edit_{row['Project ID']}_{i}"): wcc_edit_modal(row)
@@ -257,7 +249,7 @@ with tab_wcc:
                 r_cols[7].markdown(f"<p style='font-size:12px; text-align:center;'>{row.get('WCC Status', '')}</p>", unsafe_allow_html=True)
                 st.markdown("<hr style='margin:1px 0px; border-top: 1px solid #E5E7EB;'>", unsafe_allow_html=True)
         else:
-            st.info("No records found in WCC Status.")
+            st.info("No records found in WCC Status. Please click 'Add New Site Request' to create one.")
 
 # =====================================================================
 # 📁 TAB 6: DATA ENTRY (DOCUMENT CENTER)
