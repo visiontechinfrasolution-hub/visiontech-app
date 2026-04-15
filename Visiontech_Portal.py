@@ -405,103 +405,123 @@ with tab6:
             st.dataframe(df_d[['po_number', 'line_no', 'item_number', 'qty', 'amount', 'project_name', 'site_id']], use_container_width=True, hide_index=True)
 
 # =====================================================================
-# 📝 TAB: AUDIT PORTAL (FULL FORM & TRACKING)
+# 📝 TAB: AUDIT PORTAL (SMART AUTO-FILL FORM)
 # =====================================================================
 with tab_audit:
-    st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Professional Audit Management</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Smart Audit Request Form</h3>", unsafe_allow_html=True)
     
-    # --- 1. DATA FETCH ---
-    res_master = supabase.table("VIS Portal Site Data").select("*").execute()
+    # --- 1. DATA FETCHING FOR DROPDOWNS ---
+    # Fetch Master Site Data
+    res_master = supabase.table("VIS Portal Site Data").select("PROJECT ID, SITE ID, SITE NAME, CLUSTER").execute()
     m_df = pd.DataFrame(res_master.data) if res_master.data else pd.DataFrame()
 
+    # Fetch Allowed Users (Supervisors)
+    res_users = supabase.table("allowed_users").select("name, mobile").execute()
+    u_df = pd.DataFrame(res_users.data) if res_users.data else pd.DataFrame()
+
+    # Fetch Audit History
     res_audit = supabase.table("Audit Request").select("*").order("created_at", desc=True).execute()
     a_df = pd.DataFrame(res_audit.data) if res_audit.data else pd.DataFrame()
 
-    t1, t2 = st.tabs(["➕ Create Audit Entry", "📜 History & Dispatch"])
+    t1, t2 = st.tabs(["➕ New Audit Entry", "📜 History & Tracking"])
 
     with t1:
         if not m_df.empty:
-            # Step 1: Select Site from Master Data
-            p_ids = [""] + m_df["PROJECT ID"].unique().tolist()
-            sel_pid = st.selectbox("🔍 Select PROJECT ID to Auto-Fill Data", p_ids)
+            # Dropdown for Ref. No (Project ID) with search capability
+            p_ids = [""] + sorted(m_df["PROJECT ID"].unique().tolist())
+            sel_pid = st.selectbox("🔍 Select Ref. No. (Project ID)", p_ids, help="Aap type karke bhi search kar sakte hain")
 
-            # Auto-fill logic from Master Data
+            # Logic to fetch auto-fill data
             s_info = {}
+            lat_val, long_val = "", ""
+            
             if sel_pid:
+                # Get basic info from VIS Portal Site Data
                 s_info = m_df[m_df["PROJECT ID"] == sel_pid].iloc[0].to_dict()
-
-            # Step 2: The Full Form (All 27 Columns)
-            with st.form("full_audit_form", clear_on_submit=True):
-                st.write("### Audit Site Details")
+                site_id_for_lat = s_info.get("SITE ID", "")
                 
-                # Hum 3 columns mein form divide kar rahe hain
-                col1, col2, col3 = st.columns(3)
+                # Fetch Lat/Long from Indus Data table based on Site ID
+                if site_id_for_lat:
+                    res_latlong = supabase.table("Indus Data").select("Lat, Long").eq("Site ID", site_id_for_lat).execute()
+                    if res_latlong.data:
+                        lat_val = res_latlong.data[0].get("Lat", "")
+                        long_val = res_latlong.data[0].get("Long", "")
+
+            # --- FORM START ---
+            with st.form("smart_audit_form", clear_on_submit=True):
+                c1, c2, c3 = st.columns(3)
                 
                 f_data = {}
-                # Mapping Master Data to Form Fields
-                f_data["Circle"] = col1.text_input("Circle", value=s_info.get("OPERATOR", ""))
-                f_data["Ref. No."] = col2.text_input("Ref. No.", value=s_info.get("PO NO.", ""))
-                f_data["Indus ID"] = col3.text_input("Indus ID", value=s_info.get("SITE ID", ""))
                 
-                f_data["Site Name"] = col1.text_input("Site Name", value=s_info.get("SITE NAME", ""))
-                f_data["Site Add"] = col2.text_input("Site Add", value=s_info.get("SITE NAME", "")) # Adjust if you have Add column
-                f_data["Cluster / Zone"] = col3.text_input("Cluster / Zone", value=s_info.get("CLUSTER", ""))
+                # Column 1
+                f_data["Circle"] = c1.text_input("Circle", value="Maharashtra")
+                f_data["Ref. No."] = c1.text_input("Selected Project ID", value=sel_pid, disabled=True)
+                f_data["Indus ID"] = c1.text_input("Indus ID", value=s_info.get("SITE ID", ""))
+                f_data["Site Name"] = c1.text_input("Site Name", value=s_info.get("SITE NAME", ""))
                 
-                f_data["Date of Offerance in ISQ"] = col1.text_input("Date of Offerance in ISQ")
-                f_data["Date Of Audit Planned in ISQ"] = col2.text_input("Date Of Audit Planned in ISQ")
-                f_data["ISQ Offerance Status(Y/N)"] = col3.selectbox("ISQ Offerance Status", ["Y", "N"])
-                
-                f_data["Documents uploaded in ISQ(Y/N)"] = col1.selectbox("Documents uploaded in ISQ", ["Y", "N"])
-                f_data["TSP Shared Filled checklist during Offerance for audit (Yes / No)"] = col2.selectbox("TSP Checklist Shared?", ["Yes", "No"])
-                f_data["TSP Shared Compliance Photographs during audit Offerance (yes / No)"] = col3.selectbox("TSP Photos Shared?", ["Yes", "No"])
-                
-                f_data["Project"] = col1.text_input("Project", value=s_info.get("PROJECT NAME", ""))
-                f_data["Tower Type"] = col2.text_input("Tower Type", value=s_info.get("PRODUCT", ""))
-                f_data["Tower Ht."] = col3.text_input("Tower Ht.")
-                
-                f_data["Stage"] = col1.text_input("Stage", value=s_info.get("SITE STATUS", ""))
-                f_data["TSP Name"] = col2.text_input("TSP Name", value="Visiontech")
-                f_data["Audit Agency Name"] = col3.text_input("Audit Agency Name")
-                
-                f_data["Representative Name"] = col1.text_input("Representative Name", value="Dinesh")
-                f_data["Representative Contact Number"] = col2.text_input("Representative Contact Number", value="93074 44270")
-                f_data["Actual ofference date"] = col3.text_input("Actual ofference date")
-                
-                f_data["Audit Engineer Name"] = col1.text_input("Audit Engineer Name")
-                f_data["Contact Details."] = col2.text_input("Contact Details.")
-                f_data["Actual Audit date"] = col3.text_input("Actual Audit date")
-                
-                f_data["Actual Audit Time"] = col1.text_input("Actual Audit Time", value="10:00 AM")
-                f_data["Lat"] = col2.text_input("Lat", value=s_info.get("Lat", ""))
-                f_data["Long"] = col3.text_input("Long", value=s_info.get("Long", ""))
+                # Column 2
+                f_data["Site Add"] = c2.text_input("Site Add", value=s_info.get("CLUSTER", ""))
+                f_data["Cluster / Zone"] = c2.text_input("Cluster / Zone", value=s_info.get("CLUSTER", ""))
+                f_data["Date of Offerance in ISQ"] = c2.text_input("Date of Offerance in ISQ", value=datetime.now().strftime("%d-%b-%Y"))
+                f_data["Date Of Audit Planned in ISQ"] = c2.text_input("Date Of Audit Planned in ISQ", value=(datetime.now() + timedelta(days=1)).strftime("%d-%b-%Y"))
 
-                if st.form_submit_button("🚀 Save Audit Entry"):
-                    try:
-                        supabase.table("Audit Request").insert(f_data).execute()
-                        st.success("✅ Site successfully saved for Audit!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Save Error: {e}")
+                # Column 3
+                f_data["Tower Type"] = c3.text_input("Tower Type", value="GBT")
+                f_data["Tower Ht."] = c3.text_input("Tower Ht.", value="40 mtr")
+                
+                # Supervisor logic
+                user_list = [""] + u_df["name"].tolist() if not u_df.empty else [""]
+                sel_user = c3.selectbox("Representative Name", user_list)
+                
+                user_mobile = ""
+                if sel_user:
+                    user_mobile = u_df[u_df["name"] == sel_user]["mobile"].iloc[0]
+                
+                f_data["Representative Name"] = sel_user
+                f_data["Representative Contact Number"] = c3.text_input("Representative Contact Number", value=user_mobile)
+
+                st.divider()
+                # Dates and Coordinates
+                d1, d2, d3, d4 = st.columns(4)
+                f_data["Actual ofference date"] = d1.text_input("Actual ofference date", value=datetime.now().strftime("%d-%b-%Y"))
+                f_data["Actual Audit date"] = d2.text_input("Actual Audit date", value=(datetime.now() + timedelta(days=1)).strftime("%d-%b-%Y"))
+                f_data["Lat"] = d3.text_input("Lat", value=lat_val)
+                f_data["Long"] = d4.text_input("Long", value=long_val)
+
+                # Add missing columns from your 27-column requirement
+                f_data["Mail Status"] = "Pending"
+                f_data["Mail Sent Date"] = "-"
+
+                if st.form_submit_button("🚀 Save & Prepare Audit"):
+                    if not sel_pid:
+                        st.error("Pehle Project ID select karein!")
+                    else:
+                        try:
+                            supabase.table("Audit Request").insert(f_data).execute()
+                            st.success("✅ Audit Entry Saved Successfully!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Save Error: {e}")
 
     with t2:
         if not a_df.empty:
-            # Multi-select for Emailing
-            to_mail = st.multiselect("Select Sites to Send Email:", a_df.index, 
+            st.write("### History & Dispatch Control")
+            
+            # Action buttons
+            to_mail = st.multiselect("Email bhejane ke liye sites chunein:", a_df.index, 
                                      format_func=lambda x: f"{a_df.loc[x, 'Indus ID']} - {a_df.loc[x, 'Site Name']}")
             
-            if st.button("📧 Dispatch Audit Email"):
+            if st.button("📧 Send Professional Email Now", type="primary"):
                 if to_mail:
-                    # Yahan aapka send_professional_email function call hoga
+                    # 'send_professional_email' function call (ensure it's defined in your script)
                     if send_professional_email(a_df.loc[to_mail]):
                         now_str = datetime.now().strftime("%d-%b-%y %H:%M")
                         for idx in to_mail:
                             rid = a_df.loc[idx, 'id']
                             supabase.table("Audit Request").update({"Mail Status": "Mail Sent", "Mail Sent Date": now_str}).eq("id", rid).execute()
-                        st.success("✅ Status Updated and Email Sent!")
+                        st.success("✅ Emails sent and database updated!")
                         st.rerun()
                 else:
-                    st.warning("Please select a site first.")
-            
-            st.write("### Audit History Tracking")
-            # Highlight Sent vs Pending
+                    st.warning("Kam se kam ek site select karein.")
+
             st.dataframe(a_df, use_container_width=True, hide_index=True)
