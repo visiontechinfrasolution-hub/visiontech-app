@@ -523,8 +523,8 @@ with tab_audit:
             if not match_u.empty:
                 rep_mob = str(match_u.iloc[0].get('phone_number', ''))
 
-        # --- STEP 3: THE FORM (All Columns Included) ---
-        with st.form("audit_v50_form", clear_on_submit=True):
+# --- STEP 3: THE FORM (Fixing Schema Cache Error) ---
+        with st.form("audit_v60_form", clear_on_submit=True):
             col1, col2, col3 = st.columns(3)
             f = {}
             
@@ -546,10 +546,11 @@ with tab_audit:
             f["Tower Type"] = col2.text_input("Tower Type", value="GBT")
             f["Tower Ht."] = col3.text_input("Tower Ht.", value="40 mtr")
 
-            # Row 4 (Checklist Fields - Jo None aa rahe thay)
-            f["Documents uploaded in ISQ(Y/N)"] = col1.selectbox("Documents uploaded in ISQ?", ["Y", "N"], index=0)
-            f["TSP Shared Filled checklist during Offerance for audit (Yes / N )"] = col2.selectbox("TSP Shared Checklist?", ["Y", "N"], index=0)
-            f["TSP Shared Compliance Photographs during audit Offerance (yes / )"] = col3.selectbox("TSP Shared Photographs?", ["Y", "N"], index=0)
+            # Row 4 (Checklist Fields - Dhyan se Column Names Check Karein)
+            # Yahan hum wo values store kar rahe hain jo user select karega
+            doc_val = col1.selectbox("Documents uploaded in ISQ?", ["Y", "N"])
+            tsp_chk_val = col2.selectbox("TSP Shared Checklist?", ["Y", "N"])
+            tsp_photo_val = col3.selectbox("TSP Shared Photographs?", ["Y", "N"])
 
             # Row 5
             f["Representative Name"] = col1.text_input("Representative Name", value=sel_rep)
@@ -561,17 +562,25 @@ with tab_audit:
             f["Long"] = col2.text_input("Longitude", value=long_val)
             f["Actual Audit date"] = col3.text_input("Actual Audit date", value=tomorrow_dt)
 
-            # Extra Fields for Table Stability
+            # Row 7 (Extra Data for Table)
             f["Actual Audit Time"] = tomorrow_dt
             f["Mail Status"], f["Mail Sent Date"] = "Pending", "-"
 
             if st.form_submit_button("🚀 Save Audit Entry"):
                 if sel_pid:
                     try:
+                        # --- Sabse Important Part: Database mapping ---
+                        # Agar upar wala error aaye, toh niche ke keys ko database se match karein
+                        f["Documents uploaded in ISQ(Y/N)"] = doc_val
+                        f["TSP Shared Filled checklist during Offerance for audit (Yes / N )"] = tsp_chk_val
+                        f["TSP Shared Compliance Photographs during audit Offerance (yes / )"] = tsp_photo_val
+                        
                         supabase.table("Audit Request").insert(f).execute()
                         st.success("✅ Saved Successfully!")
                         st.rerun()
-                    except Exception as e: st.error(f"Save Error: {e}")
+                    except Exception as e:
+                        # Agar abhi bhi error aaye, toh exact schema names print honge
+                        st.error(f"Database Mapping Error: {e}")
                 else: st.warning("Please select Project ID.")
 
     with t2:
