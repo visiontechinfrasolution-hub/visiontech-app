@@ -480,35 +480,34 @@ with tab6:
             st.dataframe(df_d[['po_number', 'line_no', 'item_number', 'qty', 'amount', 'project_name', 'site_id']], use_container_width=True, hide_index=True)
 
 # =====================================================================
-# 📝 TAB 8: FINAL AUDIT PORTAL (QUEUED SUBMISSION & SMTP FIX)
+# 📝 TAB 8: FINAL AUDIT PORTAL (STABLE SMTP VERSION)
 # =====================================================================
 with tab_audit:
     st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Audit Management Portal</h3>", unsafe_allow_html=True)
     
-    # --- 1. INITIALIZE QUEUE ---
+    # Session State for Site Queue
     if 'audit_queue' not in st.session_state:
         st.session_state.audit_queue = []
 
-    # --- 2. DATA LOADING ---
+    # --- DATA LOADING ---
     m_df, u_df, ind_df, h_df = pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
     try:
         m_df = pd.DataFrame(supabase.table("VIS Portal Site Data").select('*').execute().data)
         u_df = pd.DataFrame(supabase.table("allowed_users").select("*").execute().data)
         ind_df = pd.DataFrame(supabase.table("Indus_Coordinates").select("*").execute().data)
         h_df = pd.DataFrame(supabase.table("Audit Request").select("*").order("created_at", desc=True).execute().data)
-    except Exception as e:
-        st.error(f"Sync Error: {e}")
+    except: pass
 
     t1, t2 = st.tabs(["➕ Create Entry", "📜 History"])
 
     with t1:
-        # Step 1: Selection Dropdowns
+        # Site & Rep Selection
         c_top1, c_top2 = st.columns(2)
         p_ids = [""] + sorted(m_df["PROJECT ID"].unique().tolist()) if not m_df.empty else [""]
-        sel_pid = c_top1.selectbox("🔍 Step 1: Select Project ID", p_ids, key="audit_final_pid_v100")
+        sel_pid = c_top1.selectbox("🔍 Step 1: Select Project ID", p_ids, key="audit_v300_pid")
         
         user_names = [""] + sorted(u_df["name"].tolist()) if not u_df.empty else [""]
-        sel_rep = c_top2.selectbox("👤 Step 2: Select Representative", user_names, key="audit_final_rep_v100")
+        sel_rep = c_top2.selectbox("👤 Step 2: Select Representative", user_names, key="audit_v300_rep")
 
         # --- AUTO-FILL LOGIC ---
         s_info, rep_mob, lat_val, long_val, linked_sid = {}, "", "", "", ""
@@ -518,20 +517,17 @@ with tab_audit:
         if sel_pid and not m_df.empty:
             s_info = m_df[m_df["PROJECT ID"] == sel_pid].iloc[0].to_dict()
             linked_sid = str(s_info.get("SITE ID", "")).strip()
-            
             if linked_sid and not ind_df.empty:
                 match = ind_df[ind_df["Site ID"].astype(str).str.strip().str.upper() == linked_sid.upper()]
                 if not match.empty:
-                    lat_val = str(match.iloc[0].get('Lat', ''))
-                    long_val = str(match.iloc[0].get('Long', ''))
+                    lat_val, long_val = str(match.iloc[0].get('Lat', '')), str(match.iloc[0].get('Long', ''))
 
         if sel_rep and not u_df.empty:
             match_u = u_df[u_df["name"] == sel_rep]
-            if not match_u.empty:
-                rep_mob = str(match_u.iloc[0].get('phone_number', ''))
+            if not match_u.empty: rep_mob = str(match_u.iloc[0].get('phone_number', ''))
 
-        # --- STEP 3: THE FORM ---
-        with st.form("audit_v100_form"):
+        # --- THE FORM ---
+        with st.form("audit_v300_form"):
             col1, col2, col3 = st.columns(3)
             f = {}
             f["Circle"] = col1.text_input("Circle", value="Maharashtra")
@@ -549,86 +545,71 @@ with tab_audit:
             f["Tower Type"] = col2.text_input("Tower Type", value="GBT")
             f["Tower Ht."] = col3.text_input("Tower Ht.", value="40 mtr")
 
-            # Database Exact Column Checkbox Values
-            doc_val = col1.selectbox("Documents uploaded in ISQ?", ["Y", "N"])
-            tsp_chk_val = col2.selectbox("TSP Shared Checklist?", ["Yes", "No"])
-            tsp_photo_val = col3.selectbox("TSP Shared Photographs?", ["yes", "No"])
+            doc_val = col1.selectbox("Documents uploaded?", ["Y", "N"])
+            tsp_chk_val = col2.selectbox("Checklist Shared?", ["Yes", "No"])
+            tsp_photo_val = col3.selectbox("Photographs Shared?", ["yes", "No"])
 
             f["Representative Name"] = col1.text_input("Representative Name", value=sel_rep)
             f["Representative Contact Number"] = col2.text_input("Rep. Mobile", value=rep_mob)
             f["Actual ofference date"] = col3.text_input("Actual ofference date", value=today_dt)
 
-            f["Lat"] = col1.text_input("Latitude", value=lat_val)
-            f["Long"] = col2.text_input("Longitude", value=long_val)
+            f["Lat"], f["Long"] = col1.text_input("Lat", value=lat_val), col2.text_input("Long", value=long_val)
             f["Actual Audit date"] = col3.text_input("Actual Audit date", value=tomorrow_dt)
-
-            # Extra hidden fields for 27-col Email & DB consistency
+            
+            # Static mapping for DB
             f["Stage"], f["Audit Agency Name"], f["TSP Name"] = "", "", "Visiontech"
             f["Actual Audit Time"] = tomorrow_dt
             f["Audit Engineer Name"], f["Contact Details."] = "", ""
             f["Mail Status"], f["Mail Sent Date"] = "Pending", "-"
-            
-            # Mapping dropdowns to DB columns
             f["Documents uploaded in ISQ(Y/N)"] = doc_val
             f["TSP Shared Filled checklist during Offerance for audit (Yes / No)"] = tsp_chk_val
             f["TSP Shared Compliance Photographs during audit Offerance (yes / No)"] = tsp_photo_val
 
-            add_site_btn = st.form_submit_button("➕ Add Site to Queue")
-            
-            if add_site_btn:
+            if st.form_submit_button("➕ Add Site to Queue"):
                 if sel_pid and f["Lat"] != "":
                     st.session_state.audit_queue.append(f.copy())
-                    st.toast(f"✅ {linked_sid} added to Queue")
-                else:
-                    st.error("Pehle Project ID select karein aur Lat/Long check karein.")
+                    st.toast(f"Site {linked_sid} Added!")
+                else: st.error("Project ID or Lat/Long missing!")
 
-        # --- STEP 4: QUEUE MANAGEMENT & COMBINED SUBMISSION ---
+        # --- QUEUE & COMBINED SUBMISSION ---
         if st.session_state.audit_queue:
             st.divider()
-            st.subheader(f"📋 Pending Sites ({len(st.session_state.audit_queue)})")
-            queue_df = pd.DataFrame(st.session_state.audit_queue)
-            st.dataframe(queue_df[["Indus ID", "Ref. No.", "Site Name", "Lat", "Long"]], use_container_width=True)
+            st.subheader(f"📋 Site Queue ({len(st.session_state.audit_queue)})")
+            q_df = pd.DataFrame(st.session_state.audit_queue)
+            st.table(q_df[["Indus ID", "Ref. No.", "Site Name", "Lat", "Long"]])
 
-            q_c1, q_c2 = st.columns(2)
-            if q_c1.button("🗑️ Clear Queue", use_container_width=True):
+            c1, c2 = st.columns(2)
+            if c1.button("🗑️ Clear Queue", use_container_width=True):
                 st.session_state.audit_queue = []
                 st.rerun()
 
-            if q_c2.button("📧 Submit & Send Combined Email", type="primary", use_container_width=True):
+            if c2.button("📧 Submit & Send Combined Email", type="primary", use_container_width=True):
                 try:
-                    # 1. Database Schema Sync (PGRST204 fix)
-                    res_schema = supabase.table("Audit Request").select("*").limit(1).execute()
-                    db_cols = res_schema.data[0].keys() if res_schema.data else []
+                    # Sync DB Schema
+                    schema_res = supabase.table("Audit Request").select("*").limit(1).execute()
+                    db_cols = schema_res.data[0].keys() if schema_res.data else []
                     
-                    final_data_to_save = []
+                    final_data = []
                     for item in st.session_state.audit_queue:
-                        corrected_item = item.copy()
+                        temp = item.copy()
                         for col in db_cols:
-                            c_low = col.lower()
-                            if "documents uploaded" in c_low:
-                                corrected_item[col] = corrected_item.pop("Documents uploaded in ISQ(Y/N)", "Y")
-                            if "filled checklist" in c_low:
-                                corrected_item[col] = corrected_item.pop("TSP Shared Filled checklist during Offerance for audit (Yes / No)", "Yes")
-                            if "compliance photographs" in c_low:
-                                corrected_item[col] = corrected_item.pop("TSP Shared Compliance Photographs during audit Offerance (yes / No)", "yes")
-                        final_data_to_save.append(corrected_item)
+                            clow = col.lower()
+                            if "documents uploaded" in clow: temp[col] = temp.pop("Documents uploaded in ISQ(Y/N)", "Y")
+                            if "filled checklist" in clow: temp[col] = temp.pop("TSP Shared Filled checklist during Offerance for audit (Yes / No)", "Yes")
+                            if "compliance photographs" in clow: temp[col] = temp.pop("TSP Shared Compliance Photographs during audit Offerance (yes / No)", "yes")
+                        final_data.append(temp)
 
-                    # 2. Save to Supabase
-                    supabase.table("Audit Request").insert(final_data_to_save).execute()
+                    # Save to DB
+                    supabase.table("Audit Request").insert(final_data).execute()
                     
-                    # 3. Trigger Email
+                    # Send Email
                     if send_professional_email(pd.DataFrame(st.session_state.audit_queue)):
-                        st.success("🚀 Success: Database updated and Email sent!")
+                        st.success("✅ Success! Data saved & Email sent.")
                         st.session_state.audit_queue = []
                         st.rerun()
                     else:
-                        st.warning("⚠️ Data saved but Email failed. Check Password/Port.")
-                except Exception as e:
-                    st.error(f"Final Submit Error: {e}")
+                        st.error("Data saved but Email failed (Auth Error).")
+                except Exception as e: st.error(f"Error: {e}")
 
     with t2:
-        st.subheader("Audit History")
-        if not h_df.empty:
-            st.dataframe(h_df, use_container_width=True, hide_index=True)
-        else:
-            st.info("No records found.")
+        if not h_df.empty: st.dataframe(h_df, use_container_width=True, hide_index=True)
