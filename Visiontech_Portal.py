@@ -447,29 +447,29 @@ with tab5:
 ❌
 Error: 'Series' object has no attribute 'strip'
 # =====================================================================
-# 💰 TAB 7: FINANCE ENTRY (STRICT CLEANING & OVERWRITE LOGIC)
+# 💰 TAB 7: FINANCE ENTRY (CLEANED & OVERWRITE LOGIC)
 # =====================================================================
 with tab6:
     st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>💰 Finance Entry (PO Analyzer)</h3>", unsafe_allow_html=True)
     st.divider()
     
-    # Numeric cleaning helper function
-    def clean_num_final(val):
+    # Clean numeric function to handle NaN/Empty strings
+    def get_clean_num(val):
         try:
             if val is None or str(val).strip().lower() in ['nan', 'none', '']: 
                 return 0.0
-            # Quotes aur commas hatana
-            n = str(val).replace('"', '').replace(',', '').strip()
-            n = pd.to_numeric(n, errors='coerce')
-            return float(n) if pd.notnull(n) else 0.0
+            # Quotes aur comma remove karke numeric mein badalna
+            clean_val = str(val).replace('"', '').replace(',', '').strip()
+            num = pd.to_numeric(clean_val, errors='coerce')
+            return float(num) if pd.notnull(num) else 0.0
         except: 
             return 0.0
 
     # 1. UPLOAD SECTION
-    with st.form("finance_upload_form_final", clear_on_submit=True):
+    with st.form("fin_upload_form_final", clear_on_submit=True):
         c1, c2 = st.columns([1, 2])
-        user_po_no = c1.text_input("📄 Enter PO Number", placeholder="E.g. 4500123456")
-        po_file = c2.file_uploader("Upload 'export.tsv'", type=['tsv', 'txt'], key="po_fin_final")
+        user_po_no = c1.text_input("📄 Enter PO Number", placeholder="e.g. 4500123456")
+        po_file = c2.file_uploader("Upload 'export.tsv'", type=['tsv', 'txt'], key="po_fin_file")
         submit_po = st.form_submit_button("🚀 Process & Overwrite Data", use_container_width=True)
 
     if submit_po:
@@ -477,7 +477,7 @@ with tab6:
             st.warning("PO Number aur File dono bharna zaroori hai!")
         else:
             try:
-                # TSV Read
+                # TSV Read logic
                 content = po_file.getvalue().decode('ISO-8859-1').splitlines()
                 h_idx = -1
                 for i, line in enumerate(content):
@@ -487,69 +487,71 @@ with tab6:
                     po_file.seek(0)
                     df_raw = pd.read_csv(po_file, sep='\t', skiprows=h_idx, quoting=3, encoding='ISO-8859-1', engine='python')
                     
-                    # Headers se quotes aur space hatana
+                    # Header cleanup (remove quotes)
                     df_raw.columns = [str(c).replace('"', '').strip() for c in df_raw.columns]
                     
-                    # Pure Data se quotes hatana
+                    # Data cleanup (remove quotes from every cell)
                     for col in df_raw.columns:
                         df_raw[col] = df_raw[col].astype(str).str.replace('"', '', regex=False).str.strip()
 
-                    # STRICT FILTER: Jaha Qty 0 hai wo line delete
-                    df_raw['Qty_Val'] = df_raw['Qty'].apply(clean_num_final)
-                    df_clean = df_raw[df_raw['Qty_Val'] > 0].copy()
+                    # STRICT FILTER: Delete lines where Qty is 0
+                    df_raw['temp_qty'] = df_raw['Qty'].apply(get_clean_num)
+                    df_clean = df_raw[df_raw['temp_qty'] > 0].copy()
                     
                     if not df_clean.empty:
-                        # REWRITE LOGIC: Pehle purana data delete karna (If exists)
+                        # REWRITE LOGIC: Purana data delete karke naya insert karna
                         supabase.table("po_line_items").delete().eq("po_number", str(user_po_no)).execute()
                         supabase.table("po_summaries").delete().eq("po_number", str(user_po_no)).execute()
 
-                        # 1. Insert Detailed Items
-                        line_items = []
+                        # 1. Prepare Line Items
+                        items_to_save = []
                         for _, r in df_clean.iterrows():
-                            line_items.append({
+                            items_to_save.append({
                                 "po_number": str(user_po_no),
                                 "line_no": str(r.get('Line', '')),
                                 "item_number": str(r.get('Item Num', '')),
                                 "description": str(r.get('Description', '')),
                                 "uom": str(r.get('UOM', '')),
-                                "qty": clean_num_final(r.get('Qty')),
-                                "price": clean_num_final(r.get('Price')),
-                                "amount": clean_num_final(r.get('Amount')),
+                                "qty": get_clean_num(r.get('Qty')),
+                                "price": get_clean_num(r.get('Price')),
+                                "amount": get_clean_num(r.get('Amount')),
                                 "site_id": str(r.get('Site ID', '')),
                                 "site_name": str(r.get('Site Name', '')),
                                 "project_name": str(r.get('Project Name', ''))
                             })
-                        supabase.table("po_line_items").insert(line_items).execute()
+                        supabase.table("po_line_items").insert(items_to_save).execute()
 
-                        # 2. Insert Summaries (Project-wise total)
-                        df_clean['Amt_Val'] = df_clean['Amount'].apply(clean_num_final)
-                        summary_df = df_clean.groupby('Project Name')['Amt_Val'].sum().reset_index()
+                        # 2. Prepare Project Summaries
+                        df_clean['temp_amt'] = df_clean['Amount'].apply(get_clean_num)
+                        summary_grp = df_clean.groupby('Project Name')['temp_amt'].sum().reset_index()
                         
-                        summaries = []
-                        for _, sr in summary_df.iterrows():
-                            summaries.append({
+                        summaries_to_save = []
+                        for _, sr in summary_grp.iterrows():
+                            summaries_to_save.append({
                                 "po_number": str(user_po_no),
                                 "project_name": str(sr['Project Name']),
-                                "total_amount": float(sr['Amt_Val'])
+                                "total_amount": float(sr['temp_amt'])
                             })
-                        supabase.table("po_summaries").insert(summaries).execute()
+                        supabase.table("po_summaries").insert(summaries_to_save).execute()
 
-                        st.success(f"PO {user_po_no} Successfully Synced! (Qty 0 rows removed)")
+                        st.success(f"Successfully processed PO: {user_po_no}")
                         st.rerun()
                     else:
-                        st.error("File mein koi valid Qty > 0 wali row nahi mili.")
+                        st.error("File mein koi bhi valid quantity (>0) nahi mili.")
                 else:
-                    st.error("'Project Name' header nahi mila.")
+                    st.error("'Project Name' header file mein nahi mila.")
             except Exception as e:
-                st.error(f"Error: {str(e)}")
+                st.error(f"System Error: {str(e)}")
 
     st.divider()
 
-    # 2. SEARCH & DISPLAY
-    g_search = st.text_input("🔍 Search Records (PO, Project, or Site)...", key="fin_search_final")
-    t1, t2 = st.tabs(["📊 Project Summaries", "📋 Detailed Line Items"])
+    # 2. SEARCH & DISPLAY SECTION
+    st.markdown("#### 🔎 Database Search")
+    g_search = st.text_input("Filter by PO #, Project or Site ID", key="finance_global_filter")
+
+    tab_s1, tab_s2 = st.tabs(["📊 Project Summaries", "📋 Detailed Items"])
     
-    with t1:
+    with tab_s1:
         res_s = supabase.table("po_summaries").select("*").order("created_at", desc=True).execute()
         if res_s.data:
             df_s = pd.DataFrame(res_s.data)
@@ -557,11 +559,13 @@ with tab6:
                 df_s = df_s[df_s.astype(str).apply(lambda x: x.str.contains(g_search, case=False)).any(axis=1)]
             st.dataframe(df_s[['po_number', 'project_name', 'total_amount']], use_container_width=True, hide_index=True)
             
-    with t2:
+    with tab_s2:
         res_d = supabase.table("po_line_items").select("*").order("created_at", desc=True).limit(1000).execute()
         if res_d.data:
             df_d = pd.DataFrame(res_d.data)
             if g_search:
                 df_d = df_d[df_d.astype(str).apply(lambda x: x.str.contains(g_search, case=False)).any(axis=1)]
-            disp_cols = ['po_number', 'line_no', 'item_number', 'description', 'qty', 'amount', 'project_name', 'site_id']
-            st.dataframe(df_d[disp_cols], use_container_width=True, hide_index=True)
+            
+            # Showing key columns for clean look
+            show_cols = ['po_number', 'line_no', 'item_number', 'qty', 'amount', 'project_name', 'site_id']
+            st.dataframe(df_d[show_cols], use_container_width=True, hide_index=True)
