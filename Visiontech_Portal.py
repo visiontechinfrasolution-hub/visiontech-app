@@ -564,19 +564,19 @@ with tab_audit:
         for em in default_to + default_cc:
             if em not in db_emails: db_emails.append(em)
 
-        sel_to = c_em1.multiselect("To:", db_emails, default=default_to, key="v20_to")
-        sel_cc = c_em2.multiselect("Cc:", db_emails, default=default_cc, key="v20_cc")
+        sel_to = c_em1.multiselect("To:", db_emails, default=default_to, key="v21_to")
+        sel_cc = c_em2.multiselect("Cc:", db_emails, default=default_cc, key="v21_cc")
         
         st.divider()
 
         # Selection Logic
         c_top1, c_top2 = st.columns(2)
         p_ids = [""] + sorted(m_df["PROJECT ID"].unique().tolist()) if not m_df.empty else [""]
-        sel_pid = c_top1.selectbox("🔍 Select Project ID", p_ids, key="v20_pid")
+        sel_pid = c_top1.selectbox("🔍 Select Project ID", p_ids, key="v21_pid")
         user_names = [""] + sorted(u_df["name"].tolist()) if not u_df.empty else [""]
-        sel_rep = c_top2.selectbox("👤 Select Representative", user_names, key="v20_rep")
+        sel_rep = c_top2.selectbox("👤 Select Representative", user_names, key="v21_rep")
 
-        # Auto-fill Logic (Existing - No Change)
+        # Auto-fill Logic
         s_info, rep_mob, lat_val, long_val, linked_sid = {}, "", "", "", ""
         today_dt = datetime.now().strftime("%d-%b-%Y")
         tomorrow_dt = (datetime.now() + timedelta(days=1)).strftime("%d-%b-%Y")
@@ -597,7 +597,7 @@ with tab_audit:
             if not match_u.empty: rep_mob = str(match_u.iloc[0].get('phone_number', ''))
 
         # THE FORM
-        with st.form("v20_form"):
+        with st.form("v21_form"):
             col1, col2, col3 = st.columns(3)
             f = {}
             f["Circle"] = col1.text_input("Circle", value="Maharashtra")
@@ -613,7 +613,6 @@ with tab_audit:
             f["Tower Type"] = col2.text_input("Tower Type", value="GBT")
             f["Tower Ht."] = col3.text_input("Tower Ht.", value="40 mtr")
             
-            # --- Ye 3 boxes specifically ---
             f["Documents uploaded in ISQ(Y/N)"] = col1.selectbox("Documents uploaded?", ["Y", "N"])
             f["TSP Shared Filled checklist during Offerance for audit (Yes / No)"] = col2.selectbox("Checklist Shared?", ["Yes", "No"])
             f["TSP Shared Compliance Photographs during audit Offerance (yes / No)"] = col3.selectbox("Photographs Shared?", ["yes", "No"])
@@ -623,11 +622,11 @@ with tab_audit:
             f["Actual ofference date"] = col3.text_input("Actual ofference date", value=today_dt)
             f["Lat"], f["Long"] = col1.text_input("Lat", value=lat_val), col2.text_input("Long", value=long_val)
             f["Actual Audit date"] = col3.text_input("Actual Audit date", value=tomorrow_dt)
+            
             from datetime import time
             audit_time_input = col1.time_input("Set Audit Time", value=time(11, 0)) 
             f["Actual Audit Time"] = audit_time_input.strftime("%I:%M %p") 
 
-            # Map hidden fields
             f["Stage"], f["Audit Agency Name"], f["TSP Name"] = "", "", "Visiontech"
             f["Audit Engineer Name"], f["Contact Details."], f["Mail Status"], f["Mail Sent Date"] = "", "", "Pending", "-"
 
@@ -645,7 +644,7 @@ with tab_audit:
                 q_col1.write(f"**ID:** {item['Indus ID']}")
                 q_col2.write(f"**Site:** {item['Site Name']}")
                 q_col3.write(f"**Time:** {item['Actual Audit Time']}")
-                if q_col4.button("❌", key=f"del_v20_{i}"):
+                if q_col4.button("❌", key=f"del_v21_{i}"):
                     st.session_state.audit_queue.pop(i)
                     st.rerun()
 
@@ -653,25 +652,24 @@ with tab_audit:
                 if not sel_to: st.error("Select 'To' email!")
                 else:
                     try:
-                        # 1. Fetch DB schema to match columns exactly
                         res_schema = supabase.table("Audit Request").select("*").limit(1).execute()
                         db_cols = res_schema.data[0].keys() if res_schema.data else []
-                        
                         final_save = []
                         for item in st.session_state.audit_queue:
                             clean_item = {}
                             for db_col in db_cols:
-                                # Match item keys to DB column names directly
                                 if db_col in item and item[db_col] != "":
                                     clean_item[db_col] = item[db_col]
                             final_save.append(clean_item)
 
-                        # 2. Save
                         supabase.table("Audit Request").insert(final_save).execute()
                         
-                        # 3. Email
                         if send_professional_email(pd.DataFrame(st.session_state.audit_queue), ", ".join(sel_to), ", ".join(sel_cc)):
-                            st.success("🚀 Success!")
+                            # --- SUCCESS LOGIC ---
+                            st.balloons()
+                            st.success(f"🚀 Success! Email sent to {len(sel_to)} recipients.")
+                            import time as py_time
+                            py_time.sleep(3) # 3 second ka wait message dikhane ke liye
                             st.session_state.audit_queue = []
                             st.rerun()
                     except Exception as e: st.error(str(e))
