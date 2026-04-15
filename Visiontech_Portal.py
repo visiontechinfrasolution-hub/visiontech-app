@@ -571,16 +571,35 @@ with tab_audit:
             f["Actual Audit Time"] = tomorrow_dt
             f["Mail Status"], f["Mail Sent Date"] = "Pending", "-"
 
-            if st.form_submit_button("🚀 Save Audit Entry"):
+if st.form_submit_button("🚀 Save Audit Entry"):
                 if sel_pid:
                     try:
-                        # Direct Insert (Now with exact column names)
+                        # 1. Database se actual column names uthao (PGRST204 fix)
+                        columns_res = supabase.table("Audit Request").select("*").limit(1).execute()
+                        db_cols = columns_res.data[0].keys() if columns_res.data else []
+
+                        # 2. Checklist values ko map karne ka naya tarika
+                        # Hum dhoondenge ki kaunsa column 'Photographs' word contain karta hai
+                        for col in db_cols:
+                            c_clean = col.lower()
+                            if "documents uploaded" in c_clean:
+                                f[col] = f.pop("Documents uploaded in ISQ(Y/N)", "Y")
+                            if "filled checklist" in c_clean:
+                                # Yeh us do spaces waale lafde ko khatam kar dega
+                                f[col] = f.pop("TSP Shared Filled checklist during Offerance for audit  (Yes / No)", "Yes")
+                            if "compliance photographs" in c_clean:
+                                # Yeh aapke error waale column ko automatic dhoond lega
+                                f[col] = f.pop("TSP Shared Compliance Photographs during audit Offerance (yes / No)", "yes")
+
+                        # 3. Final Insert
                         supabase.table("Audit Request").insert(f).execute()
                         st.success("✅ Saved Successfully!")
                         st.rerun()
                     except Exception as e:
                         st.error(f"Database Error: {e}")
-                else: st.warning("Please select Project ID.")
+                        # Agar fir bhi fail ho, toh yahan columns print honge debugging ke liye
+                        if 'db_cols' in locals():
+                            st.write("Available Columns in DB:", list(db_cols))
 
     with t2:
         if not h_df.empty:
