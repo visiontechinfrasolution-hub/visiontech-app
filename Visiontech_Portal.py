@@ -441,39 +441,27 @@ with tab_wcc:
 # =====================================================================
 # 💎 TAB 6: PO TSV ANALYZER (ULTRA-COMPACT & CENTERED)
 # =====================================================================
-with tab6:
+main_tab_po, main_tab_doc = st.tabs(["📊 PO ANALYZER", "🏗️ DOCUMENT CENTER"])
+
+# --- TAB 1: PO ANALYZER ---
+with main_tab_po:
     st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>📁 Premium PO Analyzer</h3>", unsafe_allow_html=True)
     st.divider()
 
     # --- Ultra-Compact CSS ---
     st.markdown("""
         <style>
-            /* Table alignment to center of the page */
-            [data-testid="stTable"] {
-                margin: 0 auto;
-                width: fit-content !important;
-            }
-            /* Header Styling */
+            [data-testid="stTable"] { margin: 0 auto; width: fit-content !important; }
             [data-testid="stHeaderRowCell"] {
-                text-align: center !important;
-                background-color: #1E3A8A !important;
-                color: white !important;
-                font-weight: bold !important;
-                font-size: 13px !important;
+                text-align: center !important; background-color: #1E3A8A !important;
+                color: white !important; font-weight: bold !important; font-size: 13px !important;
                 padding: 5px 10px !important;
             }
-            /* Cell Styling */
             [data-testid="stTableCell"] {
-                text-align: center !important;
-                font-size: 12px !important;
-                padding: 4px 10px !important;
-                white-space: nowrap !important;
+                text-align: center !important; font-size: 12px !important;
+                padding: 4px 10px !important; white-space: nowrap !important;
             }
-            /* Table width control */
-            [data-testid="stDataFrame"] {
-                width: auto !important;
-                margin: 0 auto;
-            }
+            [data-testid="stDataFrame"] { width: auto !important; margin: 0 auto; }
         </style>
     """, unsafe_allow_html=True)
 
@@ -495,12 +483,10 @@ with tab6:
                     skiprows=h_idx, engine='python', on_bad_lines='skip'
                 )
                 
-                # Cleaning
                 df_raw.columns = [str(c).strip().replace('"', '') for c in df_raw.columns]
                 target_p, target_a = 'Project Name', 'Amount'
 
                 if target_p in df_raw.columns and target_a in df_raw.columns:
-                    # Clean Values
                     df_raw[target_p] = df_raw[target_p].astype(str).str.replace('"', '').str.strip()
                     df_raw[target_a] = pd.to_numeric(
                         df_raw[target_a].astype(str).str.replace('"', '').str.replace(',', '').str.strip(), 
@@ -509,23 +495,19 @@ with tab6:
                     df_clean = df_raw.dropna(subset=[target_p, target_a])
                     df_clean = df_clean[df_clean[target_p] != ""]
 
-                    # Summary
                     summary_df = df_clean.groupby(target_p)[target_a].sum().reset_index()
                     summary_df = summary_df.sort_values(by=target_a, ascending=False)
 
-                    # Metrics
                     c1, c2 = st.columns(2)
                     c1.metric("Unique Projects", len(summary_df))
                     c2.metric("Total PO Value", f"₹{summary_df[target_a].sum():,.2f}")
 
-                    # --- COMPACT TABLE DISPLAY ---
-                    # use_container_width=False ensures the table only takes needed space
                     st.markdown("<div style='display: flex; justify-content: center;'>", unsafe_allow_html=True)
                     st.dataframe(
                         summary_df,
-                        use_container_width=False,  # Isse table poori screen nahi lega
+                        use_container_width=False,
                         hide_index=True,
-                        width=500, # Aap yahan se width fix kar sakte hain (pixels me)
+                        width=500,
                         column_config={
                             target_p: st.column_config.TextColumn("📁 Project ID", width=300),
                             target_a: st.column_config.NumberColumn("💰 Total Amount", format="₹%.2f", width=150)
@@ -533,7 +515,6 @@ with tab6:
                     )
                     st.markdown("</div>", unsafe_allow_html=True)
 
-                    # Sync Button
                     if st.button("🚀 Sync to Database", use_container_width=True):
                         payload = [
                             {"project_name": str(r[target_p]), "amount": float(r[target_a]), 
@@ -549,13 +530,13 @@ with tab6:
         except Exception as e:
             st.error(f"❌ Error: {str(e)}")
 
-    with st.expander("📜 Last 5 Synced"):
+    with st.expander("📜 Last 5 Synced History"):
         h_res = supabase.table("po_details").select("project_name, amount").order("id", desc=True).limit(5).execute()
         if h_res.data: st.table(pd.DataFrame(h_res.data))
-# =====================================================================
-# 📁 NEW TAB 7: DOCUMENT CENTER (UPLOAD, SEARCH & STATUS TRACKER)
-# =====================================================================
-with tab6:
+
+
+# --- TAB 2: DOCUMENT CENTER ---
+with main_tab_doc:
     st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Visiontech Document Center & Tracker</h3>", unsafe_allow_html=True)
     st.divider()
 
@@ -628,7 +609,6 @@ with tab6:
                 else:
                     st.info("डेटा सापडला नाही.")
 
-    # --- नवीन सेक्शन: स्टेटस ट्रॅकर (STATUS TRACKER) ---
     with doc_sub3:
         st.subheader("📊 Site-wise Document Status")
         if st.button("🔄 Refresh Tracker"):
@@ -637,15 +617,11 @@ with tab6:
         res_tracker = supabase.table("site_documents_master").select("*").execute()
         if res_tracker.data:
             raw_df = pd.DataFrame(res_tracker.data)
-            
-            # ग्रुपिंग लॉजिक: एकाच Indus ID खाली सर्व फाईल्स चेक करणे
             site_groups = raw_df.groupby('indus_id')
             status_summary = []
 
             for ind_id, group in site_groups:
-                # सर्व डॉक्युमेंट टाइप्स एका स्ट्रिंगमध्ये जमा करणे
                 all_types = group['doc_type'].str.upper().tolist()
-                
                 status_summary.append({
                     "Project ID": group.iloc[0].get('project_number', 'N/A'),
                     "Indus ID": ind_id,
@@ -659,7 +635,6 @@ with tab6:
 
             final_status_df = pd.DataFrame(status_summary)
 
-            # रंगांचे लॉजिक (✅ हिरवा, ❌ लाल)
             def style_status(val):
                 color = 'color: green' if '✅' in str(val) else 'color: red'
                 return color
@@ -670,7 +645,6 @@ with tab6:
                 hide_index=True
             )
 
-            # Excel Download पर्याय
             st.divider()
             output_xl = io.BytesIO()
             with pd.ExcelWriter(output_xl, engine='xlsxwriter') as writer:
