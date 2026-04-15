@@ -130,23 +130,18 @@ with tab4:
             if res_ind.data: st.dataframe(pd.DataFrame(res_ind.data))
 
 # =====================================================================
-# 📡 TAB 5: WCC TRACKER (WHATSAPP MESSAGE TEMPLATE FIXED)
+# 📡 TAB 5: WCC TRACKER (EDIT & WHATSAPP BUTTONS RESTORED)
 # =====================================================================
 with tab_wcc:
     def fetch_wcc():
-        try: 
-            res = supabase.table("WCC Status").select("*").execute()
-            return res.data
+        try: res = supabase.table("WCC Status").select("*").execute(); return res.data
         except: return []
-
     def save_wcc_data(p):
         try: return supabase.table("WCC Status").upsert(p).execute()
         except: return None
 
     st.title("📡 WCC Status Tracker")
-    
     if "wcc_role" not in st.session_state: st.session_state.wcc_role = None
-    
     if not st.session_state.wcc_role:
         pwd = st.text_input("Enter Password:", type="password", key="wcc_pwd_style")
         if st.button("🔓 Unlock Folder"):
@@ -156,8 +151,6 @@ with tab_wcc:
             st.rerun()
     else:
         role = st.session_state.wcc_role
-        
-        # --- MODAL FORM ---
         @st.dialog("📝 WCC Details Form", width="large")
         def wcc_modal(row_data=None):
             is_edit = row_data is not None
@@ -166,63 +159,34 @@ with tab_wcc:
                     c1, c2 = st.columns(2)
                     v_proj = c1.text_input("Project", value=str(row_data.get("Project", "")) if is_edit else "")
                     v_pid = c2.text_input("Project ID *", value=str(row_data.get("Project ID", "")) if is_edit else "", disabled=is_edit)
-                    c3, c4 = st.columns(2)
-                    v_sid = c3.text_input("Site ID", value=str(row_data.get("Site ID", "")) if is_edit else "")
-                    v_snm = c4.text_input("Site Name", value=str(row_data.get("Site Name", "")) if is_edit else "")
-                    c5, c6 = st.columns(2)
-                    v_po = c5.text_input("PO Number", value=str(row_data.get("PO Number", "")) if is_edit else "")
+                    v_sid = st.text_input("Site ID", value=str(row_data.get("Site ID", "")) if is_edit else "")
+                    v_snm = st.text_input("Site Name", value=str(row_data.get("Site Name", "")) if is_edit else "")
+                    v_po = st.text_input("PO Number", value=str(row_data.get("PO Number", "")) if is_edit else "")
                     v_dt = st.date_input("Request Date", value=datetime.now().date())
                     v_sts = st.selectbox("WCC Status", ["Creation Pending", "Pending for Approval", "Proceed", "Rejected", "Cancel"], index=0)
                     v_wno = row_data.get("WCC Number") if is_edit else None 
                 else:
                     v_pid = row_data.get('Project ID')
                     v_wno = st.text_input("Enter WCC Number", value=str(row_data.get("WCC Number", "")) if is_edit else "")
-                
                 if st.form_submit_button("💾 Save Changes"):
                     def cn(v): return ''.join(filter(str.isdigit, str(v))) if v else None
                     p = {"Project ID": v_pid, "WCC Number": cn(v_wno)}
-                    if role == "requester": 
-                        p.update({
-                            "Project": v_proj, 
-                            "Site ID": v_sid, 
-                            "Site Name": v_snm, 
-                            "PO Number": cn(v_po), 
-                            "Reqeust Date": str(v_dt), 
-                            "WCC Status": v_sts
-                        })
+                    if role == "requester": p.update({"Project": v_proj, "Site ID": v_sid, "Site Name": v_snm, "PO Number": cn(v_po), "Reqeust Date": str(v_dt), "WCC Status": v_sts})
                     if save_wcc_data(p): st.rerun()
 
         raw_w = fetch_wcc()
         df_wcc = pd.DataFrame(raw_w) if raw_w else pd.DataFrame()
-        
         if role == "requester" and st.button("➕ Add Site Request"): wcc_modal()
-        
         if not df_wcc.empty:
-            st.markdown("""<style>.site-badge { background-color: #E0F2FE; color: #0369A1; padding: 4px 10px; border-radius: 20px; font-weight: 600; border: 1px solid #BAE6FD; } .wa-btn { background-color: #25D366; color: white !important; padding: 6px 12px; border-radius: 8px; text-decoration: none; font-weight: bold; }</style>""", unsafe_allow_html=True)
-            
+            st.markdown("""<style>.site-badge { background-color: #E0F2FE; color: #0369A1; padding: 4px 10px; border-radius: 20px; font-weight: 600; border: 1px solid #BAE6FD; } .wa-btn { background-color: #25D366; color: white !important; padding: 6px 12px; border-radius: 8px; font-weight: bold; text-decoration: none; }</style>""", unsafe_allow_html=True)
             for i, row in df_wcc.iterrows():
-                c_act, c_proj, c_sid, c_sts = st.columns([1.5, 2, 2, 2])
+                c_act, c_proj, c_sid, c_sts = st.columns([1, 2, 2, 2])
                 with c_act:
-                    b1, b2 = st.columns(2)
-                    if b1.button("✏️", key=f"ed_{row['Project ID']}"): wcc_modal(row)
+                    if st.button("✏️", key=f"ed_{row['Project ID']}"): wcc_modal(row)
                     if role == 'requester':
-                        # --- FULL FORMATTED WHATSAPP MESSAGE ---
-                        msg = (
-                            f"Hello Prkash Ji,\nRaise WCC urgently...\n\n"
-                            f"*Project* :- {row.get('Project', 'N/A')}\n"
-                            f"*Project ID* :- {row.get('Project ID', 'N/A')}\n"
-                            f"*Site ID* :- {row.get('Site ID', 'N/A')}\n"
-                            f"*Site Name* :- {row.get('Site Name', 'N/A')}\n"
-                            f"*PO Number* :- {row.get('PO Number', 'N/A')}\n"
-                            f"*Reqeust Date* :- {row.get('Reqeust Date', 'N/A')}\n"
-                            f"*WCC Number* :- {row.get('WCC Number', 'None')}\n"
-                            f"*WCC Status* :- {row.get('WCC Status', 'N/A')}\n\n"
-                            f"Thanks,\nMayur Patil\n7350533473"
-                        )
-                        wa_url = f"whatsapp://send?text={urllib.parse.quote(msg)}"
-                        b2.markdown(f'<a href="{wa_url}" class="wa-btn">💬</a>', unsafe_allow_html=True)
-                
-                c_proj.write(f"**{row.get('Project ID')}**")
+                        msg = f"Hello Prkash Ji,\nRaise WCC urgently...\n\n*Project ID* :- {row.get('Project ID')}"
+                        st.markdown(f'<a href="whatsapp://send?text={urllib.parse.quote(msg)}" class="wa-btn">💬</a>', unsafe_allow_html=True)
+                c_proj.write(row.get('Project ID'))
                 c_sid.markdown(f'<span class="site-badge">{row.get("Site ID")}</span>', unsafe_allow_html=True)
                 c_sts.write(row.get('WCC Status'))
 
