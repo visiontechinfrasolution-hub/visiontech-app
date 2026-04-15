@@ -477,7 +477,7 @@ with tab6:
             st.dataframe(df_d[['po_number', 'line_no', 'item_number', 'qty', 'amount', 'project_name', 'site_id']], use_container_width=True, hide_index=True)
 
 # =====================================================================
-# 📝 TAB 8: FINAL AUDIT PORTAL (SAFE VERSION)
+# 📝 TAB 8: FINAL AUDIT PORTAL (STABLE AUTO-FILL)
 # =====================================================================
 with tab_audit:
     st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Audit Management Portal</h3>", unsafe_allow_html=True)
@@ -486,15 +486,19 @@ with tab_audit:
     m_df, u_df, ind_df, h_df = pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
     try:
+        # VIS Portal Site Data
         res_m = supabase.table("VIS Portal Site Data").select('*').execute()
         if res_m.data: m_df = pd.DataFrame(res_m.data)
         
+        # Allowed Users
         res_u = supabase.table("allowed_users").select("*").execute()
         if res_u.data: u_df = pd.DataFrame(res_u.data)
         
+        # Indus Data
         res_ind = supabase.table("Indus Data").select("*").execute()
         if res_ind.data: ind_df = pd.DataFrame(res_ind.data)
 
+        # Audit History
         res_h = supabase.table("Audit Request").select("*").order("created_at", desc=True).execute()
         if res_h.data: h_df = pd.DataFrame(res_h.data)
     except Exception as e:
@@ -503,7 +507,7 @@ with tab_audit:
     t1, t2 = st.tabs(["➕ Create Entry", "📜 History"])
 
     with t1:
-        # Step 1: Dropdowns
+        # Step 1: Dropdowns setup
         p_ids = [""]
         if not m_df.empty: p_ids += sorted(m_df["PROJECT ID"].unique().tolist())
         
@@ -511,40 +515,36 @@ with tab_audit:
         if not u_df.empty: user_names += sorted(u_df["name"].tolist())
 
         c_top1, c_top2 = st.columns(2)
-        sel_pid = c_top1.selectbox("🔍 Step 1: Select Project ID (Ref. No.)", p_ids)
-        sel_rep = c_top2.selectbox("👤 Step 2: Select Representative", user_names)
+        sel_pid = c_top1.selectbox("🔍 Step 1: Select Project ID (Ref. No.)", p_ids, key="audit_pid_sel")
+        sel_rep = c_top2.selectbox("👤 Step 2: Select Representative", user_names, key="audit_rep_sel")
 
-# Step 2: Auto-fill Logic (DIRECT COLUMN MATCHING)
+        # Step 2: Auto-fill Logic (CLEANED & ROBUST)
         s_info, rep_mob, lat_val, long_val = {}, "", "", ""
         
+        # 1. VIS Portal Info Lookup
         if sel_pid and not m_df.empty:
-            # 1. VIS Portal se details nikalna
             s_info = m_df[m_df["PROJECT ID"] == sel_pid].iloc[0].to_dict()
+            master_site_id = str(s_info.get("SITE ID", "")).strip().upper()
             
-            # Master data se Site ID nikalna (Ensure it's a clean string)
-            site_id_val = str(s_info.get("SITE ID", "")).strip()
-            
-            # --- LAT/LONG LOOKUP (Using your exact column names) ---
-            if site_id_val and not ind_df.empty:
-                # Database ke Site ID column ko string mein badal kar match karna
-                # Taki agar ek jagah ID '123' (number) ho aur dusri jagah '123' (text), toh bhi match ho jaye
-                ind_df['Site ID'] = ind_df['Site ID'].astype(str).str.strip()
-                
-                match_ind = ind_df[ind_df['Site ID'] == site_id_val]
+            # 2. Indus Data Lookup (LAT/LONG)
+            if master_site_id and not ind_df.empty:
+                # Site ID column ko clean string banana matching ke liye
+                ind_df['Site ID'] = ind_df['Site ID'].astype(str).str.strip().str.upper()
+                match_ind = ind_df[ind_df['Site ID'] == master_site_id]
                 
                 if not match_ind.empty:
-                    # Aapke bataye hue exact column names 'Lat' aur 'Long'
                     lat_val = str(match_ind.iloc[0].get('Lat', ''))
                     long_val = str(match_ind.iloc[0].get('Long', ''))
         
-        # --- MOBILE LOOKUP (Same direct logic) ---
+        # 3. Mobile Lookup
         if sel_rep and not u_df.empty:
-            # 'name' column match karna
             match_u = u_df[u_df["name"] == sel_rep]
             if not match_u.empty:
                 rep_mob = str(match_u.iloc[0].get("mobile", ""))
+
         # --- STEP 3: THE FORM ---
-        with st.form("final_logic_v3", clear_on_submit=True):
+        # Note: Form ke andar values dropdown ke state se link hain
+        with st.form("final_logic_v4", clear_on_submit=True):
             col1, col2, col3 = st.columns(3)
             f = {}
             f["Circle"] = col1.text_input("Circle", value="Maharashtra")
@@ -586,4 +586,5 @@ with tab_audit:
                 else: st.warning("Pehle Project ID select karein.")
 
     with t2:
-        if not h_df.empty: st.dataframe(h_df, use_container_width=True, hide_index=True)
+        if not h_df.empty:
+            st.dataframe(h_df, use_container_width=True, hide_index=True)
