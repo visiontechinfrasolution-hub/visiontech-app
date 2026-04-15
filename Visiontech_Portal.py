@@ -445,34 +445,34 @@ with tab5:
             st.dataframe(df_t, use_container_width=True)
 
 # =====================================================================
-# 💰 TAB 7: FINANCE ENTRY (REVISED WITH SUBMIT BUTTON & TABLE FIX)
+# 💰 TAB 7: FINANCE ENTRY (ADVANCED SEARCH & TABLE SYNC)
 # =====================================================================
 with tab6:
     st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>💰 Finance Entry (PO Analyzer)</h3>", unsafe_allow_html=True)
     st.divider()
     
-    # numeric cleaning function (to avoid NaN error)
-    def clean_num(val):
-        try:
-            n = pd.to_numeric(str(val).replace(',', '').strip(), errors='coerce')
-            return float(n) if pd.notnull(n) else 0.0
-        except: return 0.0
-
     # 1. UPLOAD SECTION WITH FORM
     with st.form("finance_upload_form", clear_on_submit=True):
         po_file = st.file_uploader("Upload 'export.tsv'", type=['tsv', 'txt'], key="po_fin_v3")
         submit_po = st.form_submit_button("🚀 Upload & Sync to Database", use_container_width=True)
+
+    # numeric cleaning function (to avoid JSON NaN error)
+    def clean_num(val):
+        try:
+            n = pd.to_numeric(str(val).replace(',', '').replace('"', '').strip(), errors='coerce')
+            return float(n) if pd.notnull(n) else 0.0
+        except: return 0.0
 
     if po_file is not None and submit_po:
         try:
             content = po_file.getvalue().decode('ISO-8859-1').splitlines()
             h_idx = -1
             for i, line in enumerate(content):
-                if '"Line"' in line and '"Item Num"' in line: h_idx = i; break
+                if "Project Name" in line: h_idx = i; break
             
             if h_idx != -1:
                 po_file.seek(0)
-                # PO Number extraction from top header
+                # PO Number extraction (Header line se)
                 df_h = pd.read_csv(po_file, sep='\t', nrows=1, encoding='ISO-8859-1')
                 po_no = str(df_h.columns[0]).replace('"', '').strip()
                 
@@ -481,32 +481,33 @@ with tab6:
                 df_raw.columns = [str(c).strip().replace('"', '') for c in df_raw.columns]
                 df_clean = df_raw.dropna(subset=['Project Name'])
                 
-                # PREPARE DATA
+                # Prepare Detailed Items
                 line_items = []
                 for _, r in df_clean.iterrows():
-                    line_items.append({
-                        "po_number": po_no,
-                        "line_no": str(r.get('Line', '')),
-                        "item_number": str(r.get('Item Num', '')),
-                        "description": str(r.get('Description', '')),
-                        "uom": str(r.get('UOM', '')),
-                        "qty": clean_num(r.get('Qty')),
-                        "price": clean_num(r.get('Price')),
-                        "amount": clean_num(r.get('Amount')),
-                        "site_id": str(r.get('Site ID', '')),
-                        "site_name": str(r.get('Site Name', '')),
-                        "project_name": str(r.get('Project Name', ''))
-                    })
+                    amt = clean_num(r.get('Amount'))
+                    qty = clean_num(r.get('Qty'))
+                    if qty > 0: # Sirf valid items
+                        line_items.append({
+                            "po_number": po_no,
+                            "line_no": str(r.get('Line', '')),
+                            "item_number": str(r.get('Item Num', '')),
+                            "description": str(r.get('Description', '')),
+                            "uom": str(r.get('UOM', '')),
+                            "qty": qty,
+                            "price": clean_num(r.get('Price')),
+                            "amount": amt,
+                            "site_id": str(r.get('Site ID', '')),
+                            "site_name": str(r.get('Site Name', '')),
+                            "project_name": str(r.get('Project Name', ''))
+                        })
                 
-                # Summary logic
-                summary_data = df_clean.groupby('Project Name')['Amount'].apply(lambda x: sum(clean_num(v) for v in x)).reset_index()
-                summaries = []
-                for _, s_row in summary_data.iterrows():
-                    summaries.append({
-                        "po_number": po_no,
-                        "project_name": str(s_row['Project Name']),
-                        "total_amount": float(s_row['Amount'])
-                    })
+                # Prepare Summaries (Grouped by Project)
+                summary_map = {}
+                for item in line_items:
+                    p_name = item['project_name']
+                    summary_map[p_name] = summary_map.get(p_name, 0.0) + item['amount']
+                
+                summaries = [{"po_number": po_no, "project_name": k, "total_amount": v} for k, v in summary_map.items()]
 
                 # SYNC TO SUPABASE
                 if line_items:
@@ -514,30 +515,48 @@ with tab6:
                 if summaries:
                     supabase.table("po_summaries").insert(summaries).execute()
                 
-                st.success(f"✅ PO {po_no} processed and synced to both tables!")
+                st.success(f"✅ PO {po_no} processed and synced successfully!")
+                time.sleep(1)
+                st.rerun()
             else:
-                st.error("Header match nahi hua. 'Line' aur 'Item Num' check karein.")
+                st.error("Header match nahi hua. 'Project Name' nahi mila.")
         except Exception as e:
             st.error(f"❌ Error: {str(e)}")
 
     st.divider()
 
-    # 2. DATABASE EXPLORER (TABLES)
-    st.subheader("🔎 Database Explorer")
+    # 2. SEARCH INTERFACE
+    st.markdown("#### 🔎 Search Data from Database")
+    global_search = st.text_input("Search PO Number, Project ID or Site Name...", placeholder="Type to filter tables below...")
+
     f_tab1, f_tab2 = st.tabs(["📊 Project Summaries", "📋 Detailed Line Items"])
     
     with f_tab1:
-        # Summary table fetch
         res_s = supabase.table("po_summaries").select("*").order("created_at", desc=True).execute()
         if res_s.data:
-            st.dataframe(pd.DataFrame(res_s.data), use_container_width=True, hide_index=True)
-        else:
-            st.info("Summary table khali hai.")
+            df_s = pd.DataFrame(res_s.data)
+            # Filter logic
+            if global_search:
+                df_s = df_s[df_s.astype(str).apply(lambda x: x.str.contains(global_search, case=False)).any(axis=1)]
+            
+            st.dataframe(df_s[['po_number', 'project_name', 'total_amount', 'created_at']], use_container_width=True, hide_index=True)
+            
+            # Excel Download for Summary
+            output_s = io.BytesIO()
+            df_s.to_excel(output_s, index=False)
+            st.download_button("📥 Download Summary Excel", output_s.getvalue(), "PO_Summary.xlsx", use_container_width=True)
 
     with f_tab2:
-        # Line Items table fetch
-        res_d = supabase.table("po_line_items").select("*").order("created_at", desc=True).limit(500).execute()
+        res_d = supabase.table("po_line_items").select("*").order("created_at", desc=True).limit(1000).execute()
         if res_d.data:
-            st.dataframe(pd.DataFrame(res_d.data), use_container_width=True, hide_index=True)
-        else:
-            st.info("Line Items table khali hai.")
+            df_d = pd.DataFrame(res_d.data)
+            # Filter logic
+            if global_search:
+                df_d = df_d[df_d.astype(str).apply(lambda x: x.str.contains(global_search, case=False)).any(axis=1)]
+            
+            st.dataframe(df_d[['po_number', 'line_no', 'item_number', 'description', 'qty', 'amount', 'project_name', 'site_id']], use_container_width=True, hide_index=True)
+            
+            # Excel Download for Details
+            output_d = io.BytesIO()
+            df_d.to_excel(output_d, index=False)
+            st.download_button("📥 Download Detailed Excel", output_d.getvalue(), "PO_Detailed.xlsx", use_container_width=True)
