@@ -482,82 +482,53 @@ with tab6:
 with tab_audit:
     st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Audit Management Portal</h3>", unsafe_allow_html=True)
     
-    # --- 1. DATA LOADING (INDIVIDUAL FETCHING) ---
-    m_df = pd.DataFrame()
-    u_df = pd.DataFrame()
-    ind_df = pd.DataFrame()
-    h_df = pd.DataFrame()
-
-    # VIS Portal Data
+    # --- 1. DATA LOADING ---
+    m_df, u_df, ind_df, h_df = pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
     try:
-        res_m = supabase.table("VIS Portal Site Data").select('*').execute()
-        if res_m.data: m_df = pd.DataFrame(res_m.data)
-    except Exception as e: st.error(f"VIS Portal Table Error: {e}")
-
-    # Allowed Users
-    try:
-        res_u = supabase.table("allowed_users").select("*").execute()
-        if res_u.data: u_df = pd.DataFrame(res_u.data)
-    except Exception as e: st.error(f"Users Table Error: {e}")
-
-    # Indus Data (Lat/Long)
-    try:
-        res_ind = supabase.table("Indus Data").select("*").execute()
-        if res_ind.data: ind_df = pd.DataFrame(res_ind.data)
-    except Exception as e: st.error(f"Indus Data Table Error: {e}")
-
-    # History (Audit Request)
-    try:
-        res_h = supabase.table("Audit Request").select("*").order("created_at", desc=True).execute()
-        if res_h.data: h_df = pd.DataFrame(res_h.data)
-    except Exception as e: st.error(f"History Table Error: {e}")
+        m_df = pd.DataFrame(supabase.table("VIS Portal Site Data").select('*').execute().data)
+        u_df = pd.DataFrame(supabase.table("allowed_users").select("*").execute().data)
+        # Naya table 'Indus_Coordinates' fetch karein
+        ind_df = pd.DataFrame(supabase.table("Indus_Coordinates").select("*").execute().data)
+        h_df = pd.DataFrame(supabase.table("Audit Request").select("*").order("created_at", desc=True).execute().data)
+    except: pass
 
     t1, t2 = st.tabs(["➕ Create Entry", "📜 History"])
 
     with t1:
-        # Step 1: Selection Dropdowns
         c_top1, c_top2 = st.columns(2)
+        p_ids = [""] + sorted(m_df["PROJECT ID"].unique().tolist()) if not m_df.empty else [""]
+        sel_pid = c_top1.selectbox("🔍 Step 1: Select Project ID", p_ids, key="audit_v50_pid")
         
-        p_ids = [""]
-        if not m_df.empty: p_ids += sorted(m_df["PROJECT ID"].unique().tolist())
-        sel_pid = c_top1.selectbox("🔍 Step 1: Select Project ID", p_ids, key="audit_p_v30")
-        
-        u_names = [""]
-        if not u_df.empty: u_names += sorted(u_df["name"].tolist())
-        sel_rep = c_top2.selectbox("👤 Step 2: Select Representative", u_names, key="audit_u_v30")
+        user_names = [""] + sorted(u_df["name"].tolist()) if not u_df.empty else [""]
+        sel_rep = c_top2.selectbox("👤 Step 2: Select Representative", user_names, key="audit_v50_rep")
 
-# --- STEP 2: PRECISE AUTO-FILL (Using NEW Table 'Indus_Coordinates') ---
+        # --- STEP 2: AUTO-FILL LOGIC ---
         s_info, rep_mob, lat_val, long_val, linked_sid = {}, "", "", "", ""
+        today_dt = datetime.now().strftime("%d-%b-%Y")
+        tomorrow_dt = (datetime.now() + timedelta(days=1)).strftime("%d-%b-%Y")
         
         if sel_pid and not m_df.empty:
-            # 1. VIS Portal se Project details nikalna
             s_info = m_df[m_df["PROJECT ID"] == sel_pid].iloc[0].to_dict()
             linked_sid = str(s_info.get("SITE ID", "")).strip()
             
-            # 2. Lat/Long Fetch from NEW table
-            if linked_sid:
-                try:
-                    # Seedha naye table 'Indus_Coordinates' se fetch karein
-                    res_coord = supabase.table("Indus_Coordinates").select("Lat", "Long").eq("Site ID", linked_sid).execute()
-                    
-                    if res_coord.data:
-                        match = res_coord.data[0]
-                        lat_val = str(match.get("Lat", ""))
-                        long_val = str(match.get("Long", ""))
-                except Exception as e:
-                    # Agar naya table na mile toh purane table par fallback karein (Just in case)
-                    st.caption(f"Note: Fetching coordinates from fallback...")
-        
-        # 3. Mobile Lookup (Sahi wala column 'phone_number')
+            if linked_sid and not ind_df.empty:
+                # Naye table se exact match
+                match = ind_df[ind_df["Site ID"].astype(str).str.strip().str.upper() == linked_sid.upper()]
+                if not match.empty:
+                    lat_val = str(match.iloc[0].get('Lat', ''))
+                    long_val = str(match.iloc[0].get('Long', ''))
+
         if sel_rep and not u_df.empty:
-            match_u = u_df[u_df["name"].astype(str).str.strip() == str(sel_rep).strip()]
+            match_u = u_df[u_df["name"] == sel_rep]
             if not match_u.empty:
                 rep_mob = str(match_u.iloc[0].get('phone_number', ''))
 
-        # --- STEP 3: THE FORM ---
-        with st.form("audit_v30_form"):
+        # --- STEP 3: THE FORM (All Columns Included) ---
+        with st.form("audit_v50_form", clear_on_submit=True):
             col1, col2, col3 = st.columns(3)
             f = {}
+            
+            # Row 1
             f["Circle"] = col1.text_input("Circle", value="Maharashtra")
             f["Ref. No."] = col1.text_input("Project ID", value=sel_pid, disabled=True)
             f["Indus ID"] = col2.text_input("Indus ID", value=linked_sid)
@@ -565,39 +536,44 @@ with tab_audit:
             f["Site Add"] = col3.text_input("Site Add", value=s_info.get("CLUSTER", ""))
             f["Cluster / Zone"] = col3.text_input("Cluster / Zone", value=s_info.get("CLUSTER", ""))
             
-            f["Date of Offerance in ISQ"] = col1.text_input("Offerance Date", value=datetime.now().strftime("%d-%b-%Y"))
-            f["Date Of Audit Planned in ISQ"] = col2.text_input("Planned Audit Date", value=(datetime.now() + timedelta(days=1)).strftime("%d-%b-%Y"))
+            # Row 2
+            f["Date of Offerance in ISQ"] = col1.text_input("Offerance Date", value=today_dt)
+            f["Date Of Audit Planned in ISQ"] = col2.text_input("Planned Audit Date", value=tomorrow_dt)
             f["ISQ Offerance Status(Y/N)"] = col3.selectbox("ISQ Offerance Status", ["Y", "N"])
 
+            # Row 3
             f["Project"] = col1.text_input("Project Name", value=s_info.get("PROJECT NAME", ""))
             f["Tower Type"] = col2.text_input("Tower Type", value="GBT")
             f["Tower Ht."] = col3.text_input("Tower Ht.", value="40 mtr")
 
-            f["Stage"] = col1.text_input("Stage", value="") 
-            f["Audit Agency Name"] = col2.text_input("Audit Agency Name", value="")
-            f["TSP Name"] = col3.text_input("TSP Name", value="Visiontech")
+            # Row 4 (Checklist Fields - Jo None aa rahe thay)
+            f["Documents uploaded in ISQ(Y/N)"] = col1.selectbox("Documents uploaded in ISQ?", ["Y", "N"], index=0)
+            f["TSP Shared Filled checklist during Offerance for audit (Yes / N )"] = col2.selectbox("TSP Shared Checklist?", ["Y", "N"], index=0)
+            f["TSP Shared Compliance Photographs during audit Offerance (yes / )"] = col3.selectbox("TSP Shared Photographs?", ["Y", "N"], index=0)
 
+            # Row 5
             f["Representative Name"] = col1.text_input("Representative Name", value=sel_rep)
             f["Representative Contact Number"] = col2.text_input("Rep. Mobile", value=rep_mob)
-            f["Actual ofference date"] = col3.text_input("Actual ofference date", value=datetime.now().strftime("%d-%b-%Y"))
+            f["Actual ofference date"] = col3.text_input("Actual ofference date", value=today_dt)
 
+            # Row 6
             f["Lat"] = col1.text_input("Latitude", value=lat_val)
             f["Long"] = col2.text_input("Longitude", value=long_val)
-            f["Actual Audit date"] = col3.text_input("Actual Audit date", value=(datetime.now() + timedelta(days=1)).strftime("%d-%b-%Y"))
+            f["Actual Audit date"] = col3.text_input("Actual Audit date", value=tomorrow_dt)
 
+            # Extra Fields for Table Stability
+            f["Actual Audit Time"] = tomorrow_dt
             f["Mail Status"], f["Mail Sent Date"] = "Pending", "-"
 
-            if st.form_submit_button("🚀 Save Entry"):
+            if st.form_submit_button("🚀 Save Audit Entry"):
                 if sel_pid:
                     try:
                         supabase.table("Audit Request").insert(f).execute()
-                        st.success("✅ Saved!")
+                        st.success("✅ Saved Successfully!")
                         st.rerun()
                     except Exception as e: st.error(f"Save Error: {e}")
+                else: st.warning("Please select Project ID.")
 
     with t2:
-        st.subheader("Saved Audit Requests")
         if not h_df.empty:
             st.dataframe(h_df, use_container_width=True, hide_index=True)
-        else:
-            st.info("No history found in 'Audit Request' table.")
