@@ -405,127 +405,92 @@ with tab6:
             st.dataframe(df_d[['po_number', 'line_no', 'item_number', 'qty', 'amount', 'project_name', 'site_id']], use_container_width=True, hide_index=True)
 
 # =====================================================================
-# 📝 TAB 9: VIS PORTAL MASTER & AUDIT DISPATCH
+# 📝 TAB: AUDIT PORTAL (AUTO-FILL FORM & EMAIL TRACKING)
 # =====================================================================
-# Naye tab ko tabs list mein upar add karna na bhoolein: tab1, ..., tab_vis = st.tabs([...])
-with tab_audit:  # Aapne is tab ka naam tab_audit rakha hai
-    st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Professional Audit Dispatch Portal</h3>", unsafe_allow_html=True)
+with tab_audit:
+    st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Audit Request Form & Dispatch</h3>", unsafe_allow_html=True)
     
-    vis_sub1, vis_sub2 = st.tabs(["📊 Master Database", "📧 Send Audit Email"])
+    # --- 1. DATA FETCHING ---
+    # Master data se Project IDs uthana drop-down ke liye
+    res_master = supabase.table("VIS Portal Site Data").select("*").execute()
+    master_df = pd.DataFrame(res_master.data) if res_master.data else pd.DataFrame()
 
-    # --- EMAIL SENDING FUNCTION ---
-    def send_vis_audit_email(selected_df):
-        # --- CONFIGURATION (Update these) ---
-        SENDER_EMAIL = "your-email@gmail.com"  
-        APP_PASSWORD = "xxxx xxxx xxxx xxxx"    # Google App Password
-        RECEIVER_EMAIL = "amit.patil@example.com"
-        CC_LIST = "Prashant Narkar; Projectvisiontech; Yogita Hatwar"
-        
-        tomorrow = (datetime.now() + timedelta(days=1)).strftime('%d-%b-%y')
-        
-        msg = MIMEMultipart()
-        msg['Subject'] = f"Audit Request_Visiontech_({tomorrow})"
-        msg['From'] = f"Saira Quzi <{SENDER_EMAIL}>"
-        msg['To'] = RECEIVER_EMAIL
-        msg['Cc'] = CC_LIST
+    # Audit Request table se history nikalna
+    res_audit = supabase.table("Audit Request").select("*").order("created_at", desc=True).execute()
+    audit_df = pd.DataFrame(res_audit.data) if res_audit.data else pd.DataFrame()
 
-        # HTML Styling
-        header_style = "background-color: #FFFF00; font-weight: bold; border: 1px solid black; padding: 5px; font-size: 10px; text-align: center; white-space: nowrap;"
-        td_style = "border: 1px solid black; padding: 5px; font-size: 10px; text-align: center;"
+    entry_tab, history_tab = st.tabs(["➕ Create New Request", "📜 History & Email"])
 
-        # Image ke hisaab se 27 Columns sequence mein
-        audit_headers = [
-            "Circle", "Ref. No.", "Indus ID", "Site Name", "Site Add", "Cluster / Zone",
-            "Date of Offerance in ISQ", "Date Of Audit Planned in ISQ", "ISQ Offerance Status(Y/N)",
-            "Documents uploaded in ISQ(Y/N)", "TSP Shared Filled checklist during Offerance for audit (Yes / No)",
-            "TSP Shared Compliance Photographs during audit Offerance (yes / No)", "Project", "Tower Type",
-            "Tower Ht.", "Stage", "TSP Name", "Audit Agency Name", "Representative Name",
-            "Representative Contact Number", "Actual ofference date", "Audit Engineer Name",
-            "Contact Details.", "Actual Audit date", "Actual Audit Time", "Lat", "Long"
-        ]
+    # --- 2. SUB-TAB: AUTO-FILL FORM ---
+    with entry_tab:
+        if not master_df.empty:
+            st.write("### New Audit Entry")
+            # Step 1: Select Project ID
+            project_list = [""] + master_df["PROJECT ID"].unique().tolist()
+            selected_pid = st.selectbox("🔍 Select PROJECT ID (Auto-fills Data)", project_list)
 
-        # Mapping: Agar database column name alag hai toh yahan fix karein
-        # Example: Row['Circle'] file mein '#' ya 'OPERATOR' ho sakta hai
-        col_map = {
-            "Circle": "OPERATOR",
-            "Indus ID": "SITE ID",
-            "Project": "PROJECT NAME",
-            "Actual Audit date": "AUDIT DATE"
-        }
+            # Auto-fill Logic
+            site_info = {}
+            if selected_pid != "":
+                site_info = master_df[master_df["PROJECT ID"] == selected_pid].iloc[0].to_dict()
 
-        h_html = "".join([f"<th style='{header_style}'>{h}</th>" for h in audit_headers])
-        r_html = ""
-        for _, row in selected_df.iterrows():
-            r_html += "<tr>"
-            for h in audit_headers:
-                db_col = col_map.get(h, h) # Check mapping else use same name
-                val = row.get(db_col, "-")
-                r_html += f"<td style='{td_style}'>{val}</td>"
-            r_html += "</tr>"
+            # Step 2: Form with 3 Columns
+            with st.form("audit_form_v6", clear_on_submit=True):
+                c1, c2, c3 = st.columns(3)
+                
+                final_data = {}
+                # In columns ko hum auto-fill kar rahe hain master data se
+                final_data["Circle"] = c1.text_input("Circle", value=site_info.get("OPERATOR", "Maharashtra"))
+                final_data["Project"] = c2.text_input("Project", value=site_info.get("PROJECT NAME", ""))
+                final_data["Indus ID"] = c3.text_input("Indus ID", value=site_info.get("SITE ID", ""))
+                final_data["Site Name"] = c1.text_input("Site Name", value=site_info.get("SITE NAME", ""))
+                final_data["Cluster / Zone"] = c2.text_input("Cluster / Zone", value=site_info.get("CLUSTER", ""))
+                
+                # Manual entry fields (Audit specific)
+                final_data["Actual Audit date"] = c3.text_input("Actual Audit date (e.g. 15-Apr-26)")
+                final_data["Actual Audit Time"] = c1.text_input("Actual Audit Time (e.g. 10:00 AM)")
+                final_data["Lat"] = c2.text_input("Lat", value=site_info.get("Lat", ""))
+                final_data["Long"] = c3.text_input("Long", value=site_info.get("Long", ""))
+                
+                # Email Status default value
+                final_data["Mail Status"] = "Pending"
+                final_data["Mail Sent Date"] = "-"
 
-        body_html = f"""
-        <html>
-        <body style="font-family: Calibri, Arial, sans-serif;">
-            <p>Hello Sir,</p>
-            <p>Below sites is ready for audit. Kindly arrange auditor for same.</p>
-            <div style="overflow-x: auto;">
-                <table style="border-collapse: collapse; width: 100%; border: 1px solid black;">
-                    <thead><tr style="background-color: #FFFF00;">{h_html}</tr></thead>
-                    <tbody>{r_html}</tbody>
-                </table>
-            </div>
-            <br>
-            <p>Thanks,<br>
-            <b>Saira Quzi</b><br>
-            8180827123</p>
-        </body>
-        </html>
-        """
-        msg.attach(MIMEText(body_html, 'html'))
-
-        try:
-            import smtplib
-            server = smtplib.SMTP('smtp.gmail.com', 587)
-            server.starttls()
-            server.login(SENDER_EMAIL, APP_PASSWORD)
-            server.send_message(msg)
-            server.quit()
-            return True
-        except Exception as e:
-            st.error(f"Email Error: {e}")
-            return False
-
-    # --- SUB TAB 1: VIEW MASTER DATA ---
-    with vis_sub1:
-        st.write("🔍 Search from Master Portal Data")
-        res_vis = supabase.table("VIS Portal Site Data").select("*").limit(1000).execute()
-        if res_vis.data:
-            df_vis = pd.DataFrame(res_vis.data)
-            
-            # Simple Filter
-            search_key = st.text_input("Filter by Site ID / Project ID", key="vis_search")
-            if search_key:
-                df_vis = df_vis[df_vis.astype(str).apply(lambda x: x.str.contains(search_key, case=False)).any(axis=1)]
-            
-            st.dataframe(df_vis, use_container_width=True, hide_index=True)
+                if st.form_submit_button("💾 Save to Audit Table"):
+                    supabase.table("Audit Request").insert(final_data).execute()
+                    st.success("✅ Audit Request Saved!")
+                    st.rerun()
         else:
-            st.info("Database khali hai. Pehle data upload karein.")
+            st.warning("Master data table khali hai. Pehle VIS Portal Site Data upload karein.")
 
-    # --- SUB TAB 2: SELECT & DISPATCH ---
-    with vis_sub2:
-        if res_vis.data:
-            st.write("### Select Sites for Audit Email")
-            # Select multiple sites from the list
-            selected_indices = st.multiselect(
-                "Sites select karein:", 
-                df_vis.index, 
-                format_func=lambda x: f"{df_vis.loc[x, 'SITE ID']} - {df_vis.loc[x, 'SITE NAME']}"
-            )
+    # --- 3. SUB-TAB: EMAIL & TRACKING ---
+    with history_tab:
+        if not audit_df.empty:
+            st.write("### Send Audit Email")
             
-            if st.button("🚀 Send Professional Email to Amit Patil", type="primary", use_container_width=True):
+            # Selection for Email
+            selected_indices = st.multiselect("Select Sites to Dispatch:", 
+                                              audit_df.index, 
+                                              format_func=lambda x: f"{audit_df.loc[x, 'Indus ID']} - {audit_df.loc[x, 'Site Name']}")
+
+            if st.button("📧 Send Email & Update Status", type="primary"):
                 if selected_indices:
-                    with st.spinner("Processing Email..."):
-                        if send_vis_audit_email(df_vis.loc[selected_indices]):
-                            st.success(f"✅ Audit Request Email successfully sent for {len(selected_indices)} sites!")
+                    # Yahan wahi 'send_professional_email' function call karein jo pehle banaya tha
+                    if send_professional_email(audit_df.loc[selected_indices]):
+                        # Update Status in Database
+                        sent_date = datetime.now().strftime("%d-%b-%Y %H:%M")
+                        for idx in selected_indices:
+                            row_id = audit_df.loc[idx, 'id']
+                            supabase.table("Audit Request").update({
+                                "Mail Status": "Mail Sent",
+                                "Mail Sent Date": sent_date
+                            }).eq("id", row_id).execute()
+                        
+                        st.success(f"✅ Email Sent & Status Updated for {len(selected_indices)} sites!")
+                        st.rerun()
                 else:
-                    st.warning("⚠️ Pehle list se kam se kam ek site select karein.")
+                    st.warning("Pehle site select karein.")
+
+            st.divider()
+            # Table View with Status Remark
+            st.dataframe(audit_df, use_container_width=True, hide_index=True)
