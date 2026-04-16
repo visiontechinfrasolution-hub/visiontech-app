@@ -317,10 +317,10 @@ else:
                 res_ind = supabase.table("Indus Data").select("*").ilike("Site ID", f"%{in_id}%").execute()
                 if res_ind.data: st.dataframe(pd.DataFrame(res_ind.data))
 
-# =====================================================================
+    # =====================================================================
     # 📡 TAB 5: WCC STATUS
     # =====================================================================
-elif st.session_state.current_page == "WCC":
+    elif st.session_state.current_page == "WCC":
         st.markdown("""
             <style>
                 .site-badge { 
@@ -451,8 +451,7 @@ elif st.session_state.current_page == "WCC":
     else:
         st.write("Please select a valid page.")
 
-    else:
-        st.write("Please select a valid page.")
+
     # =====================================================================
     # 📁 TAB 6: DATA ENTRY 
     # =====================================================================
