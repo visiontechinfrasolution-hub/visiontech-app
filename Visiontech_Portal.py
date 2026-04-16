@@ -15,6 +15,79 @@ URL = "https://sckyflvukpmdqmdzjzhs.supabase.co"
 KEY = "sb_publishable_rAiegSkKYvM0Z9n7sUAI1w_WTgm1S4I" 
 supabase = create_client(URL, KEY)
 
+# --- 1.A EMAIL FUNCTION (With Full Signature & Body) ---
+def send_professional_email(selected_df, to_emails, cc_emails):
+    import smtplib
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.text import MIMEText
+    from datetime import datetime, timedelta
+
+    SENDER = "vispltower@gmail.com" 
+    PWD = "llzg bjkq dyig rykv" 
+    
+    tomorrow = (datetime.now() + timedelta(days=1)).strftime('%d-%b-%Y')
+    
+    msg = MIMEMultipart()
+    msg['Subject'] = f"Audit Request_Visiontech_({tomorrow})"
+    msg['From'] = f"Visiontech Portal <{SENDER}>"
+    msg['To'] = to_emails
+    msg['Cc'] = cc_emails
+
+    header_style = "background-color: #FFFF00; font-weight: bold; border: 1px solid black; padding: 4px; font-size: 10px; text-align: center; color: black;"
+    td_style = "border: 1px solid black; padding: 4px; font-size: 10px; text-align: center;"
+
+    cols = [
+        "Circle", "Ref. No.", "Indus ID", "Site Name", "Site Add", "Cluster / Zone",
+        "Date of Offerance in ISQ", "Date Of Audit Planned in ISQ", "ISQ Offerance Status(Y/N)",
+        "Documents uploaded in ISQ(Y/N)", "TSP Shared Filled checklist during Offerance for audit (Yes / No)",
+        "TSP Shared Compliance Photographs during audit Offerance (yes / No)", "Project", "Tower Type",
+        "Tower Ht.", "Stage", "TSP Name", "Audit Agency Name", "Representative Name",
+        "Representative Contact Number", "Actual ofference date", "Audit Engineer Name",
+        "Contact Details.", "Actual Audit date", "Actual Audit Time", "Lat", "Long"
+    ]
+
+    h_html = "".join([f"<th style='{header_style}'>{c}</th>" for c in cols])
+    r_html = ""
+    for _, row in selected_df.iterrows():
+        r_html += "<tr>"
+        for col in cols:
+            val = row.get(col, "-")
+            r_html += f"<td style='{td_style}'>{val}</td>"
+        r_html += "</tr>"
+
+    body = f"""
+    <html>
+    <body style="font-family: Calibri, Arial; font-size: 11px;">
+        <p>Hello Sir,</p>
+        <p>Please find the audit request for the following sites attached in the table below:</p>
+        <div style="overflow-x: auto;">
+            <table border="1" style="border-collapse: collapse; width: 100%; border: 1px solid black;">
+                <thead><tr style="background-color: #FFFF00;">{h_html}</tr></thead>
+                <tbody>{r_html}</tbody>
+            </table>
+        </div>
+        <br>
+        <p>Thanks & Regards,<br>
+        <b>Saira Quzi</b><br>
+        Mobile: +91 8180827123<br>
+        Visiontech Infra Solution</p>
+    </body>
+    </html>
+    """
+    msg.attach(MIMEText(body, 'html'))
+
+    try:
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls() 
+        server.login(SENDER, PWD)
+        server.send_message(msg)
+        server.quit()
+        return True
+    except Exception as e:
+        import streamlit as st
+        st.error(f"Gmail Error: {e}")
+        return False
+
 # --- 2. UI SETUP ---
 st.set_page_config(page_title="Visiontech Portal", layout="wide", initial_sidebar_state="collapsed")
 
@@ -75,20 +148,10 @@ else:
     st.markdown("</div>", unsafe_allow_html=True)
     st.divider()
 
+    # =====================================================================
+    # 🟩 TAB 1: BOQ REPORT (RESTORED ORIGINAL SEARCH LOGIC)
+    # =====================================================================
     if st.session_state.current_page == "BOQ":
-        st.markdown("### 📦 BOQ Report")
-        # --- तुमचा जुना BOQ कोड इकडे पेस्ट करा (with tab1 काढून) ---
-        st.info("डेटा शोधण्यासाठी खालील फिल्टर्स वापरा.")
-
-    elif st.session_state.current_page == "WCC":
-        st.markdown("### 📡 WCC Tracker")
-        # --- तुमचा जुना WCC कोड इकडे पेस्ट करा ---
-    
-    # बाकीच्या सर्व पेजेससाठी पण असेच elif बनवा...
-# =====================================================================
-# 🟩 TAB 1: BOQ REPORT (RESTORED ORIGINAL SEARCH LOGIC)
-# =====================================================================
-elif st.session_state.current_page == "BOQ":
         st.markdown("""
             <style>
                 div[data-testid="stDataTableBody"]::-webkit-scrollbar { width: 14px; height: 14px; }
@@ -186,578 +249,503 @@ elif st.session_state.current_page == "BOQ":
             final_cols = [c for c in mera_sequence if c in df.columns]
             st.dataframe(df[final_cols], use_container_width=True, hide_index=True)
 
-# =====================================================================
-# 🧾 TAB 2: PO REPORT
-# =====================================================================
-with tab2:
-    st.markdown("<h3 style='text-align: center;'>🧾 PO Report Search</h3>", unsafe_allow_html=True)
-    if not st.session_state.get('po_unlocked', False):
-        if st.text_input("Password PO:", type="password", key="p_lock_v5") == "1234":
-            st.session_state.po_unlocked = True
-            st.rerun()
-    else:
-        with st.form("po_form_v5"):
-            c1, c2, c3, c4 = st.columns(4)
-            with c1: s_po = st.text_input("📄 PO Number")
-            with c2: s_sh = st.text_input("🚚 Shipment Number")
-            with c3: s_re = st.text_input("🧾 Receipt Number")
-            with c4: st.write(""); sub_po = st.form_submit_button("🔍 Search PO")
-        if sub_po:
-            res_po = supabase.table("PO Report").select("*").ilike("PO Number", f"%{s_po}%").execute()
-            if res_po.data: st.dataframe(pd.DataFrame(res_po.data), use_container_width=True)
+    # =====================================================================
+    # 🧾 TAB 2: PO REPORT
+    # =====================================================================
+    elif st.session_state.current_page == "PO":
+        st.markdown("<h3 style='text-align: center;'>🧾 PO Report Search</h3>", unsafe_allow_html=True)
+        if not st.session_state.get('po_unlocked', False):
+            if st.text_input("Password PO:", type="password", key="p_lock_v5") == "1234":
+                st.session_state.po_unlocked = True
+                st.rerun()
+        else:
+            with st.form("po_form_v5"):
+                c1, c2, c3, c4 = st.columns(4)
+                with c1: s_po = st.text_input("📄 PO Number")
+                with c2: s_sh = st.text_input("🚚 Shipment Number")
+                with c3: s_re = st.text_input("🧾 Receipt Number")
+                with c4: st.write(""); sub_po = st.form_submit_button("🔍 Search PO")
+            if sub_po:
+                res_po = supabase.table("PO Report").select("*").ilike("PO Number", f"%{s_po}%").execute()
+                if res_po.data: st.dataframe(pd.DataFrame(res_po.data), use_container_width=True)
 
-# =====================================================================
-# 🏗️ TAB 3: SITE DETAIL
-# =====================================================================
-with tab3:
-    st.markdown("<h3 style='text-align: center;'>🏗️ Site Detail</h3>", unsafe_allow_html=True)
-    with st.form("sd_form_v5"):
-        site_id_sd = st.text_input("📍 Site ID Search")
-        if st.form_submit_button("🔍 Search Detail"):
-            res_sd = supabase.table("Site Data").select("*").ilike("SITE ID", f"%{site_id_sd}%").execute()
-            if res_sd.data: st.write(res_sd.data)
+    # =====================================================================
+    # 🏗️ TAB 3: SITE DETAIL
+    # =====================================================================
+    elif st.session_state.current_page == "Site":
+        st.markdown("<h3 style='text-align: center;'>🏗️ Site Detail</h3>", unsafe_allow_html=True)
+        with st.form("sd_form_v5"):
+            site_id_sd = st.text_input("📍 Site ID Search")
+            if st.form_submit_button("🔍 Search Detail"):
+                res_sd = supabase.table("Site Data").select("*").ilike("SITE ID", f"%{site_id_sd}%").execute()
+                if res_sd.data: st.write(res_sd.data)
 
-# =====================================================================
-# 📊 TAB 4: INDUS BASIC DATA
-# =====================================================================
-with tab4:
-    st.markdown("<h3 style='text-align: center;'>📊 Indus Basic Data</h3>", unsafe_allow_html=True)
-    with st.form("ind_form_v5"):
-        in_id = st.text_input("📍 Site ID Search")
-        if st.form_submit_button("🔍 Search Indus"):
-            res_ind = supabase.table("Indus Data").select("*").ilike("Site ID", f"%{in_id}%").execute()
-            if res_ind.data: st.dataframe(pd.DataFrame(res_ind.data))
+    # =====================================================================
+    # 📊 TAB 4: INDUS BASIC DATA
+    # =====================================================================
+    elif st.session_state.current_page == "Indus":
+        st.markdown("<h3 style='text-align: center;'>📊 Indus Basic Data</h3>", unsafe_allow_html=True)
+        with st.form("ind_form_v5"):
+            in_id = st.text_input("📍 Site ID Search")
+            if st.form_submit_button("🔍 Search Indus"):
+                res_ind = supabase.table("Indus Data").select("*").ilike("Site ID", f"%{in_id}%").execute()
+                if res_ind.data: st.dataframe(pd.DataFrame(res_ind.data))
 
-# =====================================================================
-# 📡 TAB 5: WCC TRACKER (SIMPLE FETCH & COMPACT FORMAT)
-# =====================================================================
-with tab_wcc:
-    st.markdown("""
-        <style>
-            .site-badge { 
-                background-color: #E0F2FE; color: #0369A1; padding: 2px 8px; 
-                border-radius: 12px; font-weight: 600; font-size: 11px; border: 1px solid #BAE6FD; 
-            }
-            .wa-btn { 
-                background-color: #25D366; color: white !important; padding: 4px 8px; 
-                border-radius: 6px; font-weight: bold; text-decoration: none; font-size: 12px;
-            }
-            [data-testid="column"] { display: flex; align-items: center; justify-content: center; }
-        </style>
-    """, unsafe_allow_html=True)
+    # =====================================================================
+    # 📡 TAB 5: WCC TRACKER (SIMPLE FETCH & COMPACT FORMAT)
+    # =====================================================================
+    elif st.session_state.current_page == "WCC":
+        st.markdown("""
+            <style>
+                .site-badge { 
+                    background-color: #E0F2FE; color: #0369A1; padding: 2px 8px; 
+                    border-radius: 12px; font-weight: 600; font-size: 11px; border: 1px solid #BAE6FD; 
+                }
+                .wa-btn { 
+                    background-color: #25D366; color: white !important; padding: 4px 8px; 
+                    border-radius: 6px; font-weight: bold; text-decoration: none; font-size: 12px;
+                }
+                [data-testid="column"] { display: flex; align-items: center; justify-content: center; }
+            </style>
+        """, unsafe_allow_html=True)
 
-    def fetch_wcc_data_simple():
-        try: 
-            # Simple select bina kisi order ke taaki agar column missing ho toh crash na ho
-            res = supabase.table("WCC Status").select("*").execute()
-            return res.data
-        except Exception as e:
-            st.error(f"Fetch Error: {e}")
-            return []
+        def fetch_wcc_data_simple():
+            try: 
+                # Simple select bina kisi order ke taaki agar column missing ho toh crash na ho
+                res = supabase.table("WCC Status").select("*").execute()
+                return res.data
+            except Exception as e:
+                st.error(f"Fetch Error: {e}")
+                return []
 
-    def update_wcc_record(payload):
-        try: return supabase.table("WCC Status").upsert(payload).execute()
-        except: return None
+        def update_wcc_record(payload):
+            try: return supabase.table("WCC Status").upsert(payload).execute()
+            except: return None
 
-    st.title("📡 WCC Status Tracker")
-    
-    if "wcc_role" not in st.session_state: st.session_state.wcc_role = None
-    
-    if not st.session_state.wcc_role:
-        pwd_input = st.text_input("Enter Password:", type="password", key="wcc_login_pwd_v2")
-        if st.button("🔓 Unlock Tracker"):
-            if pwd_input == "Vision@321": st.session_state.wcc_role = "requester"
-            elif pwd_input == "Account@321": st.session_state.wcc_role = "accountant"
-            else: st.error("❌ Wrong Password!")
-            st.rerun()
-    else:
-        role = st.session_state.wcc_role
+        st.title("📡 WCC Status Tracker")
         
-        @st.dialog("📝 WCC Details Form", width="large")
-        def wcc_edit_modal(row_data=None):
-            is_edit = row_data is not None
-            with st.form("wcc_form_v25"):
-                if role == "requester":
-                    c1, c2 = st.columns(2)
-                    v_proj = c1.text_input("Project", value=str(row_data.get("Project", "")) if is_edit else "")
-                    v_pid = c2.text_input("Project ID *", value=str(row_data.get("Project ID", "")) if is_edit else "", disabled=is_edit)
-                    c3, c4 = st.columns(2)
-                    v_sid = c3.text_input("Site ID", value=str(row_data.get("Site ID", "")) if is_edit else "")
-                    v_snm = c4.text_input("Site Name", value=str(row_data.get("Site Name", "")) if is_edit else "")
-                    c5, c6 = st.columns(2)
-                    v_po = c5.text_input("PO Number", value=str(row_data.get("PO Number", "")) if is_edit else "")
-                    v_dt = st.date_input("Request Date", value=datetime.now().date())
-                    v_sts = st.selectbox("WCC Status", ["Creation Pending", "Pending for Approval", "Proceed", "Rejected", "Cancel"], 
-                                         index=0 if not is_edit else ["Creation Pending", "Pending for Approval", "Proceed", "Rejected", "Cancel"].index(row_data.get("WCC Status", "Creation Pending")))
-                    v_wno = row_data.get("WCC Number") if is_edit else None 
-                else:
-                    v_pid = row_data.get('Project ID')
-                    v_wno = st.text_input("Enter WCC Number", value=str(row_data.get("WCC Number", "")) if is_edit else "")
-                
-                if st.form_submit_button("💾 Save Changes", use_container_width=True):
-                    def clean_id(v): return ''.join(filter(str.isdigit, str(v))) if v else None
-                    payload = {"Project ID": v_pid, "WCC Number": clean_id(v_wno)}
-                    if role == "requester": 
-                        payload.update({"Project": v_proj, "Site ID": v_sid, "Site Name": v_snm, "PO Number": clean_id(v_po), "Reqeust Date": str(v_dt), "WCC Status": v_sts})
-                    if update_wcc_record(payload): st.rerun()
-
-        data_list = fetch_wcc_data_simple()
-        df_wcc = pd.DataFrame(data_list) if data_list else pd.DataFrame()
+        if "wcc_role" not in st.session_state: st.session_state.wcc_role = None
         
-        if role == "requester":
-            if st.button("➕ Add New Site Request", type="primary"): wcc_edit_modal()
-        
-        st.divider()
-
-        if not df_wcc.empty:
-            # --- TABLE HEADER ---
-            h_cols = st.columns([1, 0.5, 1.2, 1.5, 1, 1.2, 1, 1.2])
-            cols_names = ["Actions", "Sr.", "Project", "Project ID", "Site ID", "Site Name", "PO No", "Status"]
-            for col, name in zip(h_cols, cols_names):
-                col.markdown(f"<p style='color:#1E3A8A; font-weight:bold; font-size:13px; text-align:center;'>{name}</p>", unsafe_allow_html=True)
-            st.markdown("<hr style='margin:2px 0px; border-top: 2px solid #1E3A8A;'>", unsafe_allow_html=True)
-
-           # --- TABLE ROWS (DATE FORMAT & BLANK LOGIC FIXED) ---
-            for i, row in df_wcc.iterrows():
-                r_cols = st.columns([1, 0.5, 1.2, 1.5, 1, 1.2, 1, 1.2])
-                
-                # Date Formatting: 15-Apr-2026
-                raw_date = row.get('Reqeust Date', '')
-                try:
-                    formatted_date = pd.to_datetime(raw_date).strftime('%d-%b-%Y') if raw_date and str(raw_date).lower() != 'none' else ""
-                except:
-                    formatted_date = str(raw_date) if str(raw_date).lower() != 'none' else ""
-
-                # Function to remove 'None' from display
-                def clean_none(val):
-                    return str(val) if val and str(val).lower() != 'none' else ""
-
-                with r_cols[0]:
-                    b1, b2 = st.columns(2)
-                    if b1.button("✏️", key=f"edit_{row['Project ID']}_{i}"): wcc_edit_modal(row)
-                    if role == 'requester':
-                        msg = (
-                            f"Hello Prkash Ji,\nRaise WCC urgently...\n\n"
-                            f"*Project* :- {clean_none(row.get('Project'))}\n"
-                            f"*Project ID* :- {clean_none(row.get('Project ID'))}\n"
-                            f"*Site ID* :- {clean_none(row.get('Site ID'))}\n"
-                            f"*Site Name* :- {clean_none(row.get('Site Name'))}\n"
-                            f"*PO Number* :- {clean_none(row.get('PO Number'))}\n"
-                            f"*Reqeust Date* :- {formatted_date}\n"
-                            f"*WCC Number* :- {clean_none(row.get('WCC Number'))}\n"
-                            f"*WCC Status* :- {clean_none(row.get('WCC Status'))}\n\n"
-                            f"Thanks,\nMayur Patil\n7350533473"
-                        )
-                        wa_url = f"whatsapp://send?text={urllib.parse.quote(msg)}"
-                        b2.markdown(f'<a href="{wa_url}" class="wa-btn">💬</a>', unsafe_allow_html=True)
-                
-                r_cols[1].markdown(f"<p style='font-size:12px; text-align:center;'>{i+1}</p>", unsafe_allow_html=True)
-                r_cols[2].markdown(f"<p style='font-size:12px; text-align:center;'>{clean_none(row.get('Project'))}</p>", unsafe_allow_html=True)
-                r_cols[3].markdown(f"<p style='font-size:12px; text-align:center; font-weight:bold;'>{clean_none(row.get('Project ID'))}</p>", unsafe_allow_html=True)
-                r_cols[4].markdown(f"<div style='text-align:center;'><span class='site-badge'>{clean_none(row.get('Site ID'))}</span></div>", unsafe_allow_html=True)
-                r_cols[5].markdown(f"<p style='font-size:12px; text-align:center;'>{clean_none(row.get('Site Name'))}</p>", unsafe_allow_html=True)
-                r_cols[6].markdown(f"<p style='font-size:12px; text-align:center;'>{clean_none(row.get('PO Number'))}</p>", unsafe_allow_html=True)
-                r_cols[7].markdown(f"<p style='font-size:12px; text-align:center;'>{clean_none(row.get('WCC Status'))}</p>", unsafe_allow_html=True)
-                st.markdown("<hr style='margin:1px 0px; border-top: 1px solid #E5E7EB;'>", unsafe_allow_html=True)
-# =====================================================================
-# 📁 TAB 6: DATA ENTRY (DOCUMENT CENTER)
-# =====================================================================
-with tab5:
-    st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center & Tracker</h3>", unsafe_allow_html=True)
-    doc_sub1, doc_sub2, doc_sub3 = st.tabs(["📤 Manager Upload", "🔍 Team Search", "📊 Tracker"])
-    with doc_sub1:
-        with st.form("doc_upload_final_v1", clear_on_submit=True):
-            col_u1, col_u2 = st.columns(2)
-            u_proj, u_indus = col_u1.text_input("📁 Project Number"), col_u2.text_input("📍 Indus ID")
-            u_site, u_type = col_u1.text_input("🏢 Site Name"), col_u2.selectbox("📄 Doc Type", ["Photo", "SRC", "DC", "STN", "REPORT", "OTHER"])
-            u_files = st.file_uploader("Select Files", accept_multiple_files=True)
-            if st.form_submit_button("🚀 Upload All Files"):
-                if u_files and u_proj:
-                    for i, f in enumerate(u_files):
-                        clean_p = u_proj.replace("/", "-").strip()
-                        fname = f"{clean_p}_{u_indus}_{u_type}_{i}.{f.name.split('.')[-1]}"
-                        supabase.storage.from_("site_documents").upload(path=fname, file=f.getvalue(), file_options={"x-upsert": "true"})
-                        p_url = f"{URL}/storage/v1/object/public/site_documents/{fname}"
-                        supabase.table("site_documents_master").upsert({"project_number": u_proj, "indus_id": u_indus, "site_name": u_site, "doc_type": u_type, "file_name": fname, "file_url": p_url}, on_conflict="file_name").execute()
-                    st.success("✅ Files Uploaded!")
-
-    with doc_sub2:
-        q_s = st.text_input("🔍 Search Documents (Project, Indus, Site)")
-        if q_s:
-            res_db = supabase.table("site_documents_master").select("*").or_(f"project_number.ilike.%{q_s}%,indus_id.ilike.%{q_s}%,site_name.ilike.%{q_s}%").execute()
-            if res_db.data:
-                for row in res_db.data:
-                    c1, c2, c3 = st.columns([2, 1, 1])
-                    c1.write(row['file_name']); c2.info(row['doc_type']); c3.markdown(f'[📥 View]({row["file_url"]})')
-                    st.divider()
-
-    with doc_sub3:
-        res_t = supabase.table("site_documents_master").select("*").execute()
-        if res_t.data:
-            df_t = pd.DataFrame(res_t.data)
-            site_groups = df_t.groupby('indus_id')
-            summary = []
-            for ind_id, gp in site_groups:
-                types = gp['doc_type'].str.upper().tolist()
-                summary.append({"Project ID": gp.iloc[0]['project_number'], "Indus ID": ind_id, "Site Name": gp.iloc[0]['site_name'], "SRC": "✅" if "SRC" in types else "❌", "DC": "✅" if "DC" in types else "❌", "STN": "✅" if "STN" in types else "❌", "Report": "✅" if "REPORT" in types else "❌", "Photo": "✅" if "PHOTO" in types else "❌"})
-            st.dataframe(pd.DataFrame(summary), use_container_width=True, hide_index=True)
-
-# =====================================================================
-# 💰 TAB 7: FINANCE ENTRY (FIXED PO ANALYZER)
-# =====================================================================
-with tab6:
-    st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>💰 Finance Entry (PO Analyzer)</h3>", unsafe_allow_html=True)
-    def clean_num_fixed(val):
-        try:
-            if val is None or str(val).strip().lower() in ['nan', 'none', '']: return 0.0
-            n = str(val).replace('"', '').replace(',', '').strip()
-            num = pd.to_numeric(n, errors='coerce')
-            return float(num) if pd.notnull(num) else 0.0
-        except: return 0.0
-
-    with st.form("fin_upload_fixed", clear_on_submit=True):
-        c1, c2 = st.columns([1, 2])
-        u_po = c1.text_input("📄 Enter PO Number")
-        p_file = c2.file_uploader("Upload 'export.tsv'", type=['tsv', 'txt'])
-        if st.form_submit_button("🚀 Process & Overwrite Data", use_container_width=True):
-            if u_po and p_file:
-                try:
-                    content = p_file.getvalue().decode('ISO-8859-1').splitlines()
-                    h_idx = next((i for i, line in enumerate(content) if "Project Name" in line), -1)
-                    if h_idx != -1:
-                        p_file.seek(0)
-                        df_r = pd.read_csv(p_file, sep='\t', skiprows=h_idx, quoting=3, encoding='ISO-8859-1', engine='python')
-                        df_r.columns = [str(c).replace('"', '').strip() for c in df_r.columns]
-                        for col in df_r.columns: df_r[col] = df_r[col].astype(str).str.replace('"', '').str.strip()
-                        df_r['qty_tmp'] = df_r['Qty'].apply(clean_num_fixed)
-                        df_cln = df_r[df_r['qty_tmp'] > 0].copy()
-                        if not df_cln.empty:
-                            supabase.table("po_line_items").delete().eq("po_number", str(u_po)).execute()
-                            supabase.table("po_summaries").delete().eq("po_number", str(u_po)).execute()
-                            items = []
-                            for _, r in df_cln.iterrows():
-                                items.append({"po_number": str(u_po), "line_no": str(r.get('Line', '')), "item_number": str(r.get('Item Num', '')), "description": str(r.get('Description', '')), "uom": str(r.get('UOM', '')), "qty": clean_num_fixed(r.get('Qty')), "price": clean_num_fixed(r.get('Price')), "amount": clean_num_fixed(r.get('Amount')), "site_id": str(r.get('Site ID', '')), "site_name": str(r.get('Site Name', '')), "project_name": str(r.get('Project Name', ''))})
-                            supabase.table("po_line_items").insert(items).execute()
-                            df_cln['amt_tmp'] = df_cln['Amount'].apply(clean_num_fixed)
-                            sums = df_cln.groupby('Project Name')['amt_tmp'].sum().reset_index()
-                            summary_list = [{"po_number": str(u_po), "project_name": str(sr['Project Name']), "total_amount": float(sr['amt_tmp'])} for _, sr in sums.iterrows()]
-                            supabase.table("po_summaries").insert(summary_list).execute()
-                            st.success(f"PO {u_po} Synced!")
-                            st.rerun()
-                except Exception as e: st.error(f"Error: {e}")
-
-    g_search = st.text_input("🔍 Search Database...", key="fin_g_search")
-    f_t1, f_t2 = st.tabs(["📊 Summaries", "📋 Detailed Items"])
-    with f_t1:
-        res_s = supabase.table("po_summaries").select("*").order("created_at", desc=True).execute()
-        if res_s.data:
-            df_s = pd.DataFrame(res_s.data)
-            if g_search: df_s = df_s[df_s.astype(str).apply(lambda x: x.str.contains(g_search, case=False)).any(axis=1)]
-            st.dataframe(df_s[['po_number', 'project_name', 'total_amount']], use_container_width=True, hide_index=True)
-    with f_t2:
-        res_d = supabase.table("po_line_items").select("*").order("created_at", desc=True).limit(1000).execute()
-        if res_d.data:
-            df_d = pd.DataFrame(res_d.data)
-            if g_search: df_d = df_d[df_d.astype(str).apply(lambda x: x.str.contains(g_search, case=False)).any(axis=1)]
-            st.dataframe(df_d[['po_number', 'line_no', 'item_number', 'qty', 'amount', 'project_name', 'site_id']], use_container_width=True, hide_index=True)
-
-# =====================================================================
-# 📝 TAB 8: AUDIT MANAGEMENT PORTAL (FULL STABLE VERSION)
-# =====================================================================
-
-# --- 1. EMAIL FUNCTION (With Full Signature & Body) ---
-def send_professional_email(selected_df, to_emails, cc_emails):
-    import smtplib
-    from email.mime.multipart import MIMEMultipart
-    from email.mime.text import MIMEText
-    from datetime import datetime, timedelta
-
-    SENDER = "vispltower@gmail.com" 
-    PWD = "llzg bjkq dyig rykv" 
-    
-    tomorrow = (datetime.now() + timedelta(days=1)).strftime('%d-%b-%Y')
-    
-    msg = MIMEMultipart()
-    msg['Subject'] = f"Audit Request_Visiontech_({tomorrow})"
-    msg['From'] = f"Visiontech Portal <{SENDER}>"
-    msg['To'] = to_emails
-    msg['Cc'] = cc_emails
-
-    header_style = "background-color: #FFFF00; font-weight: bold; border: 1px solid black; padding: 4px; font-size: 10px; text-align: center; color: black;"
-    td_style = "border: 1px solid black; padding: 4px; font-size: 10px; text-align: center;"
-
-    cols = [
-        "Circle", "Ref. No.", "Indus ID", "Site Name", "Site Add", "Cluster / Zone",
-        "Date of Offerance in ISQ", "Date Of Audit Planned in ISQ", "ISQ Offerance Status(Y/N)",
-        "Documents uploaded in ISQ(Y/N)", "TSP Shared Filled checklist during Offerance for audit (Yes / No)",
-        "TSP Shared Compliance Photographs during audit Offerance (yes / No)", "Project", "Tower Type",
-        "Tower Ht.", "Stage", "TSP Name", "Audit Agency Name", "Representative Name",
-        "Representative Contact Number", "Actual ofference date", "Audit Engineer Name",
-        "Contact Details.", "Actual Audit date", "Actual Audit Time", "Lat", "Long"
-    ]
-
-    h_html = "".join([f"<th style='{header_style}'>{c}</th>" for c in cols])
-    r_html = ""
-    for _, row in selected_df.iterrows():
-        r_html += "<tr>"
-        for col in cols:
-            val = row.get(col, "-")
-            r_html += f"<td style='{td_style}'>{val}</td>"
-        r_html += "</tr>"
-
-    # --- UPDATED EMAIL BODY & SIGNATURE ---
-    body = f"""
-    <html>
-    <body style="font-family: Calibri, Arial; font-size: 11px;">
-        <p>Hello Sir,</p>
-        <p>Please find the audit request for the following sites attached in the table below:</p>
-        <div style="overflow-x: auto;">
-            <table border="1" style="border-collapse: collapse; width: 100%; border: 1px solid black;">
-                <thead><tr style="background-color: #FFFF00;">{h_html}</tr></thead>
-                <tbody>{r_html}</tbody>
-            </table>
-        </div>
-        <br>
-        <p>Thanks & Regards,<br>
-        <b>Saira Quzi</b><br>
-        Mobile: +91 8180827123<br>
-        Visiontech Infra Solution</p>
-    </body>
-    </html>
-    """
-    msg.attach(MIMEText(body, 'html'))
-
-    try:
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls() 
-        server.login(SENDER, PWD)
-        server.send_message(msg)
-        server.quit()
-        return True
-    except Exception as e:
-        import streamlit as st
-        st.error(f"Gmail Error: {e}")
-        return False
-
-# --- 2. TAB 8 UI & LOGIC (NO CHANGES TO EXISTING LOGIC) ---
-with tab_audit:
-    st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Audit Management Portal</h3>", unsafe_allow_html=True)
-    
-    if 'audit_queue' not in st.session_state:
-        st.session_state.audit_queue = []
-
-    try:
-        m_df = pd.DataFrame(supabase.table("VIS Portal Site Data").select('*').execute().data)
-        u_df = pd.DataFrame(supabase.table("allowed_users").select("*").execute().data)
-        h_df = pd.DataFrame(supabase.table("Audit Request").select("*").order("created_at", desc=True).execute().data)
-        e_df = pd.DataFrame(supabase.table("Email Address").select("Email").execute().data)
-    except: pass
-
-    t1, t2 = st.tabs(["➕ Create Entry", "📜 History"])
-
-    with t1:
-        st.markdown("#### 📧 Email Configuration")
-        c_em1, c_em2 = st.columns(2)
-        db_emails = sorted(e_df["Email"].unique().tolist()) if not e_df.empty else []
-        default_to = ["visiontechinfrasolution@gmail.com"]
-        default_cc = ["services@vispltower.com", "project.visiontechinfra@gmail.com"]
-        for em in default_to + default_cc:
-            if em not in db_emails: db_emails.append(em)
-
-        sel_to = c_em1.multiselect("To:", db_emails, default=default_to, key="v22_to")
-        sel_cc = c_em2.multiselect("Cc:", db_emails, default=default_cc, key="v22_cc")
-        
-        st.divider()
-
-        c_top1, c_top2 = st.columns(2)
-        p_ids = [""] + sorted(m_df["PROJECT ID"].unique().tolist()) if not m_df.empty else [""]
-        sel_pid = c_top1.selectbox("🔍 Select Project ID", p_ids, key="v22_pid")
-        user_names = [""] + sorted(u_df["name"].tolist()) if not u_df.empty else [""]
-        sel_rep = c_top2.selectbox("👤 Select Representative", user_names, key="v22_rep")
-
-        s_info, rep_mob, lat_val, long_val, linked_sid = {}, "", "", "", ""
-        today_dt = datetime.now().strftime("%d-%b-%Y")
-        tomorrow_dt = (datetime.now() + timedelta(days=1)).strftime("%d-%b-%Y")
-        
-        if sel_pid and not m_df.empty:
-            s_info = m_df[m_df["PROJECT ID"] == sel_pid].iloc[0].to_dict()
-            linked_sid = str(s_info.get("SITE ID", "")).strip()
-            if linked_sid:
-                try:
-                    res_coord = supabase.table("Indus_Coordinates").select("Lat", "Long").eq("Site ID", linked_sid).execute()
-                    if res_coord.data:
-                        match = res_coord.data[0]
-                        lat_val, long_val = str(match.get("Lat", "")), str(match.get("Long", ""))
-                except: pass
-
-        if sel_rep and not u_df.empty:
-            match_u = u_df[u_df["name"].astype(str).str.strip() == str(sel_rep).strip()]
-            if not match_u.empty: rep_mob = str(match_u.iloc[0].get('phone_number', ''))
-
-        with st.form("v22_form"):
-            col1, col2, col3 = st.columns(3)
-            f = {}
-            f["Circle"] = col1.text_input("Circle", value="Maharashtra")
-            f["Ref. No."] = col1.text_input("Project ID", value=sel_pid)
-            f["Indus ID"] = col2.text_input("Indus ID", value=linked_sid)
-            f["Site Name"] = col2.text_input("Site Name", value=s_info.get("SITE NAME", ""))
-            f["Site Add"] = col3.text_input("Site Add", value=s_info.get("CLUSTER", ""))
-            f["Cluster / Zone"] = col3.text_input("Cluster / Zone", value=s_info.get("CLUSTER", ""))
-            f["Date of Offerance in ISQ"] = col1.text_input("Offerance Date", value=today_dt)
-            f["Date Of Audit Planned in ISQ"] = col2.text_input("Planned Audit Date", value=tomorrow_dt)
-            f["ISQ Offerance Status(Y/N)"] = col3.selectbox("ISQ Offerance Status", ["Y", "N"])
-            f["Project"] = col1.text_input("Project Name", value=s_info.get("PROJECT NAME", ""))
-            f["Tower Type"] = col2.text_input("Tower Type", value="GBT")
-            f["Tower Ht."] = col3.text_input("Tower Ht.", value="40 mtr")
+        if not st.session_state.wcc_role:
+            pwd_input = st.text_input("Enter Password:", type="password", key="wcc_login_pwd_v2")
+            if st.button("🔓 Unlock Tracker"):
+                if pwd_input == "Vision@321": st.session_state.wcc_role = "requester"
+                elif pwd_input == "Account@321": st.session_state.wcc_role = "accountant"
+                else: st.error("❌ Wrong Password!")
+                st.rerun()
+        else:
+            role = st.session_state.wcc_role
             
-            f["Documents uploaded in ISQ(Y/N)"] = col1.selectbox("Documents uploaded?", ["Y", "N"])
-            f["TSP Shared Filled checklist during Offerance for audit (Yes / No)"] = col2.selectbox("Checklist Shared?", ["Yes", "No"])
-            f["TSP Shared Compliance Photographs during audit Offerance (yes / No)"] = col3.selectbox("Photographs Shared?", ["yes", "No"])
-            
-            f["Representative Name"] = col1.text_input("Representative Name", value=sel_rep)
-            f["Representative Contact Number"] = col2.text_input("Rep. Mobile", value=rep_mob)
-            f["Actual ofference date"] = col3.text_input("Actual ofference date", value=today_dt)
-            f["Lat"], f["Long"] = col1.text_input("Lat", value=lat_val), col2.text_input("Long", value=long_val)
-            f["Actual Audit date"] = col3.text_input("Actual Audit date", value=tomorrow_dt)
-            
-            from datetime import time
-            audit_time_input = col1.time_input("Set Audit Time", value=time(11, 0)) 
-            f["Actual Audit Time"] = audit_time_input.strftime("%I:%M %p") 
-
-            f["Stage"], f["Audit Agency Name"], f["TSP Name"] = "", "", "Visiontech"
-            f["Audit Engineer Name"], f["Contact Details."], f["Mail Status"], f["Mail Sent Date"] = "", "", "Pending", "-"
-
-            if st.form_submit_button("➕ Add Site to Queue"):
-                if sel_pid and f["Lat"]:
-                    st.session_state.audit_queue.append(f.copy())
-                    st.toast(f"✅ Added {linked_sid}")
-                else: st.error("Missing Data!")
-
-        if st.session_state.audit_queue:
-            st.divider()
-            for i, item in enumerate(st.session_state.audit_queue):
-                q_col1, q_col2, q_col3, q_col4 = st.columns([3, 3, 2, 1])
-                q_col1.write(f"**ID:** {item['Indus ID']}")
-                q_col2.write(f"**Site:** {item['Site Name']}")
-                q_col3.write(f"**Time:** {item['Actual Audit Time']}")
-                if q_col4.button("❌", key=f"del_v22_{i}"):
-                    st.session_state.audit_queue.pop(i)
-                    st.rerun()
-
-            if st.button("📧 Submit & Send Email", type="primary", use_container_width=True):
-                if not sel_to: st.error("Select 'To' email!")
-                else:
-                    try:
-                        res_schema = supabase.table("Audit Request").select("*").limit(1).execute()
-                        db_cols = res_schema.data[0].keys() if res_schema.data else []
-                        final_save = []
-                        for item in st.session_state.audit_queue:
-                            clean_item = {k: v for k, v in item.items() if k in db_cols and v != ""}
-                            final_save.append(clean_item)
-
-                        supabase.table("Audit Request").insert(final_save).execute()
-                        
-                        if send_professional_email(pd.DataFrame(st.session_state.audit_queue), ", ".join(sel_to), ", ".join(sel_cc)):
-                            st.balloons()
-                            st.success(f"🚀 Success! Email sent to {len(sel_to)} recipients.")
-                            import time as py_time
-                            py_time.sleep(3) 
-                            st.session_state.audit_queue = []
-                            st.rerun()
-                    except Exception as e: st.error(str(e))
-
-# =====================================================================
-# 📢 TAB 9: RFAI BILLING PENDING (FINAL TEMPLATE & LANGUAGE SYNC)
-# =====================================================================
-with tab_billing:
-    st.markdown("<h3 style='text-align: center; color: #E11D48;'>📢 RFAI Billing Pending</h3>", unsafe_allow_html=True)
-    
-    # --- INTERAKT CONFIGURATION ---
-    INTERAKT_API_KEY = "S2pFcE5ETjE2NDhiQ1VIMEFjMVA5a3ZwdHB6X0diYXpRM2I2SWRxbGJWYzo="
-    TEMPLATE_NAME = "wccpending" # Dashboard wala exact name
-    TARGET_NUMBERS = ["919960843473", "919552273181"] 
-
-    # Filter Criteria
-    rfai_list = [
-        "Build Complete by BV", "Build Complete by PM", "Pending RFAI",
-        "Post RFAI Hold", "RFAI Notice Accepted", 
-        "RFAI Notice Deemed Accepted", "RFAI Notice Rejected"
-    ]
-
-    # --- TOP CONTROLS ---
-    col_1, col_2, col_3, col_4 = st.columns([1, 1, 1, 1])
-    
-    # Language Selection (Interakt error se bachne ke liye)
-    lang_choice = col_1.selectbox("Template Language", ["mr", "en"], index=0, help="Interakt dashboard par template ki jo language hai wahi chune.")
-
-    if "billing_df" not in st.session_state:
-        st.session_state.billing_df = pd.DataFrame()
-
-    # Step 1: Check Data
-    if col_2.button("🔍 Step 1: Check Data", use_container_width=True):
-        try:
-            res_bill = supabase.table("VIS Portal Site Data").select("*").execute()
-            if res_bill.data:
-                df_raw = pd.DataFrame(res_bill.data)
-                df_raw.columns = df_raw.columns.str.strip()
-                mask = (df_raw['RFAI STATUS'].isin(rfai_list)) & (df_raw['WCC NO.'].astype(str).str.strip().isin(['-', '', 'nan', 'None']))
-                st.session_state.billing_df = df_raw[mask]
-                if st.session_state.billing_df.empty:
-                    st.warning("No pending sites found.")
-                else:
-                    st.success(f"Found {len(st.session_state.billing_df)} Sites!")
-        except Exception as e:
-            st.error(f"Error: {e}")
-
-    # Step 2: Send All
-    if not st.session_state.billing_df.empty:
-        if col_3.button("🚀 Step 2: SEND ALL", type="primary", use_container_width=True):
-            import requests
-            import json
-            import time
-
-            total_sites = len(st.session_state.billing_df)
-            progress_bar = st.progress(0)
-            status_info = st.empty()
-            success_count = 0
-            
-            for i, (idx, row) in enumerate(st.session_state.billing_df.iterrows()):
-                site_id = row.get('SITE ID', 'Unknown')
-                status_info.info(f"📤 Processing ({i+1}/{total_sites}): {site_id}")
-
-                # 13 Variables Mapping for 'wccpending' template
-                body_values = [
-                    str(row.get('DEPARTMENT', '-')), str(row.get('OPERATOR', '-')),
-                    str(row.get('PROJECT ID', '-')), str(row.get('PROJECT NAME', '-')),
-                    str(row.get('SITE ID', '-')), str(row.get('SITE NAME', '-')),
-                    str(row.get('CLUSTER', '-')), str(row.get('SITE STATUS', '-')),
-                    str(row.get('PRODUCT', '-')), str(row.get('PO NO.', '-')),
-                    str(row.get('PO STATUS', '-')), str(row.get('RFAI STATUS', '-')),
-                    str(row.get('WORK DESCRIPTION', '-'))
-                ]
-
-                for mobile in TARGET_NUMBERS:
-                    url = "https://api.interakt.ai/v1/public/message/"
-                    headers = {"Authorization": f"Basic {INTERAKT_API_KEY}", "Content-Type": "application/json"}
+            @st.dialog("📝 WCC Details Form", width="large")
+            def wcc_edit_modal(row_data=None):
+                is_edit = row_data is not None
+                with st.form("wcc_form_v25"):
+                    if role == "requester":
+                        c1, c2 = st.columns(2)
+                        v_proj = c1.text_input("Project", value=str(row_data.get("Project", "")) if is_edit else "")
+                        v_pid = c2.text_input("Project ID *", value=str(row_data.get("Project ID", "")) if is_edit else "", disabled=is_edit)
+                        c3, c4 = st.columns(2)
+                        v_sid = c3.text_input("Site ID", value=str(row_data.get("Site ID", "")) if is_edit else "")
+                        v_snm = c4.text_input("Site Name", value=str(row_data.get("Site Name", "")) if is_edit else "")
+                        c5, c6 = st.columns(2)
+                        v_po = c5.text_input("PO Number", value=str(row_data.get("PO Number", "")) if is_edit else "")
+                        v_dt = st.date_input("Request Date", value=datetime.now().date())
+                        v_sts = st.selectbox("WCC Status", ["Creation Pending", "Pending for Approval", "Proceed", "Rejected", "Cancel"], 
+                                             index=0 if not is_edit else ["Creation Pending", "Pending for Approval", "Proceed", "Rejected", "Cancel"].index(row_data.get("WCC Status", "Creation Pending")))
+                        v_wno = row_data.get("WCC Number") if is_edit else None 
+                    else:
+                        v_pid = row_data.get('Project ID')
+                        v_wno = st.text_input("Enter WCC Number", value=str(row_data.get("WCC Number", "")) if is_edit else "")
                     
-                    payload = {
-                        "fullPhoneNumber": mobile,
-                        "type": "Template",
-                        "template": {
-                            "name": TEMPLATE_NAME,
-                            "languageCode": lang_choice,
-                            "bodyValues": body_values
-                        }
-                    }
+                    if st.form_submit_button("💾 Save Changes", use_container_width=True):
+                        def clean_id(v): return ''.join(filter(str.isdigit, str(v))) if v else None
+                        payload = {"Project ID": v_pid, "WCC Number": clean_id(v_wno)}
+                        if role == "requester": 
+                            payload.update({"Project": v_proj, "Site ID": v_sid, "Site Name": v_snm, "PO Number": clean_id(v_po), "Reqeust Date": str(v_dt), "WCC Status": v_sts})
+                        if update_wcc_record(payload): st.rerun()
 
+            data_list = fetch_wcc_data_simple()
+            df_wcc = pd.DataFrame(data_list) if data_list else pd.DataFrame()
+            
+            if role == "requester":
+                if st.button("➕ Add New Site Request", type="primary"): wcc_edit_modal()
+            
+            st.divider()
+
+            if not df_wcc.empty:
+                # --- TABLE HEADER ---
+                h_cols = st.columns([1, 0.5, 1.2, 1.5, 1, 1.2, 1, 1.2])
+                cols_names = ["Actions", "Sr.", "Project", "Project ID", "Site ID", "Site Name", "PO No", "Status"]
+                for col, name in zip(h_cols, cols_names):
+                    col.markdown(f"<p style='color:#1E3A8A; font-weight:bold; font-size:13px; text-align:center;'>{name}</p>", unsafe_allow_html=True)
+                st.markdown("<hr style='margin:2px 0px; border-top: 2px solid #1E3A8A;'>", unsafe_allow_html=True)
+
+               # --- TABLE ROWS (DATE FORMAT & BLANK LOGIC FIXED) ---
+                for i, row in df_wcc.iterrows():
+                    r_cols = st.columns([1, 0.5, 1.2, 1.5, 1, 1.2, 1, 1.2])
+                    
+                    # Date Formatting: 15-Apr-2026
+                    raw_date = row.get('Reqeust Date', '')
                     try:
-                        r = requests.post(url, headers=headers, data=json.dumps(payload))
-                        if r.status_code in [200, 201, 202]:
-                            success_count += 1
-                        else:
-                            st.error(f"❌ Error {site_id}: {r.json().get('message', r.text)}")
+                        formatted_date = pd.to_datetime(raw_date).strftime('%d-%b-%Y') if raw_date and str(raw_date).lower() != 'none' else ""
+                    except:
+                        formatted_date = str(raw_date) if str(raw_date).lower() != 'none' else ""
+
+                    # Function to remove 'None' from display
+                    def clean_none(val):
+                        return str(val) if val and str(val).lower() != 'none' else ""
+
+                    with r_cols[0]:
+                        b1, b2 = st.columns(2)
+                        if b1.button("✏️", key=f"edit_{row['Project ID']}_{i}"): wcc_edit_modal(row)
+                        if role == 'requester':
+                            msg = (
+                                f"Hello Prkash Ji,\nRaise WCC urgently...\n\n"
+                                f"*Project* :- {clean_none(row.get('Project'))}\n"
+                                f"*Project ID* :- {clean_none(row.get('Project ID'))}\n"
+                                f"*Site ID* :- {clean_none(row.get('Site ID'))}\n"
+                                f"*Site Name* :- {clean_none(row.get('Site Name'))}\n"
+                                f"*PO Number* :- {clean_none(row.get('PO Number'))}\n"
+                                f"*Reqeust Date* :- {formatted_date}\n"
+                                f"*WCC Number* :- {clean_none(row.get('WCC Number'))}\n"
+                                f"*WCC Status* :- {clean_none(row.get('WCC Status'))}\n\n"
+                                f"Thanks,\nMayur Patil\n7350533473"
+                            )
+                            wa_url = f"whatsapp://send?text={urllib.parse.quote(msg)}"
+                            b2.markdown(f'<a href="{wa_url}" class="wa-btn">💬</a>', unsafe_allow_html=True)
+                    
+                    r_cols[1].markdown(f"<p style='font-size:12px; text-align:center;'>{i+1}</p>", unsafe_allow_html=True)
+                    r_cols[2].markdown(f"<p style='font-size:12px; text-align:center;'>{clean_none(row.get('Project'))}</p>", unsafe_allow_html=True)
+                    r_cols[3].markdown(f"<p style='font-size:12px; text-align:center; font-weight:bold;'>{clean_none(row.get('Project ID'))}</p>", unsafe_allow_html=True)
+                    r_cols[4].markdown(f"<div style='text-align:center;'><span class='site-badge'>{clean_none(row.get('Site ID'))}</span></div>", unsafe_allow_html=True)
+                    r_cols[5].markdown(f"<p style='font-size:12px; text-align:center;'>{clean_none(row.get('Site Name'))}</p>", unsafe_allow_html=True)
+                    r_cols[6].markdown(f"<p style='font-size:12px; text-align:center;'>{clean_none(row.get('PO Number'))}</p>", unsafe_allow_html=True)
+                    r_cols[7].markdown(f"<p style='font-size:12px; text-align:center;'>{clean_none(row.get('WCC Status'))}</p>", unsafe_allow_html=True)
+                    st.markdown("<hr style='margin:1px 0px; border-top: 1px solid #E5E7EB;'>", unsafe_allow_html=True)
+
+    # =====================================================================
+    # 📁 TAB 6: DATA ENTRY (DOCUMENT CENTER)
+    # =====================================================================
+    elif st.session_state.current_page == "Data":
+        st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center & Tracker</h3>", unsafe_allow_html=True)
+        doc_sub1, doc_sub2, doc_sub3 = st.tabs(["📤 Manager Upload", "🔍 Team Search", "📊 Tracker"])
+        with doc_sub1:
+            with st.form("doc_upload_final_v1", clear_on_submit=True):
+                col_u1, col_u2 = st.columns(2)
+                u_proj, u_indus = col_u1.text_input("📁 Project Number"), col_u2.text_input("📍 Indus ID")
+                u_site, u_type = col_u1.text_input("🏢 Site Name"), col_u2.selectbox("📄 Doc Type", ["Photo", "SRC", "DC", "STN", "REPORT", "OTHER"])
+                u_files = st.file_uploader("Select Files", accept_multiple_files=True)
+                if st.form_submit_button("🚀 Upload All Files"):
+                    if u_files and u_proj:
+                        for i, f in enumerate(u_files):
+                            clean_p = u_proj.replace("/", "-").strip()
+                            fname = f"{clean_p}_{u_indus}_{u_type}_{i}.{f.name.split('.')[-1]}"
+                            supabase.storage.from_("site_documents").upload(path=fname, file=f.getvalue(), file_options={"x-upsert": "true"})
+                            p_url = f"{URL}/storage/v1/object/public/site_documents/{fname}"
+                            supabase.table("site_documents_master").upsert({"project_number": u_proj, "indus_id": u_indus, "site_name": u_site, "doc_type": u_type, "file_name": fname, "file_url": p_url}, on_conflict="file_name").execute()
+                        st.success("✅ Files Uploaded!")
+
+        with doc_sub2:
+            q_s = st.text_input("🔍 Search Documents (Project, Indus, Site)")
+            if q_s:
+                res_db = supabase.table("site_documents_master").select("*").or_(f"project_number.ilike.%{q_s}%,indus_id.ilike.%{q_s}%,site_name.ilike.%{q_s}%").execute()
+                if res_db.data:
+                    for row in res_db.data:
+                        c1, c2, c3 = st.columns([2, 1, 1])
+                        c1.write(row['file_name']); c2.info(row['doc_type']); c3.markdown(f'[📥 View]({row["file_url"]})')
+                        st.divider()
+
+        with doc_sub3:
+            res_t = supabase.table("site_documents_master").select("*").execute()
+            if res_t.data:
+                df_t = pd.DataFrame(res_t.data)
+                site_groups = df_t.groupby('indus_id')
+                summary = []
+                for ind_id, gp in site_groups:
+                    types = gp['doc_type'].str.upper().tolist()
+                    summary.append({"Project ID": gp.iloc[0]['project_number'], "Indus ID": ind_id, "Site Name": gp.iloc[0]['site_name'], "SRC": "✅" if "SRC" in types else "❌", "DC": "✅" if "DC" in types else "❌", "STN": "✅" if "STN" in types else "❌", "Report": "✅" if "REPORT" in types else "❌", "Photo": "✅" if "PHOTO" in types else "❌"})
+                st.dataframe(pd.DataFrame(summary), use_container_width=True, hide_index=True)
+
+    # =====================================================================
+    # 💰 TAB 7: FINANCE ENTRY (FIXED PO ANALYZER)
+    # =====================================================================
+    elif st.session_state.current_page == "Finance":
+        st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>💰 Finance Entry (PO Analyzer)</h3>", unsafe_allow_html=True)
+        def clean_num_fixed(val):
+            try:
+                if val is None or str(val).strip().lower() in ['nan', 'none', '']: return 0.0
+                n = str(val).replace('"', '').replace(',', '').strip()
+                num = pd.to_numeric(n, errors='coerce')
+                return float(num) if pd.notnull(num) else 0.0
+            except: return 0.0
+
+        with st.form("fin_upload_fixed", clear_on_submit=True):
+            c1, c2 = st.columns([1, 2])
+            u_po = c1.text_input("📄 Enter PO Number")
+            p_file = c2.file_uploader("Upload 'export.tsv'", type=['tsv', 'txt'])
+            if st.form_submit_button("🚀 Process & Overwrite Data", use_container_width=True):
+                if u_po and p_file:
+                    try:
+                        content = p_file.getvalue().decode('ISO-8859-1').splitlines()
+                        h_idx = next((i for i, line in enumerate(content) if "Project Name" in line), -1)
+                        if h_idx != -1:
+                            p_file.seek(0)
+                            df_r = pd.read_csv(p_file, sep='\t', skiprows=h_idx, quoting=3, encoding='ISO-8859-1', engine='python')
+                            df_r.columns = [str(c).replace('"', '').strip() for c in df_r.columns]
+                            for col in df_r.columns: df_r[col] = df_r[col].astype(str).str.replace('"', '').str.strip()
+                            df_r['qty_tmp'] = df_r['Qty'].apply(clean_num_fixed)
+                            df_cln = df_r[df_r['qty_tmp'] > 0].copy()
+                            if not df_cln.empty:
+                                supabase.table("po_line_items").delete().eq("po_number", str(u_po)).execute()
+                                supabase.table("po_summaries").delete().eq("po_number", str(u_po)).execute()
+                                items = []
+                                for _, r in df_cln.iterrows():
+                                    items.append({"po_number": str(u_po), "line_no": str(r.get('Line', '')), "item_number": str(r.get('Item Num', '')), "description": str(r.get('Description', '')), "uom": str(r.get('UOM', '')), "qty": clean_num_fixed(r.get('Qty')), "price": clean_num_fixed(r.get('Price')), "amount": clean_num_fixed(r.get('Amount')), "site_id": str(r.get('Site ID', '')), "site_name": str(r.get('Site Name', '')), "project_name": str(r.get('Project Name', ''))})
+                                supabase.table("po_line_items").insert(items).execute()
+                                df_cln['amt_tmp'] = df_cln['Amount'].apply(clean_num_fixed)
+                                sums = df_cln.groupby('Project Name')['amt_tmp'].sum().reset_index()
+                                summary_list = [{"po_number": str(u_po), "project_name": str(sr['Project Name']), "total_amount": float(sr['amt_tmp'])} for _, sr in sums.iterrows()]
+                                supabase.table("po_summaries").insert(summary_list).execute()
+                                st.success(f"PO {u_po} Synced!")
+                                st.rerun()
+                    except Exception as e: st.error(f"Error: {e}")
+
+        g_search = st.text_input("🔍 Search Database...", key="fin_g_search")
+        f_t1, f_t2 = st.tabs(["📊 Summaries", "📋 Detailed Items"])
+        with f_t1:
+            res_s = supabase.table("po_summaries").select("*").order("created_at", desc=True).execute()
+            if res_s.data:
+                df_s = pd.DataFrame(res_s.data)
+                if g_search: df_s = df_s[df_s.astype(str).apply(lambda x: x.str.contains(g_search, case=False)).any(axis=1)]
+                st.dataframe(df_s[['po_number', 'project_name', 'total_amount']], use_container_width=True, hide_index=True)
+        with f_t2:
+            res_d = supabase.table("po_line_items").select("*").order("created_at", desc=True).limit(1000).execute()
+            if res_d.data:
+                df_d = pd.DataFrame(res_d.data)
+                if g_search: df_d = df_d[df_d.astype(str).apply(lambda x: x.str.contains(g_search, case=False)).any(axis=1)]
+                st.dataframe(df_d[['po_number', 'line_no', 'item_number', 'qty', 'amount', 'project_name', 'site_id']], use_container_width=True, hide_index=True)
+
+    # =====================================================================
+    # 📝 TAB 8: AUDIT MANAGEMENT PORTAL (FULL STABLE VERSION)
+    # =====================================================================
+    elif st.session_state.current_page == "Audit":
+        st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Audit Management Portal</h3>", unsafe_allow_html=True)
+        
+        if 'audit_queue' not in st.session_state:
+            st.session_state.audit_queue = []
+
+        try:
+            m_df = pd.DataFrame(supabase.table("VIS Portal Site Data").select('*').execute().data)
+            u_df = pd.DataFrame(supabase.table("allowed_users").select("*").execute().data)
+            h_df = pd.DataFrame(supabase.table("Audit Request").select("*").order("created_at", desc=True).execute().data)
+            e_df = pd.DataFrame(supabase.table("Email Address").select("Email").execute().data)
+        except: pass
+
+        t1, t2 = st.tabs(["➕ Create Entry", "📜 History"])
+
+        with t1:
+            st.markdown("#### 📧 Email Configuration")
+            c_em1, c_em2 = st.columns(2)
+            db_emails = sorted(e_df["Email"].unique().tolist()) if not e_df.empty else []
+            default_to = ["visiontechinfrasolution@gmail.com"]
+            default_cc = ["services@vispltower.com", "project.visiontechinfra@gmail.com"]
+            for em in default_to + default_cc:
+                if em not in db_emails: db_emails.append(em)
+
+            sel_to = c_em1.multiselect("To:", db_emails, default=default_to, key="v22_to")
+            sel_cc = c_em2.multiselect("Cc:", db_emails, default=default_cc, key="v22_cc")
+            
+            st.divider()
+
+            c_top1, c_top2 = st.columns(2)
+            p_ids = [""] + sorted(m_df["PROJECT ID"].unique().tolist()) if not m_df.empty else [""]
+            sel_pid = c_top1.selectbox("🔍 Select Project ID", p_ids, key="v22_pid")
+            user_names = [""] + sorted(u_df["name"].tolist()) if not u_df.empty else [""]
+            sel_rep = c_top2.selectbox("👤 Select Representative", user_names, key="v22_rep")
+
+            s_info, rep_mob, lat_val, long_val, linked_sid = {}, "", "", "", ""
+            today_dt = datetime.now().strftime("%d-%b-%Y")
+            tomorrow_dt = (datetime.now() + timedelta(days=1)).strftime("%d-%b-%Y")
+            
+            if sel_pid and not m_df.empty:
+                s_info = m_df[m_df["PROJECT ID"] == sel_pid].iloc[0].to_dict()
+                linked_sid = str(s_info.get("SITE ID", "")).strip()
+                if linked_sid:
+                    try:
+                        res_coord = supabase.table("Indus_Coordinates").select("Lat", "Long").eq("Site ID", linked_sid).execute()
+                        if res_coord.data:
+                            match = res_coord.data[0]
+                            lat_val, long_val = str(match.get("Lat", "")), str(match.get("Long", ""))
                     except: pass
-                    time.sleep(1) # Message gap
+
+            if sel_rep and not u_df.empty:
+                match_u = u_df[u_df["name"].astype(str).str.strip() == str(sel_rep).strip()]
+                if not match_u.empty: rep_mob = str(match_u.iloc[0].get('phone_number', ''))
+
+            with st.form("v22_form"):
+                col1, col2, col3 = st.columns(3)
+                f = {}
+                f["Circle"] = col1.text_input("Circle", value="Maharashtra")
+                f["Ref. No."] = col1.text_input("Project ID", value=sel_pid)
+                f["Indus ID"] = col2.text_input("Indus ID", value=linked_sid)
+                f["Site Name"] = col2.text_input("Site Name", value=s_info.get("SITE NAME", ""))
+                f["Site Add"] = col3.text_input("Site Add", value=s_info.get("CLUSTER", ""))
+                f["Cluster / Zone"] = col3.text_input("Cluster / Zone", value=s_info.get("CLUSTER", ""))
+                f["Date of Offerance in ISQ"] = col1.text_input("Offerance Date", value=today_dt)
+                f["Date Of Audit Planned in ISQ"] = col2.text_input("Planned Audit Date", value=tomorrow_dt)
+                f["ISQ Offerance Status(Y/N)"] = col3.selectbox("ISQ Offerance Status", ["Y", "N"])
+                f["Project"] = col1.text_input("Project Name", value=s_info.get("PROJECT NAME", ""))
+                f["Tower Type"] = col2.text_input("Tower Type", value="GBT")
+                f["Tower Ht."] = col3.text_input("Tower Ht.", value="40 mtr")
+                
+                f["Documents uploaded in ISQ(Y/N)"] = col1.selectbox("Documents uploaded?", ["Y", "N"])
+                f["TSP Shared Filled checklist during Offerance for audit (Yes / No)"] = col2.selectbox("Checklist Shared?", ["Yes", "No"])
+                f["TSP Shared Compliance Photographs during audit Offerance (yes / No)"] = col3.selectbox("Photographs Shared?", ["yes", "No"])
+                
+                f["Representative Name"] = col1.text_input("Representative Name", value=sel_rep)
+                f["Representative Contact Number"] = col2.text_input("Rep. Mobile", value=rep_mob)
+                f["Actual ofference date"] = col3.text_input("Actual ofference date", value=today_dt)
+                f["Lat"], f["Long"] = col1.text_input("Lat", value=lat_val), col2.text_input("Long", value=long_val)
+                f["Actual Audit date"] = col3.text_input("Actual Audit date", value=tomorrow_dt)
+                
+                from datetime import time
+                audit_time_input = col1.time_input("Set Audit Time", value=time(11, 0)) 
+                f["Actual Audit Time"] = audit_time_input.strftime("%I:%M %p") 
+
+                f["Stage"], f["Audit Agency Name"], f["TSP Name"] = "", "", "Visiontech"
+                f["Audit Engineer Name"], f["Contact Details."], f["Mail Status"], f["Mail Sent Date"] = "", "", "Pending", "-"
+
+                if st.form_submit_button("➕ Add Site to Queue"):
+                    if sel_pid and f["Lat"]:
+                        st.session_state.audit_queue.append(f.copy())
+                        st.toast(f"✅ Added {linked_sid}")
+                    else: st.error("Missing Data!")
+
+            if st.session_state.audit_queue:
+                st.divider()
+                for i, item in enumerate(st.session_state.audit_queue):
+                    q_col1, q_col2, q_col3, q_col4 = st.columns([3, 3, 2, 1])
+                    q_col1.write(f"**ID:** {item['Indus ID']}")
+                    q_col2.write(f"**Site:** {item['Site Name']}")
+                    q_col3.write(f"**Time:** {item['Actual Audit Time']}")
+                    if q_col4.button("❌", key=f"del_v22_{i}"):
+                        st.session_state.audit_queue.pop(i)
+                        st.rerun()
+
+                if st.button("📧 Submit & Send Email", type="primary", use_container_width=True):
+                    if not sel_to: st.error("Select 'To' email!")
+                    else:
+                        try:
+                            res_schema = supabase.table("Audit Request").select("*").limit(1).execute()
+                            db_cols = res_schema.data[0].keys() if res_schema.data else []
+                            final_save = []
+                            for item in st.session_state.audit_queue:
+                                clean_item = {k: v for k, v in item.items() if k in db_cols and v != ""}
+                                final_save.append(clean_item)
+
+                            supabase.table("Audit Request").insert(final_save).execute()
+                            
+                            if send_professional_email(pd.DataFrame(st.session_state.audit_queue), ", ".join(sel_to), ", ".join(sel_cc)):
+                                st.balloons()
+                                st.success(f"🚀 Success! Email sent to {len(sel_to)} recipients.")
+                                import time as py_time
+                                py_time.sleep(3) 
+                                st.session_state.audit_queue = []
+                                st.rerun()
+                        except Exception as e: st.error(str(e))
+
+    # =====================================================================
+    # 📢 TAB 9: RFAI BILLING PENDING (FINAL TEMPLATE & LANGUAGE SYNC)
+    # =====================================================================
+    elif st.session_state.current_page == "RFAI":
+        st.markdown("<h3 style='text-align: center; color: #E11D48;'>📢 RFAI Billing Pending</h3>", unsafe_allow_html=True)
+        
+        # --- INTERAKT CONFIGURATION ---
+        INTERAKT_API_KEY = "S2pFcE5ETjE2NDhiQ1VIMEFjMVA5a3ZwdHB6X0diYXpRM2I2SWRxbGJWYzo="
+        TEMPLATE_NAME = "wccpending" # Dashboard wala exact name
+        TARGET_NUMBERS = ["919960843473", "919552273181"] 
+
+        # Filter Criteria
+        rfai_list = [
+            "Build Complete by BV", "Build Complete by PM", "Pending RFAI",
+            "Post RFAI Hold", "RFAI Notice Accepted", 
+            "RFAI Notice Deemed Accepted", "RFAI Notice Rejected"
+        ]
+
+        # --- TOP CONTROLS ---
+        col_1, col_2, col_3, col_4 = st.columns([1, 1, 1, 1])
+        
+        # Language Selection (Interakt error se bachne ke liye)
+        lang_choice = col_1.selectbox("Template Language", ["mr", "en"], index=0, help="Interakt dashboard par template ki jo language hai wahi chune.")
+
+        if "billing_df" not in st.session_state:
+            st.session_state.billing_df = pd.DataFrame()
+
+        # Step 1: Check Data
+        if col_2.button("🔍 Step 1: Check Data", use_container_width=True):
+            try:
+                res_bill = supabase.table("VIS Portal Site Data").select("*").execute()
+                if res_bill.data:
+                    df_raw = pd.DataFrame(res_bill.data)
+                    df_raw.columns = df_raw.columns.str.strip()
+                    mask = (df_raw['RFAI STATUS'].isin(rfai_list)) & (df_raw['WCC NO.'].astype(str).str.strip().isin(['-', '', 'nan', 'None']))
+                    st.session_state.billing_df = df_raw[mask]
+                    if st.session_state.billing_df.empty:
+                        st.warning("No pending sites found.")
+                    else:
+                        st.success(f"Found {len(st.session_state.billing_df)} Sites!")
+            except Exception as e:
+                st.error(f"Error: {e}")
+
+        # Step 2: Send All
+        if not st.session_state.billing_df.empty:
+            if col_3.button("🚀 Step 2: SEND ALL", type="primary", use_container_width=True):
+                import requests
+                import json
+                import time
+
+                total_sites = len(st.session_state.billing_df)
+                progress_bar = st.progress(0)
+                status_info = st.empty()
+                success_count = 0
+                
+                for i, (idx, row) in enumerate(st.session_state.billing_df.iterrows()):
+                    site_id = row.get('SITE ID', 'Unknown')
+                    status_info.info(f"📤 Processing ({i+1}/{total_sites}): {site_id}")
+
+                    # 13 Variables Mapping for 'wccpending' template
+                    body_values = [
+                        str(row.get('DEPARTMENT', '-')), str(row.get('OPERATOR', '-')),
+                        str(row.get('PROJECT ID', '-')), str(row.get('PROJECT NAME', '-')),
+                        str(row.get('SITE ID', '-')), str(row.get('SITE NAME', '-')),
+                        str(row.get('CLUSTER', '-')), str(row.get('SITE STATUS', '-')),
+                        str(row.get('PRODUCT', '-')), str(row.get('PO NO.', '-')),
+                        str(row.get('PO STATUS', '-')), str(row.get('RFAI STATUS', '-')),
+                        str(row.get('WORK DESCRIPTION', '-'))
+                    ]
+
+                    for mobile in TARGET_NUMBERS:
+                        url = "https://api.interakt.ai/v1/public/message/"
+                        headers = {"Authorization": f"Basic {INTERAKT_API_KEY}", "Content-Type": "application/json"}
+                        
+                        payload = {
+                            "fullPhoneNumber": mobile,
+                            "type": "Template",
+                            "template": {
+                                "name": TEMPLATE_NAME,
+                                "languageCode": lang_choice,
+                                "bodyValues": body_values
+                            }
+                        }
+
+                        try:
+                            r = requests.post(url, headers=headers, data=json.dumps(payload))
+                            if r.status_code in [200, 201, 202]:
+                                success_count += 1
+                            else:
+                                st.error(f"❌ Error {site_id}: {r.json().get('message', r.text)}")
+                        except: pass
+                        time.sleep(1) # Message gap
 
                 progress_bar.progress((i + 1) / total_sites)
                 time.sleep(1) # Site gap
@@ -765,11 +753,11 @@ with tab_billing:
             status_info.empty()
             st.success(f"✅ Completed! Total {success_count} messages sent.")
 
-    # Stop Button
-    if col_4.button("🛑 STOP", use_container_width=True):
-        st.rerun()
+        # Stop Button
+        if col_4.button("🛑 STOP", use_container_width=True):
+            st.rerun()
 
-    st.divider()
-    if not st.session_state.billing_df.empty:
-        st.write("### Pending Billing List")
-        st.dataframe(st.session_state.billing_df[['SITE ID', 'SITE NAME', 'RFAI STATUS', 'WCC NO.']], use_container_width=True, hide_index=True)
+        st.divider()
+        if not st.session_state.billing_df.empty:
+            st.write("### Pending Billing List")
+            st.dataframe(st.session_state.billing_df[['SITE ID', 'SITE NAME', 'RFAI STATUS', 'WCC NO.']], use_container_width=True, hide_index=True)
