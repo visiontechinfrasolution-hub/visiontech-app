@@ -686,15 +686,15 @@ with tab_audit:
                     except Exception as e: st.error(str(e))
 
 # =====================================================================
-# 📢 TAB 9: RFAI BILLING PENDING (NEW TEMPLATE VERSION)
+# 📢 TAB 9: RFAI BILLING PENDING (STABLE VERSION)
 # =====================================================================
 with tab_billing:
     st.markdown("<h3 style='text-align: center; color: #E11D48;'>📢 RFAI Billing Pending</h3>", unsafe_allow_html=True)
     
     # --- CONFIGURATION ---
     INTERAKT_API_KEY = "S2pFcE5ETjE2NDhiQ1VIMEFjMVA5a3ZwdHB6X0diYXpRM2I2SWRxbGJWYzo="
-    # नवीन टेम्प्लेटचे नाव
-    TEMPLATE_NAME = "visiontech_service_maintenance_alert" 
+    # जुन्या टेम्पलेटचा वापर करा ज्यात {{1}} आहे
+    TEMPLATE_NAME = "visiontech_bot_reply" 
     TARGET_NUMBERS = ["919960843473", "919552273181"] 
 
     rfai_list = [
@@ -703,11 +703,12 @@ with tab_billing:
         "RFAI Notice Deemed Accepted", "RFAI Notice Rejected"
     ]
 
-    col_ctrl1, col_ctrl2, col_ctrl3 = st.columns(3)
+    col_ctrl1, col_ctrl2, col_ctrl3 = st.columns([1, 1, 1])
     
     if "billing_df" not in st.session_state:
         st.session_state.billing_df = pd.DataFrame()
 
+    # १. डेटा चेक करणे
     if col_ctrl1.button("🔍 Step 1: Check Data", use_container_width=True):
         try:
             res_bill = supabase.table("VIS Portal Site Data").select("*").execute()
@@ -723,11 +724,13 @@ with tab_billing:
         except Exception as e:
             st.error(f"Error: {e}")
 
-    if col_ctrl3.button("🛑 STOP", use_container_width=True):
+    # २. स्टॉप बटण
+    if col_ctrl3.button("🛑 STOP PROCESS", use_container_width=True):
         st.rerun()
 
+    # ३. मेसेज पाठवणे (Single Line Fix to Avoid Interakt Error)
     if not st.session_state.billing_df.empty:
-        if col_ctrl2.button("🚀 Step 2: SEND ALL (Alert Mode)", type="primary", use_container_width=True):
+        if col_ctrl2.button("🚀 Step 2: SEND ALL", type="primary", use_container_width=True):
             import requests
             import json
             import time
@@ -740,7 +743,19 @@ with tab_billing:
             
             for i, (idx, row) in enumerate(st.session_state.billing_df.iterrows()):
                 site_id = row.get('SITE ID', 'Unknown')
-                status_update.info(f"📤 मेसेज पाठवत आहे: {site_id}")
+                status_update.info(f"📤 मेसेज पाठवत आहे ({i+1}/{total_sites}): {site_id}")
+                
+                # --- SINGLE LINE FORMAT (Interakt Error टाळण्यासाठी) ---
+                # आपण सर्व माहिती एकाच ओळीत पाठवत आहोत कारण टेम्पलेटमध्ये फक्त {{1}} आहे.
+                report_text = (
+                    f"RFAI PENDING REPORT | "
+                    f"ID: {site_id} | "
+                    f"NAME: {row.get('SITE NAME','-')} | "
+                    f"PROJ: {row.get('PROJECT ID','-')} | "
+                    f"RFAI: {row.get('RFAI STATUS','-')} | "
+                    f"PO: {row.get('PO NO.','-')} | "
+                    f"OP: {row.get('OPERATOR','-')}"
+                )
 
                 for mobile in TARGET_NUMBERS:
                     url = "https://api.interakt.ai/v1/public/message/"
@@ -749,14 +764,13 @@ with tab_billing:
                         "Content-Type": "application/json"
                     }
                     
-                    # जर टेम्प्लेटमध्ये व्हेरिएबल नसेल, तर bodyValues रिकामे [] ठेवा
                     payload = {
                         "fullPhoneNumber": mobile,
                         "type": "Template",
                         "template": {
                             "name": TEMPLATE_NAME,
                             "languageCode": "mr", 
-                            "bodyValues": [] # रिकामे कारण टेम्प्लेटमध्ये {{1}} नाहीये
+                            "bodyValues": [str(report_text)]
                         }
                     }
 
@@ -764,17 +778,15 @@ with tab_billing:
                         r = requests.post(url, headers=headers, data=json.dumps(payload))
                         if r.status_code in [200, 201, 202]:
                             success_count += 1
-                        else:
-                            st.error(f"❌ {site_id} ({mobile}): {r.json().get('message')}")
+                        time.sleep(1) # प्रत्येक मेसेज मध्ये १ सेकंद गॅप
                     except:
                         pass
-                    
-                    time.sleep(1) # १ सेकंद गॅप
-
+                
                 progress_bar.progress((i + 1) / total_sites)
-            
+                time.sleep(1) # प्रत्येक साईट नंतर गॅप
+
             status_update.empty()
-            st.success(f"✅ पूर्ण झाले! एकूण {success_count} अलर्ट पाठवले.")
+            st.success(f"✅ पूर्ण झाले! यशस्वी मेसेज: {success_count}")
 
     st.divider()
     if not st.session_state.billing_df.empty:
