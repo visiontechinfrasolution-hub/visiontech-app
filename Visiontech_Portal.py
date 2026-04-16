@@ -96,9 +96,10 @@ st.sidebar.divider()
 st.sidebar.caption("© 2026 Visiontech Infra Solutions")
 
 # --- 3. TABS (Added "📝 Audit Portal") ---
-tab1, tab2, tab3, tab4, tab_wcc, tab5, tab6, tab_audit = st.tabs([
+tab1, tab2, tab3, tab4, tab_wcc, tab5, tab6, tab_audit, tab_billing = st.tabs([
     "📦 BOQ Report", "🧾 PO Report", "🏗️ Site Detail", 
-    "📊 Indus Basic Data", "📡 WCC Tracker", "📁 Data Entry", "💰 Finance Entry", "📝 Audit Portal"
+    "📊 Indus Basic Data", "📡 WCC Tracker", "📁 Data Entry", 
+    "💰 Finance Entry", "📝 Audit Portal", "📢 RFAI Billing Pending"
 ])
 
 # =====================================================================
@@ -684,65 +685,40 @@ with tab_audit:
                             st.rerun()
                     except Exception as e: st.error(str(e))
 
-    with t2:
-        if not h_df.empty: st.dataframe(h_df, use_container_width=True, hide_index=True)
-            # --- Tabs Update (Add Tab 9) ---
-tab1, tab2, tab3, tab4, tab_wcc, tab5, tab6, tab_audit, tab_billing = st.tabs([
-    "📦 BOQ Report", "🧾 PO Report", "🏗️ Site Detail", 
-    "📊 Indus Basic Data", "📡 WCC Tracker", "📁 Data Entry", 
-    "💰 Finance Entry", "📝 Audit Portal", "📢 Billing Alert"
-])
-
-# ... [Puraana Tab 1 se Tab 8 tak ka code waisa hi rahega] ...
-
-# --- 3. TABS (Tab 9: 📢 Billing Alert Naya Page) ---
-tab1, tab2, tab3, tab4, tab_wcc, tab5, tab6, tab_audit, tab_billing = st.tabs([
-    "📦 BOQ Report", "🧾 PO Report", "🏗️ Site Detail", 
-    "📊 Indus Basic Data", "📡 WCC Tracker", "📁 Data Entry", 
-    "💰 Finance Entry", "📝 Audit Portal", "📢 Billing Alert"
-])
-
-# ... [Baaki saare Tabs ka code (1 se 8 tak) waisa hi rahega] ...
-
 # =====================================================================
-# 📢 TAB 9: BILLING ALERT (NEW PAGE LOGIC)
+# 📢 TAB 9: RFAI BILLING PENDING (NEW SEPARATE PAGE)
 # =====================================================================
 with tab_billing:
-    st.markdown("<h3 style='text-align: center; color: #E11D48;'>📢 Billing Alert Portal</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align: center; color: #E11D48;'>📢 RFAI Billing Pending</h3>", unsafe_allow_html=True)
     
-    st.info("""
-    **Criteriya:** RFAI Status (Build Complete, Pending RFAI, etc.) match hona chahiye aur **WCC NO.** column mein '-' hona chahiye.
-    """)
+    st.info("Ye page un sites ko dikhata hai jahan RFAI done hai magar WCC Number pending hai.")
 
-    # Filter Criteria List
+    # Filter Criteria
     rfai_list = [
         "Build Complete by BV", "Build Complete by PM", "Pending RFAI",
         "Post RFAI Hold", "RFAI Notice Accepted", 
         "RFAI Notice Deemed Accepted", "RFAI Notice Rejected"
     ]
 
-    # Button to fetch and filter
-    if st.button("🔍 Generate Pending Billing Report", use_container_width=True):
+    if st.button("🔍 Generate Billing Pending List", use_container_width=True):
         try:
-            # Supabase se fresh data fetch karna
+            # Supabase Fetch
             res_bill = supabase.table("VIS Portal Site Data").select("*").execute()
             
             if res_bill.data:
-                df_all = pd.DataFrame(res_bill.data)
+                df_bill = pd.DataFrame(res_bill.data)
+                df_bill.columns = df_bill.columns.str.strip() # Clean column names
                 
-                # Column names cleanup (spaces remove karna)
-                df_all.columns = df_all.columns.str.strip()
-                
-                # Filtering: RFAI match AND WCC NO is '-'
-                mask = (df_all['RFAI STATUS'].isin(rfai_list)) & (df_all['WCC NO.'].astype(str).str.strip() == '-')
-                final_filtered = df_all[mask]
+                # Logic: RFAI in list AND WCC NO. is '-'
+                mask = (df_bill['RFAI STATUS'].isin(rfai_list)) & (df_bill['WCC NO.'].astype(str).str.strip() == '-')
+                filtered_df = df_bill[mask]
 
-                if not final_filtered.empty:
-                    st.success(f"✅ Total {len(final_filtered)} Sites mili hain jinki billing pending hai.")
+                if not filtered_df.empty:
+                    st.success(f"✅ {len(filtered_df)} Sites Pending found!")
                     
-                    for _, row in final_filtered.iterrows():
-                        # WhatsApp Message Template
-                        wa_text = (
+                    for _, row in filtered_df.iterrows():
+                        # Message Template
+                        wa_msg = (
                             f"*Hello Mayur Ji,*\n"
                             f"Request to you kindly check as per our criteriya below site billing should be done but still we are unable find WCC Number. Kindly check and close immidiatly.\n\n"
                             f"👉🏻 *DEPARTMENT:-* {row.get('DEPARTMENT','-')}\n"
@@ -761,20 +737,19 @@ with tab_billing:
                             f"Thanks,\nTeam Automation\nVisiontech"
                         )
                         
-                        # WhatsApp URL Encoding
-                        msg_encoded = urllib.parse.quote(wa_text)
-                        whatsapp_link = f"https://wa.me/?text={msg_encoded}"
-                        
-                        # Display Card for each site
+                        encoded_wa = urllib.parse.quote(wa_msg)
+                        wa_url = f"https://wa.me/?text={encoded_wa}"
+
+                        # Card Display
                         with st.container():
-                            c1, c2, c3 = st.columns([2, 2, 1])
-                            c1.markdown(f"**Site:** {row.get('SITE ID')} - {row.get('SITE NAME')}")
-                            c2.markdown(f"**RFAI:** {row.get('RFAI STATUS')}")
-                            c3.markdown(f"""<a href="{whatsapp_link}" target="_blank" style="text-decoration: none;"><button style="background-color: #25D366; color: white; border: none; padding: 5px 15px; border-radius: 5px; cursor: pointer; font-weight: bold;">📲 WhatsApp</button></a>""", unsafe_allow_html=True)
+                            col_a, col_b, col_c = st.columns([2, 2, 1])
+                            col_a.write(f"**ID:** {row.get('SITE ID')}")
+                            col_b.write(f"**Status:** {row.get('RFAI STATUS')}")
+                            col_c.markdown(f'<a href="{wa_url}" target="_blank"><button style="background-color:#25D366; color:white; border:none; padding:6px 12px; border-radius:5px; cursor:pointer; font-weight:bold;">📲 Send WA</button></a>', unsafe_allow_html=True)
                             st.divider()
                 else:
-                    st.warning("Koi bhi site criteria se match nahi hui.")
+                    st.warning("Koi pending billing sites nahi mili.")
             else:
-                st.error("Table mein data nahi mila.")
+                st.error("Table empty hai.")
         except Exception as e:
-            st.error(f"Error: {str(e)}")
+            st.error(f"Error: {e}")
