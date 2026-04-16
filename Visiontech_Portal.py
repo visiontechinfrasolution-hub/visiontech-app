@@ -654,7 +654,7 @@ else:
                                 st.rerun()
                         except Exception as e: st.error(str(e))
 
-    # =====================================================================
+   # =====================================================================
     # 📢 TAB 9: RFAI BILLING PENDING (FINAL TEMPLATE & LANGUAGE SYNC)
     # =====================================================================
     elif st.session_state.current_page == "RFAI":
@@ -750,8 +750,9 @@ else:
                 progress_bar.progress((i + 1) / total_sites)
                 time.sleep(1) # Site gap
 
-            status_info.empty()
-            st.success(f"✅ Completed! Total {success_count} messages sent.")
+                # 👉 हा भाग आता नीट आत (Indent) घेतला आहे 
+                status_info.empty()
+                st.success(f"✅ Completed! Total {success_count} messages sent.")
 
         # Stop Button
         if col_4.button("🛑 STOP", use_container_width=True):
