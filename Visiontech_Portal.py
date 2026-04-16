@@ -686,7 +686,7 @@ with tab_audit:
                     except Exception as e: st.error(str(e))
 
 # =====================================================================
-# 📢 TAB 9: RFAI BILLING PENDING (INTERAKT API - DUAL TARGET)
+# 📢 TAB 9: RFAI BILLING PENDING (LIVE RUNNING 1-BY-1)
 # =====================================================================
 with tab_billing:
     st.markdown("<h3 style='text-align: center; color: #E11D48;'>📢 RFAI Billing Pending</h3>", unsafe_allow_html=True)
@@ -694,9 +694,9 @@ with tab_billing:
     # --- INTERAKT CONFIGURATION ---
     INTERAKT_API_KEY = "S2pFcE5ETjE2NDhiQ1VIMEFjMVA5a3ZwdHB6X0diYXpRM2I2SWRxbGJWYzo="
     TEMPLATE_NAME = "visiontech_bot_reply"
-    # दोन्ही टार्गेट नंबरची लिस्ट
     TARGET_NUMBERS = ["919960843473", "919552273181"] 
 
+    # Filter Criteria
     rfai_list = [
         "Build Complete by BV", "Build Complete by PM", "Pending RFAI",
         "Post RFAI Hold", "RFAI Notice Accepted", 
@@ -706,72 +706,72 @@ with tab_billing:
     if "billing_df" not in st.session_state:
         st.session_state.billing_df = pd.DataFrame()
 
-    c1, c2 = st.columns(2)
+    col_1, col_2 = st.columns(2)
 
-    # --- STEP 1: DATA FILTER ---
-    if c1.button("🔍 Step 1: Check Pending Sites", use_container_width=True):
+    # --- पायरी १: डेटा चेक करणे ---
+    if col_1.button("🔍 Step 1: Check Pending Sites", use_container_width=True):
         try:
+            # Supabase कडून फ्रेश डेटा मागवणे
             res_bill = supabase.table("VIS Portal Site Data").select("*").execute()
             if res_bill.data:
-                df_temp = pd.DataFrame(res_bill.data)
-                df_temp.columns = df_temp.columns.str.strip()
-                # Filter: RFAI status match आणि WCC NO. '-' असणे आवश्यक
-                mask = (df_temp['RFAI STATUS'].isin(rfai_list)) & (df_temp['WCC NO.'].astype(str).str.strip() == '-')
-                st.session_state.billing_df = df_temp[mask]
+                df_raw = pd.DataFrame(res_bill.data)
+                df_raw.columns = df_raw.columns.str.strip() # कॉलमची नावे साफ करणे
+                
+                # फिल्टर: RFAI स्टेटस मॅच होणे आणि WCC NO रिकामे/डॅश असणे
+                mask = (df_raw['RFAI STATUS'].isin(rfai_list)) & (df_raw['WCC NO.'].astype(str).str.strip().isin(['-', '', 'nan', 'None']))
+                st.session_state.billing_df = df_raw[mask]
                 
                 if st.session_state.billing_df.empty:
-                    st.warning("सध्या कोणतीही Pending Billing साईट उपलब्ध नाही.")
+                    st.warning("सध्या एकही Pending Billing साईट सापडली नाही.")
                 else:
-                    st.success(f"एकूण {len(st.session_state.billing_df)} Pending साईट्स मिळाल्या!")
+                    st.success(f"एकूण {len(st.session_state.billing_df)} साईट्स प्रक्रियेसाठी तयार आहेत.")
         except Exception as e:
-            st.error(f"Data fetch करताना एरर आली: {e}")
+            st.error(f"डेटा शोधताना त्रुटी आली: {e}")
 
-    # --- STEP 2: SEND ALL VIA INTERAKT ---
+    # --- पायरी २: १-बाय-१ मेसेज पाठवणे (Running Mode) ---
     if not st.session_state.billing_df.empty:
-        if c2.button("🚀 Step 2: SEND ALL (Auto Interakt)", type="primary", use_container_width=True):
+        if col_2.button("🚀 Step 2: SEND ALL (Running 1-by-1)", type="primary", use_container_width=True):
             import requests
             import json
-            
-            progress_bar = st.progress(0)
-            status_text = st.empty()
-            total_sites = len(st.session_state.billing_df)
-            total_targets = len(TARGET_NUMBERS)
-            success_count = 0
+            import time
 
-            for i, (_, row) in enumerate(st.session_state.billing_df.iterrows()):
-                # मेसेजचा मजकूर तयार करणे (तुमच्या फॉरमॅटनुसार)
-                detailed_msg = (
-                    f"Request to check site billing (WCC Pending):\n\n"
-                    f"👉🏻 DEPARTMENT: {row.get('DEPARTMENT','-')}\n"
-                    f"👉🏻 OPERATOR: {row.get('OPERATOR','-')}\n"
-                    f"👉🏻 PROJECT ID: {row.get('PROJECT ID','-')}\n"
-                    f"👉🏻 PROJECT NAME: {row.get('PROJECT NAME','-')}\n"
-                    f"👉🏻 SITE ID: {row.get('SITE ID','-')}\n"
-                    f"👉🏻 SITE NAME: {row.get('SITE NAME','-')}\n"
-                    f"👉🏻 CLUSTER: {row.get('CLUSTER','-')}\n"
-                    f"👉🏻 SITE STATUS: {row.get('SITE STATUS','-')}\n"
-                    f"👉🏻 PRODUCT: {row.get('PRODUCT','-')}\n"
-                    f"👉🏻 PO NO.: {row.get('PO NO.','-')}\n"
-                    f"👉🏻 PO STATUS: {row.get('PO STATUS','-')}\n"
-                    f"👉🏻 RFAI STATUS: {row.get('RFAI STATUS','-')}\n"
-                    f"👉🏻 WORK DESCRIPTION: {row.get('WORK DESCRIPTION','-')}"
+            total_sites = len(st.session_state.billing_df)
+            progress_bar = st.progress(0)
+            status_placeholder = st.empty() # लाईव्ह अपडेटसाठी जागा
+            
+            success_count = 0
+            error_count = 0
+
+            for i, (idx, row) in enumerate(st.session_state.billing_df.iterrows()):
+                site_id = row.get('SITE ID', 'Unknown')
+                
+                # स्क्रीनवर अपडेट दाखवणे
+                status_placeholder.info(f"⏳ प्रोसेसिंग साईट {i+1}/{total_sites}: **{site_id}**")
+                
+                # मेसेजचा मजकूर तयार करणे
+                report_text = (
+                    f"RFAI Billing Pending:\n"
+                    f"📍 ID: {site_id}\n"
+                    f"🏢 NAME: {row.get('SITE NAME','-')}\n"
+                    f"🆔 PROJ: {row.get('PROJECT ID','-')}\n"
+                    f"📋 STATUS: {row.get('RFAI STATUS','-')}\n"
+                    f"🧾 PO: {row.get('PO NO.','-')}\n"
+                    f"👤 OPERATOR: {row.get('OPERATOR','-')}"
                 )
 
-                # प्रत्येक टार्गेट नंबरवर मेसेज पाठवणे
                 for mobile in TARGET_NUMBERS:
                     url = "https://api.interakt.ai/v1/public/message/"
                     headers = {
                         "Authorization": f"Basic {INTERAKT_API_KEY}",
                         "Content-Type": "application/json"
                     }
-
                     payload = {
                         "fullPhoneNumber": mobile,
                         "type": "Template",
                         "template": {
                             "name": TEMPLATE_NAME,
-                            "languageCode": "mr", # Template मराठीत असेल तर 'mr' वापरा, अन्यथा 'en'
-                            "bodyValues": [detailed_msg] # पूर्ण मजकूर {{1}} मध्ये जाईल
+                            "languageCode": "mr",
+                            "bodyValues": [str(report_text)]
                         }
                     }
 
@@ -779,20 +779,23 @@ with tab_billing:
                         r = requests.post(url, headers=headers, data=json.dumps(payload))
                         if r.status_code in [200, 201, 202]:
                             success_count += 1
+                        else:
+                            error_count += 1
+                            st.error(f"❌ {site_id} साठी फेल (नंबर: {mobile}): {r.text}")
                     except:
-                        pass
-                
-                # प्रोग्रेस अपडेट
-                progress_bar.progress((i + 1) / total_sites)
-                status_text.text(f"प्रक्रिया सुरू आहे: {i+1}/{total_sites} साईट्स...")
+                        error_count += 1
+                        st.error(f"❌ कनेक्शन एरर: {site_id}")
+                    
+                    # प्रत्येक नंबरला मेसेज गेल्यावर १ सेकंदाचा गॅप
+                    time.sleep(1)
 
-            st.success(f"✅ पूर्ण झाले! एकूण {success_count} मेसेजेस यशस्वीरित्या पाठवले गेले.")
-            status_text.empty()
+                # प्रोग्रेस बार अपडेट करणे
+                progress_bar.progress((i + 1) / total_sites)
+                
+            status_placeholder.empty()
+            st.success(f"✅ पूर्ण झाले! यशस्वी: {success_count} | अयशस्वी: {error_count}")
 
     st.divider()
-
-    # --- डिस्प्ले टेबल ---
     if not st.session_state.billing_df.empty:
-        st.write("### Pending Billing साईट्सची यादी")
-        cols_to_show = ['PROJECT ID', 'SITE ID', 'SITE NAME', 'RFAI STATUS', 'WCC NO.']
-        st.dataframe(st.session_state.billing_df[cols_to_show], use_container_width=True, hide_index=True)
+        st.write("### Pending साईट्सची यादी")
+        st.dataframe(st.session_state.billing_df[['SITE ID', 'SITE NAME', 'RFAI STATUS', 'WCC NO.']], use_container_width=True, hide_index=True)
