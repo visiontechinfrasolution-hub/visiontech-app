@@ -686,14 +686,15 @@ with tab_audit:
                     except Exception as e: st.error(str(e))
 
 # =====================================================================
-# 📢 TAB 9: RFAI BILLING PENDING (NEWLINE ERROR FIXED)
+# 📢 TAB 9: RFAI BILLING PENDING (NEW TEMPLATE VERSION)
 # =====================================================================
 with tab_billing:
     st.markdown("<h3 style='text-align: center; color: #E11D48;'>📢 RFAI Billing Pending</h3>", unsafe_allow_html=True)
     
     # --- CONFIGURATION ---
     INTERAKT_API_KEY = "S2pFcE5ETjE2NDhiQ1VIMEFjMVA5a3ZwdHB6X0diYXpRM2I2SWRxbGJWYzo="
-    TEMPLATE_NAME = "visiontech_bot_reply"
+    # नवीन टेम्प्लेटचे नाव
+    TEMPLATE_NAME = "visiontech_service_maintenance_alert" 
     TARGET_NUMBERS = ["919960843473", "919552273181"] 
 
     rfai_list = [
@@ -707,7 +708,6 @@ with tab_billing:
     if "billing_df" not in st.session_state:
         st.session_state.billing_df = pd.DataFrame()
 
-    # १. डेटा चेक करणे
     if col_ctrl1.button("🔍 Step 1: Check Data", use_container_width=True):
         try:
             res_bill = supabase.table("VIS Portal Site Data").select("*").execute()
@@ -717,19 +717,17 @@ with tab_billing:
                 mask = (df_raw['RFAI STATUS'].isin(rfai_list)) & (df_raw['WCC NO.'].astype(str).str.strip().isin(['-', '', 'nan', 'None']))
                 st.session_state.billing_df = df_raw[mask]
                 if st.session_state.billing_df.empty:
-                    st.warning("No pending sites found.")
+                    st.warning("कोणतीही Pending साईट सापडली नाही.")
                 else:
                     st.success(f"सापडल्या: {len(st.session_state.billing_df)} साईट्स")
         except Exception as e:
             st.error(f"Error: {e}")
 
-    # २. स्टॉप बटण
     if col_ctrl3.button("🛑 STOP", use_container_width=True):
         st.rerun()
 
-    # ३. मेसेज पाठवणे (Newline Fix)
     if not st.session_state.billing_df.empty:
-        if col_ctrl2.button("🚀 Step 2: SEND ALL", type="primary", use_container_width=True):
+        if col_ctrl2.button("🚀 Step 2: SEND ALL (Alert Mode)", type="primary", use_container_width=True):
             import requests
             import json
             import time
@@ -737,24 +735,12 @@ with tab_billing:
             total_sites = len(st.session_state.billing_df)
             progress_bar = st.progress(0)
             status_update = st.empty()
-            log_container = st.container()
             
             success_count = 0
             
             for i, (idx, row) in enumerate(st.session_state.billing_df.iterrows()):
                 site_id = row.get('SITE ID', 'Unknown')
-                status_update.info(f"📤 पाठवत आहे ({i+1}/{total_sites}): **{site_id}**")
-                
-                # रिपोर्टचा मजकूर - आता Newlines काढून एका लाईनमध्ये केला आहे
-                report_text = (
-                    f"RFAI Pending Report | "
-                    f"ID: {site_id} | "
-                    f"Site: {row.get('SITE NAME','-')} | "
-                    f"ProjID: {row.get('PROJECT ID','-')} | "
-                    f"RFAI: {row.get('RFAI STATUS','-')} | "
-                    f"PO: {row.get('PO NO.','-')} | "
-                    f"Op: {row.get('OPERATOR','-')}"
-                )
+                status_update.info(f"📤 मेसेज पाठवत आहे: {site_id}")
 
                 for mobile in TARGET_NUMBERS:
                     url = "https://api.interakt.ai/v1/public/message/"
@@ -763,13 +749,14 @@ with tab_billing:
                         "Content-Type": "application/json"
                     }
                     
+                    # जर टेम्प्लेटमध्ये व्हेरिएबल नसेल, तर bodyValues रिकामे [] ठेवा
                     payload = {
                         "fullPhoneNumber": mobile,
                         "type": "Template",
                         "template": {
                             "name": TEMPLATE_NAME,
                             "languageCode": "mr", 
-                            "bodyValues": [str(report_text)] # variable madhe enter/newlines nasaveet
+                            "bodyValues": [] # रिकामे कारण टेम्प्लेटमध्ये {{1}} नाहीये
                         }
                     }
 
@@ -778,18 +765,17 @@ with tab_billing:
                         if r.status_code in [200, 201, 202]:
                             success_count += 1
                         else:
-                            log_container.error(f"❌ {site_id} ({mobile}): {r.json().get('message', 'Error')}")
-                    except Exception as e:
-                        log_container.warning(f"⚠️ Error: {e}")
+                            st.error(f"❌ {site_id} ({mobile}): {r.json().get('message')}")
+                    except:
+                        pass
                     
-                    time.sleep(1)
+                    time.sleep(1) # १ सेकंद गॅप
 
                 progress_bar.progress((i + 1) / total_sites)
-                time.sleep(1)
-
+            
             status_update.empty()
-            st.success(f"✅ पूर्ण झाले! यशस्वी मेसेज: {success_count}")
+            st.success(f"✅ पूर्ण झाले! एकूण {success_count} अलर्ट पाठवले.")
 
     st.divider()
     if not st.session_state.billing_df.empty:
-        st.dataframe(st.session_state.billing_df[['SITE ID', 'SITE NAME', 'RFAI STATUS', 'WCC NO.']], use_container_width=True)
+        st.dataframe(st.session_state.billing_df[['SITE ID', 'SITE NAME', 'RFAI STATUS']], use_container_width=True)
