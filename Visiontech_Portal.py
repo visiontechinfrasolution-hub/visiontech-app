@@ -695,41 +695,54 @@ tab1, tab2, tab3, tab4, tab_wcc, tab5, tab6, tab_audit, tab_billing = st.tabs([
 
 # ... [Puraana Tab 1 se Tab 8 tak ka code waisa hi rahega] ...
 
+# --- 3. TABS (Tab 9: 📢 Billing Alert Naya Page) ---
+tab1, tab2, tab3, tab4, tab_wcc, tab5, tab6, tab_audit, tab_billing = st.tabs([
+    "📦 BOQ Report", "🧾 PO Report", "🏗️ Site Detail", 
+    "📊 Indus Basic Data", "📡 WCC Tracker", "📁 Data Entry", 
+    "💰 Finance Entry", "📝 Audit Portal", "📢 Billing Alert"
+])
+
+# ... [Baaki saare Tabs ka code (1 se 8 tak) waisa hi rahega] ...
+
 # =====================================================================
-# 📢 TAB 9: BILLING ALERT (NEW LOGIC)
+# 📢 TAB 9: BILLING ALERT (NEW PAGE LOGIC)
 # =====================================================================
 with tab_billing:
-    st.markdown("<h3 style='text-align: center; color: #E11D48;'>📢 Billing Alert & WCC Checker</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align: center; color: #E11D48;'>📢 Billing Alert Portal</h3>", unsafe_allow_html=True)
     
     st.info("""
-    **Criteria:** 1. RFAI Status in (Build Complete by BV/PM, Pending RFAI, Post RFAI Hold, RFAI Notice Accepted/Deemed/Rejected)
-    2. WCC NO. is '-' (Blank)
+    **Criteriya:** RFAI Status (Build Complete, Pending RFAI, etc.) match hona chahiye aur **WCC NO.** column mein '-' hona chahiye.
     """)
 
-    if st.button("🔍 Generate Billing Report & WhatsApp Links", use_container_width=True):
-        try:
-            # Supabase se data fetch karna
-            res = supabase.table("VIS Portal Site Data").select("*").execute()
-            if res.data:
-                df_bill = pd.DataFrame(res.data)
-                
-                # Filter Criteria
-                rfai_list = [
-                    "Build Complete by BV", "Build Complete by PM", "Pending RFAI",
-                    "Post RFAI Hold", "RFAI Notice Accepted", 
-                    "RFAI Notice Deemed Accepted", "RFAI Notice Rejected"
-                ]
-                
-                # Filtering logic
-                mask = (df_bill['RFAI STATUS'].isin(rfai_list)) & (df_bill['WCC NO.'].astype(str).str.strip() == '-')
-                filtered_sites = df_bill[mask]
+    # Filter Criteria List
+    rfai_list = [
+        "Build Complete by BV", "Build Complete by PM", "Pending RFAI",
+        "Post RFAI Hold", "RFAI Notice Accepted", 
+        "RFAI Notice Deemed Accepted", "RFAI Notice Rejected"
+    ]
 
-                if not filtered_sites.empty:
-                    st.success(f"✅ {len(filtered_sites)} Sites found matching criteria!")
+    # Button to fetch and filter
+    if st.button("🔍 Generate Pending Billing Report", use_container_width=True):
+        try:
+            # Supabase se fresh data fetch karna
+            res_bill = supabase.table("VIS Portal Site Data").select("*").execute()
+            
+            if res_bill.data:
+                df_all = pd.DataFrame(res_bill.data)
+                
+                # Column names cleanup (spaces remove karna)
+                df_all.columns = df_all.columns.str.strip()
+                
+                # Filtering: RFAI match AND WCC NO is '-'
+                mask = (df_all['RFAI STATUS'].isin(rfai_list)) & (df_all['WCC NO.'].astype(str).str.strip() == '-')
+                final_filtered = df_all[mask]
+
+                if not final_filtered.empty:
+                    st.success(f"✅ Total {len(final_filtered)} Sites mili hain jinki billing pending hai.")
                     
-                    for _, row in filtered_sites.iterrows():
-                        # Message Formatting
-                        wa_msg = (
+                    for _, row in final_filtered.iterrows():
+                        # WhatsApp Message Template
+                        wa_text = (
                             f"*Hello Mayur Ji,*\n"
                             f"Request to you kindly check as per our criteriya below site billing should be done but still we are unable find WCC Number. Kindly check and close immidiatly.\n\n"
                             f"👉🏻 *DEPARTMENT:-* {row.get('DEPARTMENT','-')}\n"
@@ -748,17 +761,20 @@ with tab_billing:
                             f"Thanks,\nTeam Automation\nVisiontech"
                         )
                         
-                        # WhatsApp Link Generation
-                        encoded_msg = urllib.parse.quote(wa_msg)
-                        wa_url = f"https://wa.me/?text={encoded_msg}"
+                        # WhatsApp URL Encoding
+                        msg_encoded = urllib.parse.quote(wa_text)
+                        whatsapp_link = f"https://wa.me/?text={msg_encoded}"
                         
-                        # Displaying in UI
-                        with st.expander(f"📍 {row['SITE ID']} - {row['SITE NAME']}"):
-                            st.write(f"**RFAI:** {row['RFAI STATUS']} | **WCC:** {row['WCC NO.']}")
-                            st.markdown(f'''<a href="{wa_url}" target="_blank" style="background-color: #25D366; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">📲 Send to WhatsApp</a>''', unsafe_allow_html=True)
+                        # Display Card for each site
+                        with st.container():
+                            c1, c2, c3 = st.columns([2, 2, 1])
+                            c1.markdown(f"**Site:** {row.get('SITE ID')} - {row.get('SITE NAME')}")
+                            c2.markdown(f"**RFAI:** {row.get('RFAI STATUS')}")
+                            c3.markdown(f"""<a href="{whatsapp_link}" target="_blank" style="text-decoration: none;"><button style="background-color: #25D366; color: white; border: none; padding: 5px 15px; border-radius: 5px; cursor: pointer; font-weight: bold;">📲 WhatsApp</button></a>""", unsafe_allow_html=True)
+                            st.divider()
                 else:
-                    st.warning("No sites found matching the billing criteria.")
+                    st.warning("Koi bhi site criteria se match nahi hui.")
             else:
-                st.error("No data found in VIS Portal Site Data table.")
+                st.error("Table mein data nahi mila.")
         except Exception as e:
-            st.error(f"Error: {e}")
+            st.error(f"Error: {str(e)}")
