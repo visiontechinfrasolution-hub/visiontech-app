@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, time
 
 def send_professional_email(selected_df, to_emails, cc_emails):
     SENDER = "vispltower@gmail.com" 
-    PWD = "wpiw vkys mblb tunw" 
+    PWD = "llzg bjkq dyig rykv" 
     
     tomorrow = (datetime.now() + timedelta(days=1)).strftime('%d-%b-%Y')
     
