@@ -675,34 +675,24 @@ else:
                         except Exception as e: st.error(str(e))
 
     # =====================================================================
-    # 📢 TAB 9: RFAI BILLING PENDING 
+    # 📢 PAGE 9: RFAI BILLING PENDING (MODIFIED: EXCEL EXPORT ONLY)
     # =====================================================================
     elif st.session_state.current_page == "RFAI":
         st.markdown("<h3 style='text-align: center; color: #E11D48;'>📢 RFAI Billing Pending</h3>", unsafe_allow_html=True)
         
-        # --- INTERAKT CONFIGURATION ---
-        INTERAKT_API_KEY = "S2pFcE5ETjE2NDhiQ1VIMEFjMVA5a3ZwdHB6X0diYXpRM2I2SWRxbGJWYzo="
-        TEMPLATE_NAME = "wccpending" 
-        TARGET_NUMBERS = ["919960843473", "919552273181"] 
-
-        rfai_list = [
-            "Build Complete by BV", "Build Complete by PM", "Pending RFAI",
-            "Post RFAI Hold", "RFAI Notice Accepted", 
-            "RFAI Notice Deemed Accepted", "RFAI Notice Rejected"
-        ]
-
         col_1, col_2, col_3, col_4 = st.columns([1, 1, 1, 1])
-        lang_choice = col_1.selectbox("Template Language", ["mr", "en"], index=0, help="Interakt dashboard par template ki jo language hai wahi chune.")
-
+        
         if "billing_df" not in st.session_state:
             st.session_state.billing_df = pd.DataFrame()
 
+        # Step 1: Check Data
         if col_2.button("🔍 Step 1: Check Data", use_container_width=True):
             try:
                 res_bill = supabase.table("VIS Portal Site Data").select("*").execute()
                 if res_bill.data:
                     df_raw = pd.DataFrame(res_bill.data)
                     df_raw.columns = df_raw.columns.str.strip()
+                    rfai_list = ["Build Complete by BV", "Pending RFAI", "RFAI Notice Accepted"]
                     mask = (df_raw['RFAI STATUS'].isin(rfai_list)) & (df_raw['WCC NO.'].astype(str).str.strip().isin(['-', '', 'nan', 'None']))
                     st.session_state.billing_df = df_raw[mask]
                     if st.session_state.billing_df.empty:
@@ -712,58 +702,28 @@ else:
             except Exception as e:
                 st.error(f"Error: {e}")
 
+        # Step 2: Generate Excel & Notify
         if not st.session_state.billing_df.empty:
-            if col_3.button("🚀 Step 2: SEND ALL", type="primary", use_container_width=True):
-                total_sites = len(st.session_state.billing_df)
-                progress_bar = st.progress(0)
-                status_info = st.empty()
-                success_count = 0
-                
-                for i, (idx, row) in enumerate(st.session_state.billing_df.iterrows()):
-                    site_id = row.get('SITE ID', 'Unknown')
-                    status_info.info(f"📤 Processing ({i+1}/{total_sites}): {site_id}")
-
-                    body_values = [
-                        str(row.get('DEPARTMENT', '-')), str(row.get('OPERATOR', '-')),
-                        str(row.get('PROJECT ID', '-')), str(row.get('PROJECT NAME', '-')),
-                        str(row.get('SITE ID', '-')), str(row.get('SITE NAME', '-')),
-                        str(row.get('CLUSTER', '-')), str(row.get('SITE STATUS', '-')),
-                        str(row.get('PRODUCT', '-')), str(row.get('PO NO.', '-')),
-                        str(row.get('PO STATUS', '-')), str(row.get('RFAI STATUS', '-')),
-                        str(row.get('WORK DESCRIPTION', '-'))
-                    ]
-
-                    for mobile in TARGET_NUMBERS:
-                        url = "https://api.interakt.ai/v1/public/message/"
-                        headers = {"Authorization": f"Basic {INTERAKT_API_KEY}", "Content-Type": "application/json"}
-                        
-                        payload = {
-                            "fullPhoneNumber": mobile,
-                            "type": "Template",
-                            "template": {
-                                "name": TEMPLATE_NAME,
-                                "languageCode": lang_choice,
-                                "bodyValues": body_values
-                            }
-                        }
-
-                        try:
-                            r = requests.post(url, headers=headers, data=json.dumps(payload))
-                            if r.status_code in [200, 201, 202]:
-                                success_count += 1
-                            else:
-                                st.error(f"❌ Error {site_id}: {r.json().get('message', r.text)}")
-                        except: pass
-                        time.sleep(1) 
-
-                progress_bar.progress((i + 1) / total_sites)
-                time.sleep(1) 
-
-                status_info.empty()
-                st.success(f"✅ Completed! Total {success_count} messages sent.")
-
-        if col_4.button("🛑 STOP", use_container_width=True):
-            st.rerun()
+            import io
+            # Create Excel Data
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                st.session_state.billing_df.to_excel(writer, index=False, sheet_name='Pending_RFAI')
+            excel_data = output.getvalue()
+            
+            # Download Button
+            col_3.download_button(
+                label="📥 Step 2: Download Excel",
+                data=excel_data,
+                file_name=f"RFAI_Pending_{datetime.now().strftime('%d-%b-%Y')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+            
+            # WhatsApp Notification (Just opens chat to say "report is ready")
+            wa_msg = f"Hello, RFAI Pending Report ({len(st.session_state.billing_df)} sites) is ready. Please check the downloaded Excel file."
+            wa_url = f"https://wa.me/919960843473?text={urllib.parse.quote(wa_msg)}"
+            col_4.markdown(f'<a href="{wa_url}" target="_blank" style="text-decoration:none;"><button style="width:100%; height:42px; background-color:#25D366; color:white; border-radius:8px; border:none; font-weight:bold; cursor:pointer;">💬 Notify on WA</button></a>', unsafe_allow_html=True)
 
         st.divider()
         if not st.session_state.billing_df.empty:
