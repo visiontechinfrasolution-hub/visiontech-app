@@ -686,25 +686,23 @@ with tab_audit:
                     except Exception as e: st.error(str(e))
 
 # =====================================================================
-# 📢 TAB 9: RFAI BILLING PENDING (WITH STOP BUTTON & LIVE LOG)
+# 📢 TAB 9: RFAI BILLING PENDING (DEBUG MODE - FIXED)
 # =====================================================================
 with tab_billing:
     st.markdown("<h3 style='text-align: center; color: #E11D48;'>📢 RFAI Billing Pending</h3>", unsafe_allow_html=True)
     
-    # --- INTERAKT CONFIGURATION ---
+    # --- CONFIGURATION ---
     INTERAKT_API_KEY = "S2pFcE5ETjE2NDhiQ1VIMEFjMVA5a3ZwdHB6X0diYXpRM2I2SWRxbGJWYzo="
     TEMPLATE_NAME = "visiontech_bot_reply"
     TARGET_NUMBERS = ["919960843473", "919552273181"] 
 
-    # Filter Criteria
     rfai_list = [
         "Build Complete by BV", "Build Complete by PM", "Pending RFAI",
         "Post RFAI Hold", "RFAI Notice Accepted", 
         "RFAI Notice Deemed Accepted", "RFAI Notice Rejected"
     ]
 
-    # --- TOP CONTROLS ---
-    col_ctrl1, col_ctrl2, col_ctrl3 = st.columns([1, 1, 1])
+    col_ctrl1, col_ctrl2, col_ctrl3 = st.columns(3)
     
     if "billing_df" not in st.session_state:
         st.session_state.billing_df = pd.DataFrame()
@@ -721,16 +719,15 @@ with tab_billing:
                 if st.session_state.billing_df.empty:
                     st.warning("No pending sites found.")
                 else:
-                    st.success(f"Found {len(st.session_state.billing_df)} Sites!")
+                    st.success(f" सापडल्या: {len(st.session_state.billing_df)} साईट्स")
         except Exception as e:
             st.error(f"Error: {e}")
 
-    # २. प्रोसेस थांबवणे (Stop Button)
-    if col_ctrl3.button("🛑 STOP PROCESS", type="secondary", use_container_width=True):
-        st.cache_data.clear()
-        st.rerun() # स्क्रिप्ट पुन्हा लोड होईल आणि लूप थांबेल
+    # २. स्टॉप बटण
+    if col_ctrl3.button("🛑 STOP", use_container_width=True):
+        st.rerun()
 
-    # ३. मेसेज पाठवणे (Start Button)
+    # ३. मेसेज पाठवणे (With Debugger)
     if not st.session_state.billing_df.empty:
         if col_ctrl2.button("🚀 Step 2: SEND ALL", type="primary", use_container_width=True):
             import requests
@@ -740,13 +737,15 @@ with tab_billing:
             total_sites = len(st.session_state.billing_df)
             progress_bar = st.progress(0)
             status_update = st.empty()
+            log_container = st.container() # एरर दाखवण्यासाठी
             
             success_count = 0
             
             for i, (idx, row) in enumerate(st.session_state.billing_df.iterrows()):
                 site_id = row.get('SITE ID', 'Unknown')
-                status_update.info(f"📤 आता पाठवत आहे ({i+1}/{total_sites}): **{site_id}**")
+                status_update.info(f"📤 पाठवत आहे ({i+1}/{total_sites}): **{site_id}**")
                 
+                # टेम्पलेट मधील {{1}} साठी मजकूर
                 report_text = (
                     f"RFAI Billing Pending:\n"
                     f"📍 ID: {site_id}\n"
@@ -762,36 +761,36 @@ with tab_billing:
                         "Authorization": f"Basic {INTERAKT_API_KEY}",
                         "Content-Type": "application/json"
                     }
+                    
+                    # 'mr' ऐवजी 'en' वापरून पहा जर मेसेज जात नसेल
                     payload = {
                         "fullPhoneNumber": mobile,
                         "type": "Template",
                         "template": {
                             "name": TEMPLATE_NAME,
-                            "languageCode": "mr",
+                            "languageCode": "mr", 
                             "bodyValues": [str(report_text)]
                         }
                     }
 
                     try:
-                        requests.post(url, headers=headers, data=json.dumps(payload))
-                        success_count += 1
-                    except:
-                        pass
+                        r = requests.post(url, headers=headers, data=json.dumps(payload))
+                        if r.status_code in [200, 201, 202]:
+                            success_count += 1
+                        else:
+                            # हे तुम्हाला सांगेल मेसेज का फेल झाला
+                            log_container.error(f"❌ {site_id} ({mobile}): {r.json().get('message', 'Unknown Error')}")
+                    except Exception as e:
+                        log_container.warning(f"⚠️ Connection Issue: {e}")
                     
-                    # प्रत्येक नंबर मध्ये १ सेकंदाचा गॅप
-                    time.sleep(1)
+                    time.sleep(1) # १ सेकंद गॅप
 
-                # प्रोग्रेस अपडेट
                 progress_bar.progress((i + 1) / total_sites)
-                # प्रत्येक साईट नंतर १ सेकंदाचा पॉज
                 time.sleep(1)
 
             status_update.empty()
-            st.success(f"✅ पूर्ण झाले! {success_count} मेसेजेस पाठवले गेले.")
+            st.success(f"✅ पूर्ण झाले! यशस्वी मेसेज: {success_count}")
 
     st.divider()
-    
-    # खाली यादी दाखवणे
     if not st.session_state.billing_df.empty:
-        st.write("### Pending Billing List")
-        st.dataframe(st.session_state.billing_df[['SITE ID', 'SITE NAME', 'RFAI STATUS', 'WCC NO.']], use_container_width=True, hide_index=True)
+        st.dataframe(st.session_state.billing_df[['SITE ID', 'SITE NAME', 'RFAI STATUS', 'WCC NO.']], use_container_width=True)
