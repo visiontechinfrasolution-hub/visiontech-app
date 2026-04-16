@@ -390,7 +390,7 @@ elif st.session_state.current_page == "WCC":
                         if update_wcc_record(payload): st.rerun()
 
             data_list = fetch_wcc_data_simple()
-            # बदललेली ओळ: नवीन एन्ट्री सर्वात वर दाखवण्यासाठी [::-1] जोडले आहे
+            # बदललेली ओळ: नवीन डेटा वर दिसण्यासाठी [::-1] लावले आहे
             df_wcc = pd.DataFrame(data_list)[::-1] if data_list else pd.DataFrame()
             
             if role == "requester":
