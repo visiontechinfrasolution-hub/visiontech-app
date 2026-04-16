@@ -7,7 +7,6 @@ import time
 def show(supabase):
     st.markdown("<h3 style='text-align: center; color: #E11D48;'>📢 RFAI Billing Pending</h3>", unsafe_allow_html=True)
     
-    # --- CONFIGURATION ---
     INTERAKT_API_KEY = "S2pFcE5ETjE2NDhiQ1VIMEFjMVA5a3ZwdHB6X0diYXpRM2I2SWRxbGJWYzo="
     TEMPLATE_NAME = "wccpending" 
     TARGET_NUMBERS = ["919960843473", "919552273181"] 
@@ -19,12 +18,11 @@ def show(supabase):
     ]
 
     col_1, col_2, col_3, col_4 = st.columns([1, 1, 1, 1])
-    lang_choice = col_1.selectbox("Template Language", ["mr", "en"], index=0)
+    lang_choice = col_1.selectbox("Template Language", ["mr", "en"], index=0, help="Interakt dashboard par template ki jo language hai wahi chune.")
 
     if "billing_df" not in st.session_state:
         st.session_state.billing_df = pd.DataFrame()
 
-    # पायरी १: डेटा तपासणे
     if col_2.button("🔍 Step 1: Check Data", use_container_width=True):
         try:
             res_bill = supabase.table("VIS Portal Site Data").select("*").execute()
@@ -34,13 +32,12 @@ def show(supabase):
                 mask = (df_raw['RFAI STATUS'].isin(rfai_list)) & (df_raw['WCC NO.'].astype(str).str.strip().isin(['-', '', 'nan', 'None']))
                 st.session_state.billing_df = df_raw[mask]
                 if st.session_state.billing_df.empty:
-                    st.warning("कोणतीही Pending साईट सापडली नाही.")
+                    st.warning("No pending sites found.")
                 else:
-                    st.success(f"सापडल्या: {len(st.session_state.billing_df)} साईट्स")
+                    st.success(f"Found {len(st.session_state.billing_df)} Sites!")
         except Exception as e:
             st.error(f"Error: {e}")
 
-    # पायरी २: मेसेज पाठवणे
     if not st.session_state.billing_df.empty:
         if col_3.button("🚀 Step 2: SEND ALL", type="primary", use_container_width=True):
             total_sites = len(st.session_state.billing_df)
@@ -50,7 +47,7 @@ def show(supabase):
             
             for i, (idx, row) in enumerate(st.session_state.billing_df.iterrows()):
                 site_id = row.get('SITE ID', 'Unknown')
-                status_info.info(f"📤 मेसेज पाठवत आहे ({i+1}/{total_sites}): {site_id}")
+                status_info.info(f"📤 Processing ({i+1}/{total_sites}): {site_id}")
 
                 body_values = [
                     str(row.get('DEPARTMENT', '-')), str(row.get('OPERATOR', '-')),
@@ -89,9 +86,9 @@ def show(supabase):
                 time.sleep(1) 
 
             status_info.empty()
-            st.success(f"✅ पूर्ण झाले! यशस्वी मेसेज: {success_count}")
+            st.success(f"✅ Completed! Total {success_count} messages sent.")
 
-    if col_4.button("🛑 STOP"):
+    if col_4.button("🛑 STOP", use_container_width=True):
         st.rerun()
 
     st.divider()
