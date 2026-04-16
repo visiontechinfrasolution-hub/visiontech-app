@@ -320,7 +320,7 @@ else:
     # =====================================================================
     # 📡 TAB 5: WCC STATUS
     # =====================================================================
-elif st.session_state.current_page == "WCC":
+    elif st.session_state.current_page == "WCC":
         st.markdown("""
             <style>
                 .site-badge { background-color: #E0F2FE; color: #0369A1; padding: 2px 8px; border-radius: 12px; font-weight: 600; font-size: 11px; border: 1px solid #BAE6FD; }
