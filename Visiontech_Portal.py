@@ -420,20 +420,23 @@ else:
                         b1, b2 = st.columns(2)
                         if b1.button("✏️", key=f"edit_{row['Project ID']}_{i}"): wcc_edit_modal(row)
                         if role == 'requester':
+                            # --- मयूर भाऊ, तुमचा नवीन 'wccrequest' टेम्पलेट मेसेज इथून सुरू होतो ---
                             msg = (
-                                f"Hello Prkash Ji,\nRaise WCC urgently...\n\n"
-                                f"*Project* :- {clean_none(row.get('Project'))}\n"
-                                f"*Project ID* :- {clean_none(row.get('Project ID'))}\n"
-                                f"*Site ID* :- {clean_none(row.get('Site ID'))}\n"
-                                f"*Site Name* :- {clean_none(row.get('Site Name'))}\n"
-                                f"*PO Number* :- {clean_none(row.get('PO Number'))}\n"
-                                f"*Reqeust Date* :- {formatted_date}\n"
-                                f"*WCC Number* :- {clean_none(row.get('WCC Number'))}\n"
-                                f"*WCC Status* :- {clean_none(row.get('WCC Status'))}\n\n"
+                                f"Hello Prkash Ji,\n"
+                                f"As per your requirement of pending Wcc please find belew detail.\n"
+                                f"Raise WCC urgently\n\n"
+                                f"Project :- {clean_none(row.get('Project'))}\n"
+                                f"Project ID :- {clean_none(row.get('Project ID'))}\n"
+                                f"Site ID :- {clean_none(row.get('Site ID'))}\n"
+                                f"Site Name :- {clean_none(row.get('Site Name'))}\n"
+                                f"PO Number :- {clean_none(row.get('PO Number'))}\n"
+                                f"Reqeust Date :- {formatted_date}\n"
+                                f"WCC Number :- {clean_none(row.get('WCC Number'))}\n"
+                                f"WCC Status :- {clean_none(row.get('WCC Status'))}\n\n"
                                 f"Thanks,\nMayur Patil\n7350533473"
                             )
-                            wa_url = f"whatsapp://send?text={urllib.parse.quote(msg)}"
-                            b2.markdown(f'<a href="{wa_url}" class="wa-btn">💬</a>', unsafe_allow_html=True)
+                            wa_url = f"https://wa.me/917350533473?text={urllib.parse.quote(msg)}"
+                            b2.markdown(f'<a href="{wa_url}" target="_blank" class="wa-btn" style="text-align:center; display:block; text-decoration:none;">💬</a>', unsafe_allow_html=True)
                     
                     r_cols[1].markdown(f"<p style='font-size:12px; text-align:center;'>{i+1}</p>", unsafe_allow_html=True)
                     r_cols[2].markdown(f"<p style='font-size:12px; text-align:center;'>{clean_none(row.get('Project'))}</p>", unsafe_allow_html=True)
@@ -443,7 +446,6 @@ else:
                     r_cols[6].markdown(f"<p style='font-size:12px; text-align:center;'>{clean_none(row.get('PO Number'))}</p>", unsafe_allow_html=True)
                     r_cols[7].markdown(f"<p style='font-size:12px; text-align:center;'>{clean_none(row.get('WCC Status'))}</p>", unsafe_allow_html=True)
                     st.markdown("<hr style='margin:1px 0px; border-top: 1px solid #E5E7EB;'>", unsafe_allow_html=True)
-
     # =====================================================================
     # 📁 TAB 6: DATA ENTRY 
     # =====================================================================
