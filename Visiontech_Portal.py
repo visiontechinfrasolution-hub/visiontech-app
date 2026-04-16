@@ -320,17 +320,18 @@ else:
     # =====================================================================
     # 📡 TAB 5: WCC STATUS
     # =====================================================================
+File "/mount/src/visiontech-app/Visiontech_Portal.py", line 323
+  elif st.session_state.current_page == "WCC":
+  ^
+SyntaxError: 'elif' block follows an 'else' block
+
+are kay faltugiri ahe tumchi yaar
+
     elif st.session_state.current_page == "WCC":
         st.markdown("""
             <style>
-                .site-badge { 
-                    background-color: #E0F2FE; color: #0369A1; padding: 2px 8px; 
-                    border-radius: 12px; font-weight: 600; font-size: 11px; border: 1px solid #BAE6FD; 
-                }
-                .wa-btn { 
-                    background-color: #25D366; color: white !important; padding: 4px 8px; 
-                    border-radius: 6px; font-weight: bold; text-decoration: none; font-size: 12px;
-                }
+                .site-badge { background-color: #E0F2FE; color: #0369A1; padding: 2px 8px; border-radius: 12px; font-weight: 600; font-size: 11px; border: 1px solid #BAE6FD; }
+                .wa-btn { background-color: #25D366; color: white !important; padding: 4px 8px; border-radius: 6px; font-weight: bold; text-decoration: none; font-size: 12px; }
                 [data-testid="column"] { display: flex; align-items: center; justify-content: center; }
             </style>
         """, unsafe_allow_html=True)
@@ -377,14 +378,13 @@ else:
                         v_dt = st.date_input("Request Date", value=datetime.now().date())
                         v_sts = st.selectbox("WCC Status", ["Creation Pending", "Pending for Approval", "Proceed", "Rejected", "Cancel"], 
                                              index=0 if not is_edit else ["Creation Pending", "Pending for Approval", "Proceed", "Rejected", "Cancel"].index(row_data.get("WCC Status", "Creation Pending")))
-                        # Requester ला WCC Number एडिट करायचा असेल तर खालील ओळ:
-                        v_wno = st.text_input("WCC Number", value=str(row_data.get("WCC Number", "")) if is_edit else "")
+                        v_wno = row_data.get("WCC Number") if is_edit else None 
                     else:
                         v_pid = row_data.get('Project ID')
-                        v_wno = st.text_input("Enter/Update WCC Number", value=str(row_data.get("WCC Number", "")) if is_edit else "")
+                        v_wno = st.text_input("Enter WCC Number", value=str(row_data.get("WCC Number", "")) if is_edit else "")
                     
                     if st.form_submit_button("💾 Save Changes", use_container_width=True):
-                        def clean_id(v): return str(v).strip() if v and str(v).lower() != 'none' else ""
+                        def clean_id(v): return ''.join(filter(str.isdigit, str(v))) if v else None
                         payload = {"Project ID": v_pid, "WCC Number": clean_id(v_wno)}
                         if role == "requester": 
                             payload.update({"Project": v_proj, "Site ID": v_sid, "Site Name": v_snm, "PO Number": clean_id(v_po), "Reqeust Date": str(v_dt), "WCC Status": v_sts})
@@ -399,15 +399,14 @@ else:
             st.divider()
 
             if not df_wcc.empty:
-                # WCC Number कॉलमसाठी आपण कॉलम विड्थ ऍडजेस्ट केली आहे
-                h_cols = st.columns([1, 0.5, 1, 1.2, 1, 1.2, 1, 1.2, 1])
-                cols_names = ["Actions", "Sr.", "Project", "Project ID", "Site ID", "Site Name", "PO No", "WCC No", "Status"]
+                h_cols = st.columns([1, 0.5, 1.2, 1.5, 1, 1.2, 1, 1.2])
+                cols_names = ["Actions", "Sr.", "Project", "Project ID", "Site ID", "Site Name", "PO No", "Status"]
                 for col, name in zip(h_cols, cols_names):
-                    col.markdown(f"<p style='color:#1E3A8A; font-weight:bold; font-size:12px; text-align:center;'>{name}</p>", unsafe_allow_html=True)
+                    col.markdown(f"<p style='color:#1E3A8A; font-weight:bold; font-size:13px; text-align:center;'>{name}</p>", unsafe_allow_html=True)
                 st.markdown("<hr style='margin:2px 0px; border-top: 2px solid #1E3A8A;'>", unsafe_allow_html=True)
 
                 for i, row in df_wcc.iterrows():
-                    r_cols = st.columns([1, 0.5, 1, 1.2, 1, 1.2, 1, 1.2, 1])
+                    r_cols = st.columns([1, 0.5, 1.2, 1.5, 1, 1.2, 1, 1.2])
                     
                     raw_date = row.get('Reqeust Date', '')
                     try:
@@ -423,34 +422,31 @@ else:
                         if b1.button("✏️", key=f"edit_{row['Project ID']}_{i}"): wcc_edit_modal(row)
                         if role == 'requester':
                             msg = (
-                                f"Hello Visiontech Billing Team,\n"
-                                f"Raise WCC urgently for below site:\n\n"
-                                f"Project :- {clean_none(row.get('Project'))}\n"
-                                f"Project ID :- {clean_none(row.get('Project ID'))}\n"
-                                f"Site ID :- {clean_none(row.get('Site ID'))}\n"
-                                f"Site Name :- {clean_none(row.get('Site Name'))}\n"
-                                f"PO Number :- {clean_none(row.get('PO Number'))}\n"
-                                f"Reqeust Date :- {formatted_date}\n"
-                                f"WCC Status :- {clean_none(row.get('WCC Status'))}\n\n"
-                                f"Thanks,\nMayur Patil"
+                                f"Hello Prkash Ji,\nRaise WCC urgently...\n\n"
+                                f"*Project* :- {clean_none(row.get('Project'))}\n"
+                                f"*Project ID* :- {clean_none(row.get('Project ID'))}\n"
+                                f"*Site ID* :- {clean_none(row.get('Site ID'))}\n"
+                                f"*Site Name* :- {clean_none(row.get('Site Name'))}\n"
+                                f"*PO Number* :- {clean_none(row.get('PO Number'))}\n"
+                                f"*Reqeust Date* :- {formatted_date}\n"
+                                f"*WCC Number* :- {clean_none(row.get('WCC Number'))}\n"
+                                f"*WCC Status* :- {clean_none(row.get('WCC Status'))}\n\n"
+                                f"Thanks,\nMayur Patil\n7350533473"
                             )
+                            group_link = "https://chat.whatsapp.com/J2jPHtoetMoAZnexO0gOXA"
                             wa_url = f"https://wa.me/?text={urllib.parse.quote(msg)}"
                             b2.markdown(f'<a href="{wa_url}" target="_blank" class="wa-btn" style="text-align:center; display:block; text-decoration:none;">💬</a>', unsafe_allow_html=True)
                     
-                    r_cols[1].markdown(f"<p style='font-size:11px; text-align:center;'>{i+1}</p>", unsafe_allow_html=True)
-                    r_cols[2].markdown(f"<p style='font-size:11px; text-align:center;'>{clean_none(row.get('Project'))}</p>", unsafe_allow_html=True)
-                    r_cols[3].markdown(f"<p style='font-size:11px; text-align:center; font-weight:bold;'>{clean_none(row.get('Project ID'))}</p>", unsafe_allow_html=True)
+                    r_cols[1].markdown(f"<p style='font-size:12px; text-align:center;'>{i+1}</p>", unsafe_allow_html=True)
+                    r_cols[2].markdown(f"<p style='font-size:12px; text-align:center;'>{clean_none(row.get('Project'))}</p>", unsafe_allow_html=True)
+                    r_cols[3].markdown(f"<p style='font-size:12px; text-align:center; font-weight:bold;'>{clean_none(row.get('Project ID'))}</p>", unsafe_allow_html=True)
                     r_cols[4].markdown(f"<div style='text-align:center;'><span class='site-badge'>{clean_none(row.get('Site ID'))}</span></div>", unsafe_allow_html=True)
-                    r_cols[5].markdown(f"<p style='font-size:11px; text-align:center;'>{clean_none(row.get('Site Name'))}</p>", unsafe_allow_html=True)
-                    r_cols[6].markdown(f"<p style='font-size:11px; text-align:center;'>{clean_none(row.get('PO Number'))}</p>", unsafe_allow_html=True)
-                    # WCC Number डेटा दाखवणे
-                    r_cols[7].markdown(f"<p style='font-size:11px; text-align:center; color: #0369A1; font-weight:bold;'>{clean_none(row.get('WCC Number'))}</p>", unsafe_allow_html=True)
-                    r_cols[8].markdown(f"<p style='font-size:11px; text-align:center;'>{clean_none(row.get('WCC Status'))}</p>", unsafe_allow_html=True)
+                    r_cols[5].markdown(f"<p style='font-size:12px; text-align:center;'>{clean_none(row.get('Site Name'))}</p>", unsafe_allow_html=True)
+                    r_cols[6].markdown(f"<p style='font-size:12px; text-align:center;'>{clean_none(row.get('PO Number'))}</p>", unsafe_allow_html=True)
+                    r_cols[7].markdown(f"<p style='font-size:12px; text-align:center;'>{clean_none(row.get('WCC Status'))}</p>", unsafe_allow_html=True)
                     st.markdown("<hr style='margin:1px 0px; border-top: 1px solid #E5E7EB;'>", unsafe_allow_html=True)
 
-    else:
-        st.write("Please select a valid page.")
-
+ye code working hai ye use karo yaar khud ki akal mat lagavo faltugiri mat karo
 
     # =====================================================================
     # 📁 TAB 6: DATA ENTRY 
