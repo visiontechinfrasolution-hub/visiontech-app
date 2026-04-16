@@ -686,23 +686,25 @@ with tab_audit:
                     except Exception as e: st.error(str(e))
 
 # =====================================================================
-# 📢 TAB 9: RFAI BILLING PENDING (STABLE VERSION)
+# 📢 TAB 9: RFAI BILLING PENDING (13 VARIABLES FINAL VERSION)
 # =====================================================================
 with tab_billing:
     st.markdown("<h3 style='text-align: center; color: #E11D48;'>📢 RFAI Billing Pending</h3>", unsafe_allow_html=True)
     
-    # --- CONFIGURATION ---
+    # --- INTERAKT CONFIGURATION ---
     INTERAKT_API_KEY = "S2pFcE5ETjE2NDhiQ1VIMEFjMVA5a3ZwdHB6X0diYXpRM2I2SWRxbGJWYzo="
-    # जुन्या टेम्पलेटचा वापर करा ज्यात {{1}} आहे
-    TEMPLATE_NAME = "visiontech_bot_reply" 
+    # Dashboard varil approve jhalele template name yithe liha
+    TEMPLATE_NAME = "visiontech_billing_alert" 
     TARGET_NUMBERS = ["919960843473", "919552273181"] 
 
+    # Filter Criteria
     rfai_list = [
         "Build Complete by BV", "Build Complete by PM", "Pending RFAI",
         "Post RFAI Hold", "RFAI Notice Accepted", 
         "RFAI Notice Deemed Accepted", "RFAI Notice Rejected"
     ]
 
+    # --- CONTROLS ---
     col_ctrl1, col_ctrl2, col_ctrl3 = st.columns([1, 1, 1])
     
     if "billing_df" not in st.session_state:
@@ -715,6 +717,7 @@ with tab_billing:
             if res_bill.data:
                 df_raw = pd.DataFrame(res_bill.data)
                 df_raw.columns = df_raw.columns.str.strip()
+                # Logic: RFAI Status match ani WCC NO khali asne
                 mask = (df_raw['RFAI STATUS'].isin(rfai_list)) & (df_raw['WCC NO.'].astype(str).str.strip().isin(['-', '', 'nan', 'None']))
                 st.session_state.billing_df = df_raw[mask]
                 if st.session_state.billing_df.empty:
@@ -728,7 +731,7 @@ with tab_billing:
     if col_ctrl3.button("🛑 STOP PROCESS", use_container_width=True):
         st.rerun()
 
-    # ३. मेसेज पाठवणे (Single Line Fix to Avoid Interakt Error)
+    # ३. मेसेज पाठवणे (13 Variables Mapping)
     if not st.session_state.billing_df.empty:
         if col_ctrl2.button("🚀 Step 2: SEND ALL", type="primary", use_container_width=True):
             import requests
@@ -744,19 +747,8 @@ with tab_billing:
             for i, (idx, row) in enumerate(st.session_state.billing_df.iterrows()):
                 site_id = row.get('SITE ID', 'Unknown')
                 status_update.info(f"📤 मेसेज पाठवत आहे ({i+1}/{total_sites}): {site_id}")
-                
-                # --- SINGLE LINE FORMAT (Interakt Error टाळण्यासाठी) ---
-                # आपण सर्व माहिती एकाच ओळीत पाठवत आहोत कारण टेम्पलेटमध्ये फक्त {{1}} आहे.
-                report_text = (
-                    f"RFAI PENDING REPORT | "
-                    f"ID: {site_id} | "
-                    f"NAME: {row.get('SITE NAME','-')} | "
-                    f"PROJ: {row.get('PROJECT ID','-')} | "
-                    f"RFAI: {row.get('RFAI STATUS','-')} | "
-                    f"PO: {row.get('PO NO.','-')} | "
-                    f"OP: {row.get('OPERATOR','-')}"
-                )
 
+                # प्रत्येक टार्गेट नंबरसाठी लूप
                 for mobile in TARGET_NUMBERS:
                     url = "https://api.interakt.ai/v1/public/message/"
                     headers = {
@@ -764,13 +756,31 @@ with tab_billing:
                         "Content-Type": "application/json"
                     }
                     
+                    # १३ व्हेरिएबल्सची बरोबर मॅपिंग ({{1}} te {{13}})
+                    # Interakt newline error denar nahi karan variables vegle aahet
+                    body_values = [
+                        str(row.get('DEPARTMENT', '-')),       # {{1}}
+                        str(row.get('OPERATOR', '-')),         # {{2}}
+                        str(row.get('PROJECT ID', '-')),       # {{3}}
+                        str(row.get('PROJECT NAME', '-')),     # {{4}}
+                        str(row.get('SITE ID', '-')),          # {{5}}
+                        str(row.get('SITE NAME', '-')),        # {{6}}
+                        str(row.get('CLUSTER', '-')),          # {{7}}
+                        str(row.get('SITE STATUS', '-')),      # {{8}}
+                        str(row.get('PRODUCT', '-')),          # {{9}}
+                        str(row.get('PO NO.', '-')),           # {{10}}
+                        str(row.get('PO STATUS', '-')),        # {{11}}
+                        str(row.get('RFAI STATUS', '-')),      # {{12}}
+                        str(row.get('WORK DESCRIPTION', '-'))  # {{13}}
+                    ]
+
                     payload = {
                         "fullPhoneNumber": mobile,
                         "type": "Template",
                         "template": {
                             "name": TEMPLATE_NAME,
-                            "languageCode": "mr", 
-                            "bodyValues": [str(report_text)]
+                            "languageCode": "mr", # Template Marathi aslyas 'mr'
+                            "bodyValues": body_values
                         }
                     }
 
@@ -778,16 +788,19 @@ with tab_billing:
                         r = requests.post(url, headers=headers, data=json.dumps(payload))
                         if r.status_code in [200, 201, 202]:
                             success_count += 1
-                        time.sleep(1) # प्रत्येक मेसेज मध्ये १ सेकंद गॅप
+                        else:
+                            st.error(f"❌ Error {site_id} ({mobile}): {r.text}")
                     except:
                         pass
-                
+                    
+                    time.sleep(1) # Pratyek number madhye 1 sec gap
+
                 progress_bar.progress((i + 1) / total_sites)
-                time.sleep(1) # प्रत्येक साईट नंतर गॅप
+                time.sleep(1) # Pratyek site nantar 1 sec gap
 
             status_update.empty()
-            st.success(f"✅ पूर्ण झाले! यशस्वी मेसेज: {success_count}")
+            st.success(f"✅ पूर्ण झाले! यशस्वीरित्या {success_count} मेसेजेस पाठवले.")
 
     st.divider()
     if not st.session_state.billing_df.empty:
-        st.dataframe(st.session_state.billing_df[['SITE ID', 'SITE NAME', 'RFAI STATUS']], use_container_width=True)
+        st.dataframe(st.session_state.billing_df[['SITE ID', 'SITE NAME', 'RFAI STATUS', 'WCC NO.']], use_container_width=True, hide_index=True)
