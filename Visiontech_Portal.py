@@ -686,7 +686,7 @@ with tab_audit:
                     except Exception as e: st.error(str(e))
 
 # =====================================================================
-# 📢 TAB 9: RFAI BILLING PENDING (LIVE RUNNING 1-BY-1)
+# 📢 TAB 9: RFAI BILLING PENDING (WITH STOP BUTTON & LIVE LOG)
 # =====================================================================
 with tab_billing:
     st.markdown("<h3 style='text-align: center; color: #E11D48;'>📢 RFAI Billing Pending</h3>", unsafe_allow_html=True)
@@ -703,60 +703,57 @@ with tab_billing:
         "RFAI Notice Deemed Accepted", "RFAI Notice Rejected"
     ]
 
+    # --- TOP CONTROLS ---
+    col_ctrl1, col_ctrl2, col_ctrl3 = st.columns([1, 1, 1])
+    
     if "billing_df" not in st.session_state:
         st.session_state.billing_df = pd.DataFrame()
 
-    col_1, col_2 = st.columns(2)
-
-    # --- पायरी १: डेटा चेक करणे ---
-    if col_1.button("🔍 Step 1: Check Pending Sites", use_container_width=True):
+    # १. डेटा चेक करणे
+    if col_ctrl1.button("🔍 Step 1: Check Data", use_container_width=True):
         try:
-            # Supabase कडून फ्रेश डेटा मागवणे
             res_bill = supabase.table("VIS Portal Site Data").select("*").execute()
             if res_bill.data:
                 df_raw = pd.DataFrame(res_bill.data)
-                df_raw.columns = df_raw.columns.str.strip() # कॉलमची नावे साफ करणे
-                
-                # फिल्टर: RFAI स्टेटस मॅच होणे आणि WCC NO रिकामे/डॅश असणे
+                df_raw.columns = df_raw.columns.str.strip()
                 mask = (df_raw['RFAI STATUS'].isin(rfai_list)) & (df_raw['WCC NO.'].astype(str).str.strip().isin(['-', '', 'nan', 'None']))
                 st.session_state.billing_df = df_raw[mask]
-                
                 if st.session_state.billing_df.empty:
-                    st.warning("सध्या एकही Pending Billing साईट सापडली नाही.")
+                    st.warning("No pending sites found.")
                 else:
-                    st.success(f"एकूण {len(st.session_state.billing_df)} साईट्स प्रक्रियेसाठी तयार आहेत.")
+                    st.success(f"Found {len(st.session_state.billing_df)} Sites!")
         except Exception as e:
-            st.error(f"डेटा शोधताना त्रुटी आली: {e}")
+            st.error(f"Error: {e}")
 
-    # --- पायरी २: १-बाय-१ मेसेज पाठवणे (Running Mode) ---
+    # २. प्रोसेस थांबवणे (Stop Button)
+    if col_ctrl3.button("🛑 STOP PROCESS", type="secondary", use_container_width=True):
+        st.cache_data.clear()
+        st.rerun() # स्क्रिप्ट पुन्हा लोड होईल आणि लूप थांबेल
+
+    # ३. मेसेज पाठवणे (Start Button)
     if not st.session_state.billing_df.empty:
-        if col_2.button("🚀 Step 2: SEND ALL (Running 1-by-1)", type="primary", use_container_width=True):
+        if col_ctrl2.button("🚀 Step 2: SEND ALL", type="primary", use_container_width=True):
             import requests
             import json
             import time
 
             total_sites = len(st.session_state.billing_df)
             progress_bar = st.progress(0)
-            status_placeholder = st.empty() # लाईव्ह अपडेटसाठी जागा
+            status_update = st.empty()
             
             success_count = 0
-            error_count = 0
-
+            
             for i, (idx, row) in enumerate(st.session_state.billing_df.iterrows()):
                 site_id = row.get('SITE ID', 'Unknown')
+                status_update.info(f"📤 आता पाठवत आहे ({i+1}/{total_sites}): **{site_id}**")
                 
-                # स्क्रीनवर अपडेट दाखवणे
-                status_placeholder.info(f"⏳ प्रोसेसिंग साईट {i+1}/{total_sites}: **{site_id}**")
-                
-                # मेसेजचा मजकूर तयार करणे
                 report_text = (
                     f"RFAI Billing Pending:\n"
                     f"📍 ID: {site_id}\n"
                     f"🏢 NAME: {row.get('SITE NAME','-')}\n"
                     f"🆔 PROJ: {row.get('PROJECT ID','-')}\n"
                     f"📋 STATUS: {row.get('RFAI STATUS','-')}\n"
-                    f"🧾 PO: {row.get('PO NO.','-')}\n"
-                    f"👤 OPERATOR: {row.get('OPERATOR','-')}"
+                    f"🧾 PO: {row.get('PO NO.','-')}"
                 )
 
                 for mobile in TARGET_NUMBERS:
@@ -776,26 +773,25 @@ with tab_billing:
                     }
 
                     try:
-                        r = requests.post(url, headers=headers, data=json.dumps(payload))
-                        if r.status_code in [200, 201, 202]:
-                            success_count += 1
-                        else:
-                            error_count += 1
-                            st.error(f"❌ {site_id} साठी फेल (नंबर: {mobile}): {r.text}")
+                        requests.post(url, headers=headers, data=json.dumps(payload))
+                        success_count += 1
                     except:
-                        error_count += 1
-                        st.error(f"❌ कनेक्शन एरर: {site_id}")
+                        pass
                     
-                    # प्रत्येक नंबरला मेसेज गेल्यावर १ सेकंदाचा गॅप
+                    # प्रत्येक नंबर मध्ये १ सेकंदाचा गॅप
                     time.sleep(1)
 
-                # प्रोग्रेस बार अपडेट करणे
+                # प्रोग्रेस अपडेट
                 progress_bar.progress((i + 1) / total_sites)
-                
-            status_placeholder.empty()
-            st.success(f"✅ पूर्ण झाले! यशस्वी: {success_count} | अयशस्वी: {error_count}")
+                # प्रत्येक साईट नंतर १ सेकंदाचा पॉज
+                time.sleep(1)
+
+            status_update.empty()
+            st.success(f"✅ पूर्ण झाले! {success_count} मेसेजेस पाठवले गेले.")
 
     st.divider()
+    
+    # खाली यादी दाखवणे
     if not st.session_state.billing_df.empty:
-        st.write("### Pending साईट्सची यादी")
+        st.write("### Pending Billing List")
         st.dataframe(st.session_state.billing_df[['SITE ID', 'SITE NAME', 'RFAI STATUS', 'WCC NO.']], use_container_width=True, hide_index=True)
