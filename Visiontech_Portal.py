@@ -426,7 +426,8 @@ else:
                                 f"*WCC Status* :- {clean_none(row.get('WCC Status'))}\n\n"
                                 f"Thanks,\nMayur Patil\n7350533473"
                             )
-                            wa_url = f"https://wa.me/917350533473?text={urllib.parse.quote(msg)}"
+                            group_link = "https://chat.whatsapp.com/J2jPHtoetMoAZnexO0gOXA"
+                            wa_url = f"{group_link}?text={urllib.parse.quote(msg)}"
                             b2.markdown(f'<a href="{wa_url}" target="_blank" class="wa-btn" style="text-align:center; display:block; text-decoration:none;">💬</a>', unsafe_allow_html=True)
                     
                     r_cols[1].markdown(f"<p style='font-size:12px; text-align:center;'>{i+1}</p>", unsafe_allow_html=True)
