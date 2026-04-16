@@ -686,3 +686,79 @@ with tab_audit:
 
     with t2:
         if not h_df.empty: st.dataframe(h_df, use_container_width=True, hide_index=True)
+            # --- Tabs Update (Add Tab 9) ---
+tab1, tab2, tab3, tab4, tab_wcc, tab5, tab6, tab_audit, tab_billing = st.tabs([
+    "📦 BOQ Report", "🧾 PO Report", "🏗️ Site Detail", 
+    "📊 Indus Basic Data", "📡 WCC Tracker", "📁 Data Entry", 
+    "💰 Finance Entry", "📝 Audit Portal", "📢 Billing Alert"
+])
+
+# ... [Puraana Tab 1 se Tab 8 tak ka code waisa hi rahega] ...
+
+# =====================================================================
+# 📢 TAB 9: BILLING ALERT (NEW LOGIC)
+# =====================================================================
+with tab_billing:
+    st.markdown("<h3 style='text-align: center; color: #E11D48;'>📢 Billing Alert & WCC Checker</h3>", unsafe_allow_html=True)
+    
+    st.info("""
+    **Criteria:** 1. RFAI Status in (Build Complete by BV/PM, Pending RFAI, Post RFAI Hold, RFAI Notice Accepted/Deemed/Rejected)
+    2. WCC NO. is '-' (Blank)
+    """)
+
+    if st.button("🔍 Generate Billing Report & WhatsApp Links", use_container_width=True):
+        try:
+            # Supabase se data fetch karna
+            res = supabase.table("VIS Portal Site Data").select("*").execute()
+            if res.data:
+                df_bill = pd.DataFrame(res.data)
+                
+                # Filter Criteria
+                rfai_list = [
+                    "Build Complete by BV", "Build Complete by PM", "Pending RFAI",
+                    "Post RFAI Hold", "RFAI Notice Accepted", 
+                    "RFAI Notice Deemed Accepted", "RFAI Notice Rejected"
+                ]
+                
+                # Filtering logic
+                mask = (df_bill['RFAI STATUS'].isin(rfai_list)) & (df_bill['WCC NO.'].astype(str).str.strip() == '-')
+                filtered_sites = df_bill[mask]
+
+                if not filtered_sites.empty:
+                    st.success(f"✅ {len(filtered_sites)} Sites found matching criteria!")
+                    
+                    for _, row in filtered_sites.iterrows():
+                        # Message Formatting
+                        wa_msg = (
+                            f"*Hello Mayur Ji,*\n"
+                            f"Request to you kindly check as per our criteriya below site billing should be done but still we are unable find WCC Number. Kindly check and close immidiatly.\n\n"
+                            f"👉🏻 *DEPARTMENT:-* {row.get('DEPARTMENT','-')}\n"
+                            f"👉🏻 *OPERATOR:-* {row.get('OPERATOR','-')}\n"
+                            f"👉🏻 *PROJECT ID:-* {row.get('PROJECT ID','-')}\n"
+                            f"👉🏻 *PROJECT NAME:-* {row.get('PROJECT NAME','-')}\n"
+                            f"👉🏻 *SITE ID:-* {row.get('SITE ID','-')}\n"
+                            f"👉🏻 *SITE NAME:-* {row.get('SITE NAME','-')}\n"
+                            f"👉🏻 *CLUSTER:-* {row.get('CLUSTER','-')}\n"
+                            f"👉🏻 *SITE STATUS:-* {row.get('SITE STATUS','-')}\n"
+                            f"👉🏻 *PRODUCT:-* {row.get('PRODUCT','-')}\n"
+                            f"👉🏻 *PO NO.:-* {row.get('PO NO.','-')}\n"
+                            f"👉🏻 *PO STATUS:-* {row.get('PO STATUS','-')}\n"
+                            f"👉🏻 *RFAI STATUS:-* {row.get('RFAI STATUS','-')}\n"
+                            f"👉🏻 *WORK DESCRIPTION:-* {row.get('WORK DESCRIPTION','-')}\n\n"
+                            f"Thanks,\nTeam Automation\nVisiontech"
+                        )
+                        
+                        # WhatsApp Link Generation
+                        encoded_msg = urllib.parse.quote(wa_msg)
+                        wa_url = f"https://wa.me/?text={encoded_msg}"
+                        
+                        # Displaying in UI
+                        with st.expander(f"📍 {row['SITE ID']} - {row['SITE NAME']}"):
+                            st.write(f"**RFAI:** {row['RFAI STATUS']} | **WCC:** {row['WCC NO.']}")
+                            st.markdown(f'''<a href="{wa_url}" target="_blank" style="background-color: #25D366; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">📲 Send to WhatsApp</a>''', unsafe_allow_html=True)
+                else:
+                    st.warning("No sites found matching the billing criteria.")
+            else:
+                st.error("No data found in VIS Portal Site Data table.")
+        except Exception as e:
+            st.error(f"Error: {e}")
