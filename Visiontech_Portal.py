@@ -427,7 +427,7 @@ else:
                                 f"Thanks,\nMayur Patil\n7350533473"
                             )
                             group_link = "https://chat.whatsapp.com/J2jPHtoetMoAZnexO0gOXA"
-                            wa_url = f"{group_link}?text={urllib.parse.quote(msg)}"
+                            wa_url = f"https://wa.me/?text={urllib.parse.quote(msg)}"
                             b2.markdown(f'<a href="{wa_url}" target="_blank" class="wa-btn" style="text-align:center; display:block; text-decoration:none;">💬</a>', unsafe_allow_html=True)
                     
                     r_cols[1].markdown(f"<p style='font-size:12px; text-align:center;'>{i+1}</p>", unsafe_allow_html=True)
