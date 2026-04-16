@@ -3,104 +3,106 @@ from supabase import create_client
 import pandas as pd
 from datetime import datetime, timedelta
 import urllib.parse
-import io
-from geopy.distance import geodesic
-from geopy.geocoders import Nominatim
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+import requests
+import json
+import time
 
 # --- 1. CONNECTION ---
 URL = "https://sckyflvukpmdqmdzjzhs.supabase.co"
 KEY = "sb_publishable_rAiegSkKYvM0Z9n7sUAI1w_WTgm1S4I" 
 supabase = create_client(URL, KEY)
-# --- EMAIL DISPATCH FUNCTION (Update these details) ---
-def send_professional_email(selected_df):
-    # --- CONFIGURATION (Sample setup) ---
-    SENDER = "services@vispltower.com"  # Sender Email
-    PWD = "Bhavikajaju@123"           # services@vispltower.com ka App Password yahan dalein
-    RECEIVER = "vispltower@gmail.com"   # Sample Receiver
-    CC = "visiontechinfrasolution@gmail.com" # Sample CC
-    
-    # Tomorrow's Date for Subject
-    tomorrow = (datetime.now() + timedelta(days=1)).strftime('%d-%b-%Y')
-    
-    msg = MIMEMultipart()
-    msg['Subject'] = f"Audit Request_Visiontech_({tomorrow})"
-    msg['From'] = f"Saira Quzi <{SENDER}>"
-    msg['To'] = RECEIVER
-    msg['Cc'] = CC
-
-    # Table Header Style
-    header_style = "background-color: #FFFF00; font-weight: bold; border: 1px solid black; padding: 4px; font-size: 10px; text-align: center; white-space: nowrap; color: black;"
-    td_style = "border: 1px solid black; padding: 4px; font-size: 10px; text-align: center;"
-
-    # All 27 Columns as per your Requirement
-    cols = [
-        "Circle", "Ref. No.", "Indus ID", "Site Name", "Site Add", "Cluster / Zone",
-        "Date of Offerance in ISQ", "Date Of Audit Planned in ISQ", "ISQ Offerance Status(Y/N)",
-        "Documents uploaded in ISQ(Y/N)", "TSP Shared Filled checklist during Offerance for audit (Yes / No)",
-        "TSP Shared Compliance Photographs during audit Offerance (yes / No)", "Project", "Tower Type",
-        "Tower Ht.", "Stage", "TSP Name", "Audit Agency Name", "Representative Name",
-        "Representative Contact Number", "Actual ofference date", "Audit Engineer Name",
-        "Contact Details.", "Actual Audit date", "Actual Audit Time", "Lat", "Long"
-    ]
-
-    h_html = "".join([f"<th style='{header_style}'>{c}</th>" for c in cols])
-    r_html = ""
-    for _, row in selected_df.iterrows():
-        r_html += "<tr>"
-        for col in cols:
-            val = row.get(col, "-")
-            r_html += f"<td style='{td_style}'>{val}</td>"
-        r_html += "</tr>"
-
-    body = f"""
-    <html>
-    <body style="font-family: Calibri, Arial; font-size: 11px;">
-        <p>Hello Sir,</p>
-        <p>Below sites is ready for audit. Kindly arrange auditor for same.</p>
-        <div style="overflow-x: auto;">
-            <table border="1" style="border-collapse: collapse; width: 100%; border: 1px solid black;">
-                <thead><tr style="background-color: #FFFF00;">{h_html}</tr></thead>
-                <tbody>{r_html}</tbody>
-            </table>
-        </div>
-        <br>
-        <p>Thanks,<br>
-        <b>Saira Quzi</b><br>
-        8180827123</p>
-    </body>
-    </html>
-    """
-    msg.attach(MIMEText(body, 'html'))
-
-    try:
-        import smtplib
-        # Hostinger ke 465 SSL port ke liye 'SMTP_SSL' use karna zaruri hai
-        server = smtplib.SMTP_SSL('smtp.hostinger.com', 465)
-        server.login(SENDER, PWD) # PWD me aapka Hostinger email password aayega
-        server.send_message(msg)
-        server.quit()
-        return True
-    except Exception as e:
-        st.error(f"Hostinger Email Error: {e}")
-        return False
 
 # --- 2. UI SETUP ---
-st.set_page_config(page_title="Visiontech Infra Portal", layout="wide")
+st.set_page_config(page_title="Visiontech Infra Portal", layout="wide", initial_sidebar_state="collapsed")
 
-st.sidebar.image("https://cdn-icons-png.flaticon.com/512/2942/2942813.png", width=80) 
-st.sidebar.title("🧭 VIS Group")
-st.sidebar.divider()
-st.sidebar.caption("© 2026 Visiontech Infra Solutions")
+# --- 3. CUSTOM CSS FOR MOBILE APP LOOK (BIG ICONS) ---
+st.markdown("""
+    <style>
+    /* Hide Sidebar & Streamlit Header */
+    [data-testid="stSidebar"] { display: none; }
+    header { visibility: hidden; }
+    footer { visibility: hidden; }
+    .stApp { background-color: #F8FAFC; }
 
-# --- 3. TABS (Added "📝 Audit Portal") ---
-tab1, tab2, tab3, tab4, tab_wcc, tab5, tab6, tab_audit, tab_billing = st.tabs([
-    "📦 BOQ Report", "🧾 PO Report", "🏗️ Site Detail", 
-    "📊 Indus Basic Data", "📡 WCC Tracker", "📁 Data Entry", 
-    "💰 Finance Entry", "📝 Audit Portal", "📢 RFAI Billing Pending"
-])
+    /* Big Icon Button Styling */
+    div.stButton > button {
+        width: 100%;
+        height: 120px;
+        border-radius: 20px;
+        border: none;
+        background-color: white;
+        color: #1E293B;
+        font-size: 18px;
+        font-weight: bold;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        white-space: pre-wrap;
+        transition: 0.3s;
+    }
+
+    div.stButton > button:hover {
+        transform: translateY(-5px);
+        background-color: #1E3A8A;
+        color: white;
+        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+    }
+    
+    /* Back Button Style */
+    .back-btn button {
+        height: 50px !important;
+        width: 150px !important;
+        background-color: #64748B !important;
+        color: white !important;
+        font-size: 14px !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# Navigation Control
+if 'current_page' not in st.session_state:
+    st.session_state.current_page = "Dashboard"
+
+def navigate_to(page):
+    st.session_state.current_page = page
+    st.rerun()
+
+# --- HEADER: BACK TO DASHBOARD ---
+if st.session_state.current_page != "Dashboard":
+    st.markdown("<div class='back-btn'>", unsafe_allow_html=True)
+    if st.button("⬅️ Dashboard वर जा"):
+        navigate_to("Dashboard")
+    st.markdown("</div>", unsafe_allow_html=True)
+    st.divider()
+
+# =====================================================================
+# --- MAIN DASHBOARD (BIG ICONS) ---
+# =====================================================================
+if st.session_state.current_page == "Dashboard":
+    st.markdown("<h1 style='text-align: center; color: #1E3A8A; margin-bottom: 30px;'>🚀 Visiontech Portal</h1>", unsafe_allow_html=True)
+    
+    # 3 Columns for Big Icons
+    c1, c2, c3 = st.columns(3)
+
+    with c1:
+        if st.button("📦\nBOQ Report"): navigate_to("BOQ Report")
+        if st.button("📊\nIndus Data"): navigate_to("Indus Basic Data")
+        if st.button("💰\nFinance Entry"): navigate_to("Finance Entry")
+
+    with c2:
+        if st.button("🧾\nPO Report"): navigate_to("PO Report")
+        if st.button("📡\nWCC Tracker"): navigate_to("WCC Tracker")
+        if st.button("📝\nAudit Portal"): navigate_to("Audit Portal")
+
+    with c3:
+        if st.button("🏗️\nSite Detail"): navigate_to("Site Detail")
+        if st.button("📁\nData Entry"): navigate_to("Data Entry")
+        if st.button("📢\nRFAI Billing"): navigate_to("RFAI Billing")
 
 # =====================================================================
 # 🟩 TAB 1: BOQ REPORT (RESTORED ORIGINAL SEARCH LOGIC)
