@@ -125,9 +125,32 @@ def navigate_to(page):
 
 # --- MAIN DASHBOARD ---
 if st.session_state.current_page == "Dashboard":
+    # 👉 मोबाईलवर २ बटन्स एका लाईनमध्ये येण्यासाठी फक्त इथे CSS ॲड केली आहे
+    st.markdown("""
+        <style>
+        @media (max-width: 768px) {
+            div[data-testid="stHorizontalBlock"] {
+                flex-direction: row !important;
+                flex-wrap: wrap !important;
+                justify-content: center !important;
+            }
+            div[data-testid="column"] {
+                min-width: 48% !important;
+                max-width: 48% !important;
+                padding: 0 5px !important;
+            }
+            /* लॅपटॉपची रिकामी जागा (Spacers) मोबाईलवर लपवणे */
+            div[data-testid="column"]:nth-child(1), 
+            div[data-testid="column"]:nth-child(5) {
+                display: none !important;
+            }
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
     st.markdown("<h1 style='text-align: center; color: #1E3A8A;'>🚀 Visiontech Portal</h1>", unsafe_allow_html=True)
     
-    # बटन्स जवळ आणण्यासाठी आजूबाजूला 1.5 ची रिकामी जागा (spacer) जोडली आहे
+    # बटन्सना लॅपटॉपवर जवळ आणण्यासाठी आजूबाजूला 1.5 ची रिकामी जागा (spacer) जोडली आहे
     spacer1, c1, c2, c3, spacer2 = st.columns([1.5, 2, 2, 2, 1.5])
     
     with c1:
@@ -152,7 +175,7 @@ else:
     st.divider()
 
     # =====================================================================
-    # 🟩 TAB 1: BOQ REPORT (RESTORED ORIGINAL SEARCH LOGIC)
+    # 🟩 TAB 1: BOQ REPORT
     # =====================================================================
     if st.session_state.current_page == "BOQ":
         st.markdown("""
@@ -295,7 +318,7 @@ else:
                 if res_ind.data: st.dataframe(pd.DataFrame(res_ind.data))
 
     # =====================================================================
-    # 📡 TAB 5: WCC TRACKER (SIMPLE FETCH & COMPACT FORMAT)
+    # 📡 TAB 5: WCC TRACKER
     # =====================================================================
     elif st.session_state.current_page == "WCC":
         st.markdown("""
@@ -422,7 +445,7 @@ else:
                     st.markdown("<hr style='margin:1px 0px; border-top: 1px solid #E5E7EB;'>", unsafe_allow_html=True)
 
     # =====================================================================
-    # 📁 TAB 6: DATA ENTRY (DOCUMENT CENTER)
+    # 📁 TAB 6: DATA ENTRY 
     # =====================================================================
     elif st.session_state.current_page == "Data":
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center & Tracker</h3>", unsafe_allow_html=True)
@@ -465,7 +488,7 @@ else:
                 st.dataframe(pd.DataFrame(summary), use_container_width=True, hide_index=True)
 
     # =====================================================================
-    # 💰 TAB 7: FINANCE ENTRY (FIXED PO ANALYZER)
+    # 💰 TAB 7: FINANCE ENTRY 
     # =====================================================================
     elif st.session_state.current_page == "Finance":
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>💰 Finance Entry (PO Analyzer)</h3>", unsafe_allow_html=True)
@@ -652,7 +675,7 @@ else:
                         except Exception as e: st.error(str(e))
 
     # =====================================================================
-    # 📢 TAB 9: RFAI BILLING PENDING
+    # 📢 TAB 9: RFAI BILLING PENDING 
     # =====================================================================
     elif st.session_state.current_page == "RFAI":
         st.markdown("<h3 style='text-align: center; color: #E11D48;'>📢 RFAI Billing Pending</h3>", unsafe_allow_html=True)
