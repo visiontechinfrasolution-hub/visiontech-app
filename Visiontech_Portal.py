@@ -674,8 +674,8 @@ else:
                                 st.rerun()
                         except Exception as e: st.error(str(e))
 
-    # =====================================================================
-    # 📢 PAGE 9: RFAI BILLING PENDING (MODIFIED: EXCEL EXPORT ONLY)
+# =====================================================================
+    # 📢 PAGE 9: RFAI BILLING PENDING (EXCEL/CSV EXPORT ONLY)
     # =====================================================================
     elif st.session_state.current_page == "RFAI":
         st.markdown("<h3 style='text-align: center; color: #E11D48;'>📢 RFAI Billing Pending</h3>", unsafe_allow_html=True)
@@ -702,25 +702,21 @@ else:
             except Exception as e:
                 st.error(f"Error: {e}")
 
-        # Step 2: Generate Excel & Notify
+        # Step 2: Generate Excel (CSV) & Notify
         if not st.session_state.billing_df.empty:
-            import io
-            # Create Excel Data
-            output = io.BytesIO()
-            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                st.session_state.billing_df.to_excel(writer, index=False, sheet_name='Pending_RFAI')
-            excel_data = output.getvalue()
+            # Create CSV Data (Opens natively in Excel without any extra libraries)
+            csv_data = st.session_state.billing_df.to_csv(index=False).encode('utf-8')
             
-            # Download Button
+            # Download Button (You must click this first)
             col_3.download_button(
                 label="📥 Step 2: Download Excel",
-                data=excel_data,
-                file_name=f"RFAI_Pending_{datetime.now().strftime('%d-%b-%Y')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                data=csv_data,
+                file_name=f"RFAI_Pending_{datetime.now().strftime('%d-%b-%Y')}.csv",
+                mime="text/csv",
                 use_container_width=True
             )
             
-            # WhatsApp Notification (Just opens chat to say "report is ready")
+            # WhatsApp Notification
             wa_msg = f"Hello, RFAI Pending Report ({len(st.session_state.billing_df)} sites) is ready. Please check the downloaded Excel file."
             wa_url = f"https://wa.me/919960843473?text={urllib.parse.quote(wa_msg)}"
             col_4.markdown(f'<a href="{wa_url}" target="_blank" style="text-decoration:none;"><button style="width:100%; height:42px; background-color:#25D366; color:white; border-radius:8px; border:none; font-weight:bold; cursor:pointer;">💬 Notify on WA</button></a>', unsafe_allow_html=True)
