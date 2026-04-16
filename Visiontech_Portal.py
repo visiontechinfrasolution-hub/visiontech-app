@@ -450,6 +450,9 @@ elif st.session_state.current_page == "WCC":
 
     else:
         st.write("Please select a valid page.")
+
+    else:
+        st.write("Please select a valid page.")
     # =====================================================================
     # 📁 TAB 6: DATA ENTRY 
     # =====================================================================
