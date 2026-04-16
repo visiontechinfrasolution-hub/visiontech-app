@@ -126,7 +126,10 @@ def navigate_to(page):
 # --- MAIN DASHBOARD ---
 if st.session_state.current_page == "Dashboard":
     st.markdown("<h1 style='text-align: center; color: #1E3A8A;'>🚀 Visiontech Portal</h1>", unsafe_allow_html=True)
-    c1, c2, c3 = st.columns(3)
+    
+    # बटन्स जवळ आणण्यासाठी आजूबाजूला 1.5 ची रिकामी जागा (spacer) जोडली आहे
+    spacer1, c1, c2, c3, spacer2 = st.columns([1.5, 2, 2, 2, 1.5])
+    
     with c1:
         if st.button("📦\nBOQ Report"): navigate_to("BOQ")
         if st.button("📊\nIndus Data"): navigate_to("Indus")
@@ -311,7 +314,6 @@ else:
 
         def fetch_wcc_data_simple():
             try: 
-                # Simple select bina kisi order ke taaki agar column missing ho toh crash na ho
                 res = supabase.table("WCC Status").select("*").execute()
                 return res.data
             except Exception as e:
@@ -373,25 +375,21 @@ else:
             st.divider()
 
             if not df_wcc.empty:
-                # --- TABLE HEADER ---
                 h_cols = st.columns([1, 0.5, 1.2, 1.5, 1, 1.2, 1, 1.2])
                 cols_names = ["Actions", "Sr.", "Project", "Project ID", "Site ID", "Site Name", "PO No", "Status"]
                 for col, name in zip(h_cols, cols_names):
                     col.markdown(f"<p style='color:#1E3A8A; font-weight:bold; font-size:13px; text-align:center;'>{name}</p>", unsafe_allow_html=True)
                 st.markdown("<hr style='margin:2px 0px; border-top: 2px solid #1E3A8A;'>", unsafe_allow_html=True)
 
-               # --- TABLE ROWS (DATE FORMAT & BLANK LOGIC FIXED) ---
                 for i, row in df_wcc.iterrows():
                     r_cols = st.columns([1, 0.5, 1.2, 1.5, 1, 1.2, 1, 1.2])
                     
-                    # Date Formatting: 15-Apr-2026
                     raw_date = row.get('Reqeust Date', '')
                     try:
                         formatted_date = pd.to_datetime(raw_date).strftime('%d-%b-%Y') if raw_date and str(raw_date).lower() != 'none' else ""
                     except:
                         formatted_date = str(raw_date) if str(raw_date).lower() != 'none' else ""
 
-                    # Function to remove 'None' from display
                     def clean_none(val):
                         return str(val) if val and str(val).lower() != 'none' else ""
 
@@ -526,7 +524,7 @@ else:
                 st.dataframe(df_d[['po_number', 'line_no', 'item_number', 'qty', 'amount', 'project_name', 'site_id']], use_container_width=True, hide_index=True)
 
     # =====================================================================
-    # 📝 TAB 8: AUDIT MANAGEMENT PORTAL (FULL STABLE VERSION)
+    # 📝 TAB 8: AUDIT MANAGEMENT PORTAL
     # =====================================================================
     elif st.session_state.current_page == "Audit":
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Audit Management Portal</h3>", unsafe_allow_html=True)
@@ -608,8 +606,8 @@ else:
                 f["Lat"], f["Long"] = col1.text_input("Lat", value=lat_val), col2.text_input("Long", value=long_val)
                 f["Actual Audit date"] = col3.text_input("Actual Audit date", value=tomorrow_dt)
                 
-                from datetime import time
-                audit_time_input = col1.time_input("Set Audit Time", value=time(11, 0)) 
+                from datetime import time as time_dt
+                audit_time_input = col1.time_input("Set Audit Time", value=time_dt(11, 0)) 
                 f["Actual Audit Time"] = audit_time_input.strftime("%I:%M %p") 
 
                 f["Stage"], f["Audit Agency Name"], f["TSP Name"] = "", "", "Visiontech"
@@ -648,40 +646,34 @@ else:
                             if send_professional_email(pd.DataFrame(st.session_state.audit_queue), ", ".join(sel_to), ", ".join(sel_cc)):
                                 st.balloons()
                                 st.success(f"🚀 Success! Email sent to {len(sel_to)} recipients.")
-                                import time as py_time
-                                py_time.sleep(3) 
+                                time.sleep(3) 
                                 st.session_state.audit_queue = []
                                 st.rerun()
                         except Exception as e: st.error(str(e))
 
-   # =====================================================================
-    # 📢 TAB 9: RFAI BILLING PENDING (FINAL TEMPLATE & LANGUAGE SYNC)
+    # =====================================================================
+    # 📢 TAB 9: RFAI BILLING PENDING
     # =====================================================================
     elif st.session_state.current_page == "RFAI":
         st.markdown("<h3 style='text-align: center; color: #E11D48;'>📢 RFAI Billing Pending</h3>", unsafe_allow_html=True)
         
         # --- INTERAKT CONFIGURATION ---
         INTERAKT_API_KEY = "S2pFcE5ETjE2NDhiQ1VIMEFjMVA5a3ZwdHB6X0diYXpRM2I2SWRxbGJWYzo="
-        TEMPLATE_NAME = "wccpending" # Dashboard wala exact name
+        TEMPLATE_NAME = "wccpending" 
         TARGET_NUMBERS = ["919960843473", "919552273181"] 
 
-        # Filter Criteria
         rfai_list = [
             "Build Complete by BV", "Build Complete by PM", "Pending RFAI",
             "Post RFAI Hold", "RFAI Notice Accepted", 
             "RFAI Notice Deemed Accepted", "RFAI Notice Rejected"
         ]
 
-        # --- TOP CONTROLS ---
         col_1, col_2, col_3, col_4 = st.columns([1, 1, 1, 1])
-        
-        # Language Selection (Interakt error se bachne ke liye)
         lang_choice = col_1.selectbox("Template Language", ["mr", "en"], index=0, help="Interakt dashboard par template ki jo language hai wahi chune.")
 
         if "billing_df" not in st.session_state:
             st.session_state.billing_df = pd.DataFrame()
 
-        # Step 1: Check Data
         if col_2.button("🔍 Step 1: Check Data", use_container_width=True):
             try:
                 res_bill = supabase.table("VIS Portal Site Data").select("*").execute()
@@ -697,13 +689,8 @@ else:
             except Exception as e:
                 st.error(f"Error: {e}")
 
-        # Step 2: Send All
         if not st.session_state.billing_df.empty:
             if col_3.button("🚀 Step 2: SEND ALL", type="primary", use_container_width=True):
-                import requests
-                import json
-                import time
-
                 total_sites = len(st.session_state.billing_df)
                 progress_bar = st.progress(0)
                 status_info = st.empty()
@@ -713,7 +700,6 @@ else:
                     site_id = row.get('SITE ID', 'Unknown')
                     status_info.info(f"📤 Processing ({i+1}/{total_sites}): {site_id}")
 
-                    # 13 Variables Mapping for 'wccpending' template
                     body_values = [
                         str(row.get('DEPARTMENT', '-')), str(row.get('OPERATOR', '-')),
                         str(row.get('PROJECT ID', '-')), str(row.get('PROJECT NAME', '-')),
@@ -745,16 +731,14 @@ else:
                             else:
                                 st.error(f"❌ Error {site_id}: {r.json().get('message', r.text)}")
                         except: pass
-                        time.sleep(1) # Message gap
+                        time.sleep(1) 
 
                 progress_bar.progress((i + 1) / total_sites)
-                time.sleep(1) # Site gap
+                time.sleep(1) 
 
-                # 👉 हा भाग आता नीट आत (Indent) घेतला आहे 
                 status_info.empty()
                 st.success(f"✅ Completed! Total {success_count} messages sent.")
 
-        # Stop Button
         if col_4.button("🛑 STOP", use_container_width=True):
             st.rerun()
 
