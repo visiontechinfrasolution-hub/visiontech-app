@@ -445,9 +445,8 @@ elif st.session_state.current_page == "WCC":
                     r_cols[6].markdown(f"<p style='font-size:12px; text-align:center;'>{clean_none(row.get('PO Number'))}</p>", unsafe_allow_html=True)
                     r_cols[7].markdown(f"<p style='font-size:12px; text-align:center;'>{clean_none(row.get('WCC Status'))}</p>", unsafe_allow_html=True)
                     st.markdown("<hr style='margin:1px 0px; border-top: 1px solid #E5E7EB;'>", unsafe_allow_html=True)
-
     else:
-        st.info("Please select a valid page from the sidebar.")
+        st.write("Please select a valid page.")
     # =====================================================================
     # 📁 TAB 6: DATA ENTRY 
     # =====================================================================
