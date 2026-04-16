@@ -320,7 +320,7 @@ else:
     # =====================================================================
     # 📡 TAB 5: WCC TRACKER
     # =====================================================================
-elif st.session_state.current_page == "WCC":
+if st.session_state.current_page == "WCC":
         st.markdown("""
             <style>
                 .site-badge { 
@@ -390,7 +390,7 @@ elif st.session_state.current_page == "WCC":
                         if update_wcc_record(payload): st.rerun()
 
             data_list = fetch_wcc_data_simple()
-            # बदललेली ओळ: नवीन एन्ट्री सर्वात वर दाखवण्यासाठी [::-1] वापरले आहे
+            # बदललेली ओळ: नवीन एन्ट्री सर्वात वर दाखवण्यासाठी [::-1] जोडले आहे
             df_wcc = pd.DataFrame(data_list)[::-1] if data_list else pd.DataFrame()
             
             if role == "requester":
@@ -436,7 +436,6 @@ elif st.session_state.current_page == "WCC":
                             wa_url = f"whatsapp://send?text={urllib.parse.quote(msg)}"
                             b2.markdown(f'<a href="{wa_url}" class="wa-btn">💬</a>', unsafe_allow_html=True)
                     
-                    # Sr. No व्यवस्थित दिसण्यासाठी तुम्ही i+1 वापरत आहात, ते तसेच ठेवले आहे
                     r_cols[1].markdown(f"<p style='font-size:12px; text-align:center;'>{i+1}</p>", unsafe_allow_html=True)
                     r_cols[2].markdown(f"<p style='font-size:12px; text-align:center;'>{clean_none(row.get('Project'))}</p>", unsafe_allow_html=True)
                     r_cols[3].markdown(f"<p style='font-size:12px; text-align:center; font-weight:bold;'>{clean_none(row.get('Project ID'))}</p>", unsafe_allow_html=True)
