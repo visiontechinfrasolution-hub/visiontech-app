@@ -320,7 +320,7 @@ else:
     # =====================================================================
     # 📡 TAB 5: WCC STATUS
     # =====================================================================
-    elif st.session_state.current_page == "WCC":
+elif st.session_state.current_page == "WCC":
         st.markdown("""
             <style>
                 .site-badge { background-color: #E0F2FE; color: #0369A1; padding: 2px 8px; border-radius: 12px; font-weight: 600; font-size: 11px; border: 1px solid #BAE6FD; }
@@ -438,6 +438,12 @@ else:
                     r_cols[7].markdown(f"<p style='font-size:11px; text-align:center; color:#0369A1;'>{clean_none(row.get('WCC Number'))}</p>", unsafe_allow_html=True)
                     r_cols[8].markdown(f"<p style='font-size:11px; text-align:center;'>{clean_none(row.get('WCC Status'))}</p>", unsafe_allow_html=True)
                     st.markdown("<hr style='margin:1px 0px; border-top: 1px solid #E5E7EB;'>", unsafe_allow_html=True)
+
+    elif st.session_state.current_page == "Data":
+        st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center & Tracker</h3>", unsafe_allow_html=True)
+        doc_sub1, doc_sub2, doc_sub3 = st.tabs(["📤 Manager Upload", "🔍 Team Search", "📊 Tracker"])
+        with doc_sub1:
+            st.write("Manager Upload Content Here...")
 
     else:
         st.write("Please select a valid page.")
