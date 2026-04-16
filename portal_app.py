@@ -2,7 +2,7 @@ import streamlit as st
 from supabase import create_client
 import pandas as pd
 
-# Import modular pages
+# Modular Pages लोड करणे
 from pages_code import boq_report, po_report, site_detail, indus_data, wcc_tracker, data_entry, finance_entry, audit_portal, rfai_billing
 
 # --- 1. CONNECTION ---
