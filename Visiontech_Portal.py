@@ -686,7 +686,7 @@ with tab_audit:
                     except Exception as e: st.error(str(e))
 
 # =====================================================================
-# 📢 TAB 9: RFAI BILLING PENDING (DEBUG MODE - FIXED)
+# 📢 TAB 9: RFAI BILLING PENDING (NEWLINE ERROR FIXED)
 # =====================================================================
 with tab_billing:
     st.markdown("<h3 style='text-align: center; color: #E11D48;'>📢 RFAI Billing Pending</h3>", unsafe_allow_html=True)
@@ -719,7 +719,7 @@ with tab_billing:
                 if st.session_state.billing_df.empty:
                     st.warning("No pending sites found.")
                 else:
-                    st.success(f" सापडल्या: {len(st.session_state.billing_df)} साईट्स")
+                    st.success(f"सापडल्या: {len(st.session_state.billing_df)} साईट्स")
         except Exception as e:
             st.error(f"Error: {e}")
 
@@ -727,7 +727,7 @@ with tab_billing:
     if col_ctrl3.button("🛑 STOP", use_container_width=True):
         st.rerun()
 
-    # ३. मेसेज पाठवणे (With Debugger)
+    # ३. मेसेज पाठवणे (Newline Fix)
     if not st.session_state.billing_df.empty:
         if col_ctrl2.button("🚀 Step 2: SEND ALL", type="primary", use_container_width=True):
             import requests
@@ -737,7 +737,7 @@ with tab_billing:
             total_sites = len(st.session_state.billing_df)
             progress_bar = st.progress(0)
             status_update = st.empty()
-            log_container = st.container() # एरर दाखवण्यासाठी
+            log_container = st.container()
             
             success_count = 0
             
@@ -745,14 +745,15 @@ with tab_billing:
                 site_id = row.get('SITE ID', 'Unknown')
                 status_update.info(f"📤 पाठवत आहे ({i+1}/{total_sites}): **{site_id}**")
                 
-                # टेम्पलेट मधील {{1}} साठी मजकूर
+                # रिपोर्टचा मजकूर - आता Newlines काढून एका लाईनमध्ये केला आहे
                 report_text = (
-                    f"RFAI Billing Pending:\n"
-                    f"📍 ID: {site_id}\n"
-                    f"🏢 NAME: {row.get('SITE NAME','-')}\n"
-                    f"🆔 PROJ: {row.get('PROJECT ID','-')}\n"
-                    f"📋 STATUS: {row.get('RFAI STATUS','-')}\n"
-                    f"🧾 PO: {row.get('PO NO.','-')}"
+                    f"RFAI Pending Report | "
+                    f"ID: {site_id} | "
+                    f"Site: {row.get('SITE NAME','-')} | "
+                    f"ProjID: {row.get('PROJECT ID','-')} | "
+                    f"RFAI: {row.get('RFAI STATUS','-')} | "
+                    f"PO: {row.get('PO NO.','-')} | "
+                    f"Op: {row.get('OPERATOR','-')}"
                 )
 
                 for mobile in TARGET_NUMBERS:
@@ -762,14 +763,13 @@ with tab_billing:
                         "Content-Type": "application/json"
                     }
                     
-                    # 'mr' ऐवजी 'en' वापरून पहा जर मेसेज जात नसेल
                     payload = {
                         "fullPhoneNumber": mobile,
                         "type": "Template",
                         "template": {
                             "name": TEMPLATE_NAME,
                             "languageCode": "mr", 
-                            "bodyValues": [str(report_text)]
+                            "bodyValues": [str(report_text)] # variable madhe enter/newlines nasaveet
                         }
                     }
 
@@ -778,12 +778,11 @@ with tab_billing:
                         if r.status_code in [200, 201, 202]:
                             success_count += 1
                         else:
-                            # हे तुम्हाला सांगेल मेसेज का फेल झाला
-                            log_container.error(f"❌ {site_id} ({mobile}): {r.json().get('message', 'Unknown Error')}")
+                            log_container.error(f"❌ {site_id} ({mobile}): {r.json().get('message', 'Error')}")
                     except Exception as e:
-                        log_container.warning(f"⚠️ Connection Issue: {e}")
+                        log_container.warning(f"⚠️ Error: {e}")
                     
-                    time.sleep(1) # १ सेकंद गॅप
+                    time.sleep(1)
 
                 progress_bar.progress((i + 1) / total_sites)
                 time.sleep(1)
