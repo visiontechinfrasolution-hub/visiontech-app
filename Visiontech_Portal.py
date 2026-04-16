@@ -320,7 +320,7 @@ else:
     # =====================================================================
     # 📡 TAB 5: WCC TRACKER
     # =====================================================================
-    elif st.session_state.current_page == "WCC":
+elif st.session_state.current_page == "WCC":
         st.markdown("""
             <style>
                 .site-badge { 
@@ -387,7 +387,17 @@ else:
                         payload = {"Project ID": v_pid, "WCC Number": clean_id(v_wno)}
                         if role == "requester": 
                             payload.update({"Project": v_proj, "Site ID": v_sid, "Site Name": v_snm, "PO Number": clean_id(v_po), "Reqeust Date": str(v_dt), "WCC Status": v_sts})
-                        if update_wcc_record(payload): st.rerun()
+                        
+                        # --- मेसेज ट्रिगर लॉजिक (नवीन एन्ट्री सेव्ह होताना) ---
+                        if update_wcc_record(payload):
+                            if not is_edit and role == "requester": # फक्त नवीन रिक्वेस्ट असेल तरच
+                                try:
+                                    msg_auto = (f"Hello Prkash Ji, New WCC Request: Project ID {v_pid}, Site {v_sid}. Please check portal.")
+                                    # इकडे तुम्ही तुमचा n8n चा API वापरून ऑटोमॅटिक मेसेज पाठवू शकता
+                                    # requests.post("YOUR_N8N_URL", json={"message": msg_auto})
+                                    pass
+                                except: pass
+                            st.rerun()
 
             data_list = fetch_wcc_data_simple()
             df_wcc = pd.DataFrame(data_list) if data_list else pd.DataFrame()
@@ -420,7 +430,6 @@ else:
                         b1, b2 = st.columns(2)
                         if b1.button("✏️", key=f"edit_{row['Project ID']}_{i}"): wcc_edit_modal(row)
                         if role == 'requester':
-                            # --- मयूर भाऊ, तुमचा नवीन 'wccrequest' टेम्पलेट मेसेज इथून सुरू होतो ---
                             msg = (
                                 f"Hello Prkash Ji,\n"
                                 f"As per your requirement of pending Wcc please find belew detail.\n"
