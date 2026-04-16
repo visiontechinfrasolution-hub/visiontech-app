@@ -317,20 +317,14 @@ else:
                 res_ind = supabase.table("Indus Data").select("*").ilike("Site ID", f"%{in_id}%").execute()
                 if res_ind.data: st.dataframe(pd.DataFrame(res_ind.data))
 
-    # =====================================================================
-    # 📡 TAB 5: WCC TRACKER
+# =====================================================================
+    # 📡 TAB 5: WCC STATUS
     # =====================================================================
     elif st.session_state.current_page == "WCC":
         st.markdown("""
             <style>
-                .site-badge { 
-                    background-color: #E0F2FE; color: #0369A1; padding: 2px 8px; 
-                    border-radius: 12px; font-weight: 600; font-size: 11px; border: 1px solid #BAE6FD; 
-                }
-                .wa-btn { 
-                    background-color: #25D366; color: white !important; padding: 4px 8px; 
-                    border-radius: 6px; font-weight: bold; text-decoration: none; font-size: 12px;
-                }
+                .site-badge { background-color: #E0F2FE; color: #0369A1; padding: 2px 8px; border-radius: 12px; font-weight: 600; font-size: 11px; border: 1px solid #BAE6FD; }
+                .wa-btn { background-color: #25D366; color: white !important; padding: 4px 8px; border-radius: 6px; font-weight: bold; text-decoration: none; font-size: 12px; }
                 [data-testid="column"] { display: flex; align-items: center; justify-content: center; }
             </style>
         """, unsafe_allow_html=True)
@@ -421,17 +415,15 @@ else:
                         if b1.button("✏️", key=f"edit_{row['Project ID']}_{i}"): wcc_edit_modal(row)
                         if role == 'requester':
                             msg = (
-                                f"Hello Prkash Ji,\n"
-                                f"As per your requirement of pending Wcc please find belew detail.\n"
-                                f"Raise WCC urgently\n\n"
-                                f"Project :- {clean_none(row.get('Project'))}\n"
-                                f"Project ID :- {clean_none(row.get('Project ID'))}\n"
-                                f"Site ID :- {clean_none(row.get('Site ID'))}\n"
-                                f"Site Name :- {clean_none(row.get('Site Name'))}\n"
-                                f"PO Number :- {clean_none(row.get('PO Number'))}\n"
-                                f"Reqeust Date :- {formatted_date}\n"
-                                f"WCC Number :- {clean_none(row.get('WCC Number'))}\n"
-                                f"WCC Status :- {clean_none(row.get('WCC Status'))}\n\n"
+                                f"Hello Prkash Ji,\nRaise WCC urgently...\n\n"
+                                f"*Project* :- {clean_none(row.get('Project'))}\n"
+                                f"*Project ID* :- {clean_none(row.get('Project ID'))}\n"
+                                f"*Site ID* :- {clean_none(row.get('Site ID'))}\n"
+                                f"*Site Name* :- {clean_none(row.get('Site Name'))}\n"
+                                f"*PO Number* :- {clean_none(row.get('PO Number'))}\n"
+                                f"*Reqeust Date* :- {formatted_date}\n"
+                                f"*WCC Number* :- {clean_none(row.get('WCC Number'))}\n"
+                                f"*WCC Status* :- {clean_none(row.get('WCC Status'))}\n\n"
                                 f"Thanks,\nMayur Patil\n7350533473"
                             )
                             wa_url = f"https://wa.me/917350533473?text={urllib.parse.quote(msg)}"
@@ -445,9 +437,6 @@ else:
                     r_cols[6].markdown(f"<p style='font-size:12px; text-align:center;'>{clean_none(row.get('PO Number'))}</p>", unsafe_allow_html=True)
                     r_cols[7].markdown(f"<p style='font-size:12px; text-align:center;'>{clean_none(row.get('WCC Status'))}</p>", unsafe_allow_html=True)
                     st.markdown("<hr style='margin:1px 0px; border-top: 1px solid #E5E7EB;'>", unsafe_allow_html=True)
-
-    else:
-        st.write("Please select a valid page.")
 
     # =====================================================================
     # 📁 TAB 6: DATA ENTRY 
