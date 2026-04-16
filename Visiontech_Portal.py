@@ -16,50 +16,28 @@ KEY = "sb_publishable_rAiegSkKYvM0Z9n7sUAI1w_WTgm1S4I"
 supabase = create_client(URL, KEY)
 
 # --- 2. UI SETUP ---
-st.set_page_config(page_title="Visiontech Infra Portal", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Visiontech Portal", layout="wide", initial_sidebar_state="collapsed")
 
-# --- 3. CUSTOM CSS FOR MOBILE APP LOOK (BIG ICONS) ---
+# --- 3. CUSTOM CSS FOR MOBILE APP LOOK ---
 st.markdown("""
     <style>
-    /* Hide Sidebar & Streamlit Header */
     [data-testid="stSidebar"] { display: none; }
     header { visibility: hidden; }
     footer { visibility: hidden; }
     .stApp { background-color: #F8FAFC; }
-
-    /* Big Icon Button Styling */
     div.stButton > button {
-        width: 100%;
-        height: 120px;
-        border-radius: 20px;
-        border: none;
-        background-color: white;
-        color: #1E293B;
-        font-size: 18px;
-        font-weight: bold;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-        margin-bottom: 20px;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        white-space: pre-wrap;
-        transition: 0.3s;
+        width: 100%; height: 120px; border-radius: 20px; border: none;
+        background-color: white; color: #1E293B; font-size: 18px; font-weight: bold;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-bottom: 20px;
+        display: flex; flex-direction: column; justify-content: center;
+        white-space: pre-wrap; transition: 0.3s;
     }
-
     div.stButton > button:hover {
-        transform: translateY(-5px);
-        background-color: #1E3A8A;
-        color: white;
-        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        transform: translateY(-5px); background-color: #1E3A8A; color: white;
     }
-    
-    /* Back Button Style */
     .back-btn button {
-        height: 50px !important;
-        width: 150px !important;
-        background-color: #64748B !important;
-        color: white !important;
-        font-size: 14px !important;
+        height: 50px !important; width: 160px !important;
+        background-color: #64748B !important; color: white !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -72,38 +50,41 @@ def navigate_to(page):
     st.session_state.current_page = page
     st.rerun()
 
-# --- HEADER: BACK TO DASHBOARD ---
-if st.session_state.current_page != "Dashboard":
+# --- MAIN DASHBOARD ---
+if st.session_state.current_page == "Dashboard":
+    st.markdown("<h1 style='text-align: center; color: #1E3A8A;'>🚀 Visiontech Portal</h1>", unsafe_allow_html=True)
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        if st.button("📦\nBOQ Report"): navigate_to("BOQ")
+        if st.button("📊\nIndus Data"): navigate_to("Indus")
+        if st.button("💰\nFinance"): navigate_to("Finance")
+    with c2:
+        if st.button("🧾\nPO Report"): navigate_to("PO")
+        if st.button("📡\nWCC Tracker"): navigate_to("WCC")
+        if st.button("📝\nAudit Portal"): navigate_to("Audit")
+    with c3:
+        if st.button("🏗️\nSite Detail"): navigate_to("Site")
+        if st.button("📁\nData Entry"): navigate_to("Data")
+        if st.button("📢\nRFAI Billing"): navigate_to("RFAI")
+
+# --- PAGES LOGIC ---
+else:
     st.markdown("<div class='back-btn'>", unsafe_allow_html=True)
-    if st.button("⬅️ Dashboard वर जा"):
+    if st.button("⬅️ Dashboard"):
         navigate_to("Dashboard")
     st.markdown("</div>", unsafe_allow_html=True)
     st.divider()
 
-# =====================================================================
-# --- MAIN DASHBOARD (BIG ICONS) ---
-# =====================================================================
-if st.session_state.current_page == "Dashboard":
-    st.markdown("<h1 style='text-align: center; color: #1E3A8A; margin-bottom: 30px;'>🚀 Visiontech Portal</h1>", unsafe_allow_html=True)
+    if st.session_state.current_page == "BOQ":
+        st.markdown("### 📦 BOQ Report")
+        # --- तुमचा जुना BOQ कोड इकडे पेस्ट करा (with tab1 काढून) ---
+        st.info("डेटा शोधण्यासाठी खालील फिल्टर्स वापरा.")
+
+    elif st.session_state.current_page == "WCC":
+        st.markdown("### 📡 WCC Tracker")
+        # --- तुमचा जुना WCC कोड इकडे पेस्ट करा ---
     
-    # 3 Columns for Big Icons
-    c1, c2, c3 = st.columns(3)
-
-    with c1:
-        if st.button("📦\nBOQ Report"): navigate_to("BOQ Report")
-        if st.button("📊\nIndus Data"): navigate_to("Indus Basic Data")
-        if st.button("💰\nFinance Entry"): navigate_to("Finance Entry")
-
-    with c2:
-        if st.button("🧾\nPO Report"): navigate_to("PO Report")
-        if st.button("📡\nWCC Tracker"): navigate_to("WCC Tracker")
-        if st.button("📝\nAudit Portal"): navigate_to("Audit Portal")
-
-    with c3:
-        if st.button("🏗️\nSite Detail"): navigate_to("Site Detail")
-        if st.button("📁\nData Entry"): navigate_to("Data Entry")
-        if st.button("📢\nRFAI Billing"): navigate_to("RFAI Billing")
-
+    # बाकीच्या सर्व पेजेससाठी पण असेच elif बनवा...
 # =====================================================================
 # 🟩 TAB 1: BOQ REPORT (RESTORED ORIGINAL SEARCH LOGIC)
 # =====================================================================
