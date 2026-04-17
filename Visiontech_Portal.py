@@ -911,7 +911,7 @@ elif st.session_state.current_page == "JMS Generator":
     
     # १. डेटा फेचिंग (Supabase)
     try:
-        # तुमच्या टेबलचे नाव 'VIS Portal Site Data' असल्याची खात्री करा
+        # तुमच्या मूळ टेबलचे नाव 'VIS Portal Site Data' असल्याची खात्री करा
         site_res = supabase.table("VIS Portal Site Data").select("PROJECT ID, SITE NAME, CLUSTER, SITE ID").execute()
         jms_sites_df = pd.DataFrame(site_res.data)
     except Exception as e:
@@ -919,12 +919,12 @@ elif st.session_state.current_page == "JMS Generator":
         jms_sites_df = pd.DataFrame()
 
     if not jms_sites_df.empty:
-        # --- UI: सिलेक्शन आणि फाईल अपलोड ---
+        # --- UI विभाग: सिलेक्शन आणि फाईल अपलोड ---
         col1, col2 = st.columns(2)
         with col1:
             sel_pid = st.selectbox("1️⃣ Select Project ID", [""] + jms_sites_df["PROJECT ID"].tolist(), key="jms_pid_v_final")
         with col2:
-            # तुमच्या ऑडिटर्सची नावे (signatures/ फोल्डरमधील फोटोंशी मॅच असावीत)
+            # ऑडिटर्सची नावे (signatures/ फोल्डरमधील फोटोंशी मॅच असावीत)
             auditors_list = ["Rahul Sharma", "Amit Patil", "Saira Quzi", "Prakash Ji"]
             sel_aud = st.selectbox("2️⃣ Select Auditor Name", [""] + auditors_list, key="jms_aud_v_final")
         
@@ -947,7 +947,7 @@ elif st.session_state.current_page == "JMS Generator":
                     paper = Image.new('RGB', (width, height), (255, 255, 255))
                     draw = ImageDraw.Draw(paper)
 
-                    # फॉन्ट लोडिंग (Arial आणि Courier)
+                    # फॉन्ट लोडिंग
                     try:
                         f_h1 = ImageFont.truetype("arialbd.ttf", 45)
                         f_body = ImageFont.truetype("arial.ttf", 25)
@@ -955,7 +955,7 @@ elif st.session_state.current_page == "JMS Generator":
                     except:
                         f_h1 = f_body = f_hand = ImageFont.load_default()
 
-                    # Letterhead मजकूर
+                    # Letterhead
                     draw.text((320, 80), "VISIONTECH INFRA SOLUTIONS", fill="black", font=f_h1)
                     draw.text((400, 150), "Joint Measurement Sheet", fill="black", font=f_h1)
                     
@@ -964,22 +964,20 @@ elif st.session_state.current_page == "JMS Generator":
                     draw.text((100, 300), f"Project ID: {sel_pid}  |  Site ID: {site_info.get('SITE ID','')}", fill="black", font=f_body)
                     draw.text((100, 350), f"Site Name: {site_info.get('SITE NAME','')} | Cluster: {site_info.get('CLUSTER','')}", fill="black", font=f_body)
 
-                    # Table Logic (Header)
+                    # Table Rules (Round & Tick)
                     y = 450
                     draw.rectangle([80, y, 1160, y+60], outline="black", width=2, fill=(240, 240, 240))
                     draw.text((100, y+15), "Description", font=f_body, fill="black")
                     draw.text((820, y+15), "Ord", font=f_body, fill="black")
                     draw.text((1000, y+15), "Del", font=f_body, fill="black")
 
-                    # Rows Processing (Round & Tick Rules)
                     y += 65
                     for i, r in df_tsv.iterrows():
-                        if i > 15: break # एका पानावर बसण्यासाठी मर्यादा
-                        desc = " ".join(str(r.get('Description','')).split()[:100])
+                        if i > 15: break
                         q1 = float(pd.to_numeric(r.get('Ordered',0), errors='coerce') or 0)
                         q2 = float(pd.to_numeric(r.get('Requested/Delivered',0), errors='coerce') or 0)
-
-                        draw.text((100, y+10), desc[:60], font=f_body, fill="black")
+                        
+                        draw.text((100, y+10), str(r.get('Description',''))[:60], font=f_body, fill="black")
                         draw.text((840, y+10), str(int(q1)), font=f_hand, fill="black")
                         draw.text((1020, y+10), str(int(q2)), font=f_hand, fill="black")
 
@@ -993,7 +991,7 @@ elif st.session_state.current_page == "JMS Generator":
                     m_names = ["विजय पाटील", "संदीप चव्हाण", "अशोक गाडे", "महेश मोरे"]
                     draw.text((100, y_s), f"Prepared By: {random.choice(m_names)}", font=f_hand, fill=(10, 40, 150))
                     
-                    # Auditor Sign from signatures/ folder
+                    # Auditor Sign
                     s_file = f"signatures/{sel_aud}.png"
                     if os.path.exists(s_file):
                         s_img = Image.open(s_file).resize((180, 90))
@@ -1001,15 +999,14 @@ elif st.session_state.current_page == "JMS Generator":
                     else:
                         draw.text((800, y_s), f"Verified By: {sel_aud}", font=f_hand, fill=(10, 40, 150))
 
-                    # --- ३. SCAN & DUST EFFECT (Realistic) ---
+                    # --- ३. Realistic Effect ---
                     p_arr = np.array(paper)
                     noise = np.random.randint(0, 12, p_arr.shape, dtype='uint8')
                     paper = Image.fromarray(np.clip(p_arr.astype('int16') - noise, 0, 255).astype('uint8'))
                     
-                    # निकाल दाखवणे (Preview)
+                    # निकाल (Preview & Download)
                     st.image(paper, caption="JMS Scanned Preview", use_container_width=True)
                     
-                    # PDF डाउनलोड बटन
                     pdf_io = io.BytesIO()
                     paper.save(pdf_io, format="PDF")
                     st.download_button("📥 Download Official JMS PDF", pdf_io.getvalue(), f"JMS_{sel_pid}.pdf", "application/pdf", use_container_width=True)
@@ -1017,6 +1014,6 @@ elif st.session_state.current_page == "JMS Generator":
                 except Exception as ex:
                     st.error(f"प्रक्रिया करताना एरर आली: {ex}")
             else:
-                st.warning("कृपया सर्व रकान्यांची माहिती भरा!")
+                st.warning("कृपया सर्व माहिती भरा!")
     else:
         st.info("डेटा लोड होत नाहीये. कृपया Refresh करा.")
