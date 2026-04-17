@@ -174,8 +174,8 @@ else:
     st.markdown("</div>", unsafe_allow_html=True)
     st.divider()
 
-    # =====================================================================
-    # 🟩 TAB 1: BOQ REPORT (Indentation Fixed)
+# =====================================================================
+    # 🟩 TAB 1: BOQ REPORT (Fixed Indentation)
     # =====================================================================
     elif st.session_state.current_page == "BOQ":
         st.markdown("""
@@ -241,7 +241,6 @@ else:
             df = st.session_state['boq_df']
             final_cols = [c for c in mera_sequence if c in df.columns]
             st.dataframe(df[final_cols], use_container_width=True, hide_index=True, height=600)
-
     # =====================================================================
     # 🧾 TAB 2: PO REPORT
     # =====================================================================
