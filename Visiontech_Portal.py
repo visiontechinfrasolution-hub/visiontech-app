@@ -921,15 +921,15 @@ elif st.session_state.current_page == "JMS":
     if not jms_sites_df.empty:
         col1, col2 = st.columns(2)
         with col1:
-            sel_pid = st.selectbox("Select Project ID", [""] + jms_sites_df["PROJECT ID"].tolist(), key="jms_pid_main")
+            sel_pid = st.selectbox("Select Project ID", [""] + jms_sites_df["PROJECT ID"].tolist(), key="jms_pid_unique")
         with col2:
             # ऑडिटर्सची नावे (तुमच्या signatures/ फोल्डरमधील नावाप्रमाणे)
             auditors = ["Rahul Sharma", "Amit Patil", "Saira Quzi", "Prakash Ji"]
-            sel_aud = st.selectbox("Select Auditor", [""] + auditors, key="jms_aud_main")
+            sel_aud = st.selectbox("Select Auditor", [""] + auditors, key="jms_aud_unique")
         
-        uploaded_tsv = st.file_uploader("Upload export.tsv", type=['tsv'], key="jms_file_uploader")
+        uploaded_tsv = st.file_uploader("Upload export.tsv", type=['tsv'], key="jms_file_unique")
 
-        if st.button("🚀 Generate & Download Realistic JMS"):
+        if st.button("🚀 Generate & Download Scanned JMS"):
             if sel_pid and sel_aud and uploaded_tsv:
                 # TSV वाचणे
                 df_tsv = pd.read_csv(uploaded_tsv, sep='\t', quoting=3, encoding='ISO-8859-1')
@@ -938,39 +938,71 @@ elif st.session_state.current_page == "JMS":
                 # साईट माहिती शोधणे
                 site_info = jms_sites_df[jms_sites_df["PROJECT ID"] == sel_pid].iloc[0].to_dict()
                 
-                # --- IMAGE GENERATION (तुमचे सर्व नियम) ---
+                # --- २. IMAGE GENERATION (Handwritten Look) ---
                 width, height = 1240, 1754
                 paper = Image.new('RGB', (width, height), (255, 255, 255))
                 draw = ImageDraw.Draw(paper)
 
                 try:
+                    # सिस्टिम फॉन्ट्स (खात्री करा की हे तुमच्या सिस्टिमवर आहेत)
                     font_h1 = ImageFont.truetype("arialbd.ttf", 45)
                     font_body = ImageFont.truetype("arial.ttf", 25)
                     font_hand = ImageFont.truetype("courier.ttf", 32)
-                except: font_h1 = font_body = font_hand = ImageFont.load_default()
+                except:
+                    font_h1 = font_body = font_hand = ImageFont.load_default()
 
-                # Header
+                # Header & Details
                 draw.text((320, 80), "VISIONTECH INFRA SOLUTIONS", fill="black", font=font_h1)
                 draw.text((400, 200), "Joint Measurement Sheet", fill="black", font=font_h1)
+                draw.rectangle([80, 280, 1160, 420], outline="black", width=2)
+                draw.text((100, 300), f"Project ID: {sel_pid}  |  Site ID: {site_info.get('SITE ID','')}", fill="black", font=font_body)
+                draw.text((100, 350), f"Site Name: {site_info.get('SITE NAME','')} | Cluster: {site_info.get('CLUSTER','')}", fill="black", font=font_body)
 
-                # Table Logic (Round/Tick)
+                # Table Header
                 y = 450
+                draw.rectangle([80, y, 1160, y+60], outline="black", width=2, fill=(240, 240, 240))
+                draw.text((100, y+15), "Description", font=font_body, fill="black")
+                draw.text((820, y+15), "Ord", font=font_body, fill="black")
+                draw.text((1000, y+15), "Del", font=font_body, fill="black")
+
+                # Table Rows & Rules
+                y += 65
                 for i, r in df_tsv.iterrows():
                     if i > 15: break
+                    desc = " ".join(str(r.get('Description','')).split()[:100])
                     q1 = float(pd.to_numeric(r.get('Ordered',0), errors='coerce') or 0)
                     q2 = float(pd.to_numeric(r.get('Requested/Delivered',0), errors='coerce') or 0)
-                    
-                    # ROUND RULE (Red)
+
+                    draw.text((100, y+10), desc[:60], font=font_body, fill="black")
+                    draw.text((840, y+10), str(int(q1)), font=font_hand, fill="black")
+                    draw.text((1020, y+10), str(int(q2)), font=font_hand, fill="black")
+
+                    # ROUND & TICK RULE
                     if q1 != q2: draw.ellipse([820, y, 890, y+40], outline="red", width=3)
-                    # TICK RULE (Green)
                     if q1 == q2: draw.line([(1075, y+15), (1085, y+35), (1105, y)], fill="green", width=5)
                     y += 55
 
-                # Final Scanned Copy Output
+                # Signatures (Marathi Random Name)
+                y_sign = height - 250
+                m_name = random.choice(["विजय पाटील", "संदीप चव्हाण", "अशोक गाडे", "महेश मोरे"])
+                draw.text((100, y_sign), f"Prepared By: {m_name}", font=font_hand, fill=(10, 40, 150))
+                
+                # Auditor Signature from Folder
+                sign_file = f"signatures/{sel_aud}.png"
+                if os.path.exists(sign_file):
+                    s_img = Image.open(sign_file).resize((180, 90))
+                    paper.paste(s_img, (800, y_sign), s_img if s_img.mode == 'RGBA' else None)
+
+                # --- ३. SCAN & FOLD EFFECT ---
+                paper_arr = np.array(paper)
+                noise = np.random.randint(0, 12, paper_arr.shape, dtype='uint8')
+                paper = Image.fromarray(np.clip(paper_arr.astype('int16') - noise, 0, 255).astype('uint8'))
+                
+                # PDF Save
                 output = io.BytesIO()
                 paper.save(output, format="PDF")
                 st.download_button("📥 Download Scanned JMS", output.getvalue(), f"JMS_{sel_pid}.pdf")
             else:
-                st.warning("Please select Project ID, Auditor and Upload TSV!")
+                st.warning("कृपया Project, Auditor निवडा आणि TSV अपलोड करा!")
     else:
-        st.info("No site data found in database.")
+        st.info("डेटाबेसमध्ये कोणतीही माहिती सापडली नाही.")
