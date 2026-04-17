@@ -423,63 +423,66 @@ else:
 
             # --- BULK UPDATE SECTION (STRICT FIX) ---
             with st.expander("🛠️ Bulk Update WCC & Remarks via Excel"):
-                st.info("File columns must contain: Project ID, PO Number, WCC Number, Remark")
-                uploaded_file = st.file_uploader("Upload Excel/CSV", type=["csv", "xlsx"], key="bulk_up_v1")
+                st.info("फक्त डाउनलोड केलेली फाईल वापरा (Project ID, PO Number, WCC Number, Remark)")
+                uploaded_file = st.file_uploader("Upload Excel/CSV", type=["csv", "xlsx"], key="bulk_up_v3")
                 
                 if uploaded_file:
                     try:
-                        # फाइल वाचणे
                         if uploaded_file.name.endswith('.csv'):
                             up_df = pd.read_csv(uploaded_file)
                         else:
                             up_df = pd.read_excel(uploaded_file)
                         
-                        # कॉलमची नावे क्लीन करणे (Spaces काढणे)
                         up_df.columns = [str(c).strip() for c in up_df.columns]
-                        
-                        st.write("Preview of Uploaded Data:", up_df.head(3))
                         
                         if st.button("🆙 Start Update Process"):
                             success_count = 0
-                            error_count = 0
+                            not_found_count = 0
                             
-                            for index, up_row in up_df.iterrows():
-                                # डेटा वाचताना केस-सेन्सेटिव्हिटी टाळण्यासाठी प्रयत्न
-                                pid = str(up_row.get('Project ID', '')).strip()
-                                po_no = str(up_row.get('PO Number', '')).strip()
-                                wcc_no = str(up_row.get('WCC Number', '')).strip()
-                                remark = str(up_row.get('Remark', '')).strip()
+                            for _, up_row in up_df.iterrows():
+                                # १. डेटा क्लीन करणे (Number ला String मध्ये व्यवस्थित रूपांतर करणे)
+                                def get_clean_val(col_name):
+                                    val = str(up_row.get(col_name, '')).strip()
+                                    if val.endswith('.0'): val = val[:-2] # .0 काढणे
+                                    return val if val not in ['nan', 'None', ''] else None
+
+                                pid = get_clean_val('Project ID')
+                                po_no = get_clean_val('PO Number')
+                                wcc_no = get_clean_val('WCC Number')
+                                remark = get_clean_val('Remark')
 
                                 if pid and po_no:
-                                    # मूळ डेटाशी मॅच करणे (दोन्ही बाजूंनी स्ट्रिंगमध्ये रूपांतर करून)
+                                    # २. डेटाबेसशी मॅचिंग (Case & Space Ignore करून)
                                     match = df_wcc[
                                         (df_wcc['Project ID'].astype(str).str.strip() == pid) & 
                                         (df_wcc['PO Number'].astype(str).str.strip() == po_no)
                                     ]
                                     
                                     if not match.empty:
+                                        # ३. फक्त WCC Number आणि Remark अपडेट करणे
                                         payload = {
-                                            "Project ID": pid, 
-                                            "WCC Number": wcc_no if wcc_no != 'nan' else None, 
-                                            "Remark": remark if remark != 'nan' else ""
+                                            "WCC Number": wcc_no, 
+                                            "Remark": remark if remark else ""
                                         }
-                                        res = update_wcc_record(payload)
-                                        if res:
+                                        try:
+                                            # eq() मध्ये PID आणि PO दोन्ही वापरू जेणेकरून परफेक्ट अपडेट होईल
+                                            supabase.table("WCC Status").update(payload).eq("Project ID", pid).eq("PO Number", po_no).execute()
                                             success_count += 1
-                                        else:
-                                            error_count += 1
+                                        except Exception as e:
+                                            st.error(f"Error for {pid}: {e}")
                                     else:
-                                        # जर मॅच सापडला नाही तर इथे समजेल
-                                        pass 
+                                        not_found_count += 1
                             
                             if success_count > 0:
-                                st.success(f"✅ Updated {success_count} records successfully!")
+                                st.success(f"✅ {success_count} Records Updated!")
+                                if not_found_count > 0:
+                                    st.warning(f"⚠️ {not_found_count} matches not found.")
                                 st.rerun()
                             else:
-                                st.warning("⚠️ No matching Project ID & PO Number found in database. Check your file data.")
+                                st.error("❌ No matches found! Excel मधले Project ID आणि PO Number डेटाबेसशी मॅच होत नाहीत.")
                                 
                     except Exception as e:
-                        st.error(f"❌ Upload Error: {e}")            
+                        st.error(f"❌ File Error: {e}")            
             st.divider()
 
             if not df_wcc.empty:
