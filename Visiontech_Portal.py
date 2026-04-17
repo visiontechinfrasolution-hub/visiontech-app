@@ -167,7 +167,7 @@ if st.session_state.current_page == "Dashboard":
         if st.button("📢\nRFAI Billing"): navigate_to("RFAI")
 
 # --- PAGES LOGIC ---
-else:
+elif st.session_state.current_page != "Dashboard": # लाईन १७० वर 'else' काढून हे टाकले आहे
     st.markdown("<div class='back-btn'>", unsafe_allow_html=True)
     if st.button("⬅️ Dashboard"):
         navigate_to("Dashboard")
@@ -175,89 +175,68 @@ else:
     st.divider()
 
     # =====================================================================
-    # 🟩 TAB 1: BOQ REPORT (Safe Indentation & Clean UI)
+    # 🟩 TAB 1: BOQ REPORT (Indentation Fixed & Simplified)
     # =====================================================================
-    elif st.session_state.current_page == "BOQ":
+    if st.session_state.current_page == "BOQ": # इथे आता आपण 'if' वापरू शकतो किंवा 'elif'
         st.markdown("""
             <style>
-                /* Table Border */
-                [data-testid="stDataFrame"] { border: 2px solid #1E3A8A; border-radius: 10px; }
-                
-                /* BIG SEARCH BUTTON Styling */
-                .stButton > button {
+                [data-testid="stDataFrame"] { border: 2px solid #1E3A8A; border-radius: 12px; }
+                div.stButton > button:first-child {
                     height: 60px !important;
-                    width: 100% !important;
                     font-size: 22px !important;
                     font-weight: bold !important;
                     background-color: #1E3A8A !important;
                     color: white !important;
                     border-radius: 12px !important;
-                    border: none !important;
-                    margin-top: 10px;
-                }
-                .stButton > button:hover {
-                    background-color: #2563EB !important;
-                    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+                    width: 100% !important;
                 }
             </style>
         """, unsafe_allow_html=True)
 
         st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>🔍 Visiontech Infra Solutions</h2>", unsafe_allow_html=True)
         
-        # मूळ लॉजिक आणि व्हेरिएबल्स (No changes here)
         mera_sequence = ['Sr. No.', 'Site ID', 'Product', 'Transaction Type', 'Issue From', 'Project Number', 'BOQ', 'Item Code', 'Item Description', 'Qty A', 'Qty B', 'Qty C', 'Dispatch Date', 'Parent/Child', 'Line Status', 'Transporter', 'TSP Partner Name', 'LR Number', 'Vehicle Number', 'Challan Number', 'BOQ Date', 'Department', 'Item Category', 'Source Of Fulfilment']
 
         if 'cleared' not in st.session_state:
             st.session_state.cleared = False
 
-        # --- Simplified Search Form ---
-        with st.form("boq_search_final", clear_on_submit=st.session_state.cleared):
+        with st.form("search_form_final", clear_on_submit=st.session_state.cleared):
             c1, c2, c3 = st.columns(3)
-            with c1: project_query = st.text_input("📁 Project Number", placeholder="e.g. R/RL-8415694", key="boq_p_v11")
-            with c2: site_query = st.text_input("📍 Site ID", placeholder="e.g. IN-3149070", key="boq_s_v11")
-            with c3: boq_query = st.text_input("📄 BOQ Number", placeholder="e.g. MAW19143876071", key="boq_b_v11")
+            with c1: project_query = st.text_input("📁 Project Number", key="boq_p_final")
+            with c2: site_query = st.text_input("📍 Site ID", key="boq_s_final")
+            with c3: boq_query = st.text_input("📄 BOQ Number", key="boq_b_final")
             
-            # Big Full-Width Search Button
             submit_search = st.form_submit_button("🔍 SEARCH BOQ DATA")
             if submit_search: st.session_state.cleared = False
 
         st.markdown("---")
 
         if submit_search:
-            with st.spinner("Searching Database..."):
-                query = supabase.table("BOQ Report").select("*").limit(50000)
-                if project_query: query = query.ilike("Project Number", f"%{project_query.strip()}%")
-                if site_query: query = query.ilike("Site ID", f"%{site_query.strip()}%")
-                if boq_query: query = query.ilike("BOQ", f"%{boq_query.strip()}%")
-                
-                response = query.execute()
-                if response.data:
-                    df_res = pd.DataFrame(response.data)
-                    
-                    # Qty logic
-                    qty_cols = ['Qty A', 'Qty B', 'Qty C']
-                    for col in qty_cols:
-                        if col in df_res.columns:
-                            df_res[col] = pd.to_numeric(df_res[col], errors='coerce').fillna(0).astype(int)
+            query = supabase.table("BOQ Report").select("*").limit(50000)
+            if project_query: query = query.ilike("Project Number", f"%{project_query.strip()}%")
+            if site_query: query = query.ilike("Site ID", f"%{site_query.strip()}%")
+            if boq_query: query = query.ilike("BOQ", f"%{boq_query.strip()}%")
+            
+            response = query.execute()
+            if response.data:
+                df_res = pd.DataFrame(response.data)
+                qty_cols = ['Qty A', 'Qty B', 'Qty C']
+                for col in qty_cols:
+                    if col in df_res.columns:
+                        df_res[col] = pd.to_numeric(df_res[col], errors='coerce').fillna(0).astype(int)
 
-                    # Grouping logic
-                    if 'Item Code' in df_res.columns:
-                        df_res['TempKey'] = df_res.apply(lambda x: x['Sr. No.'] if str(x['Item Code']).strip() == '' else x['Item Code'], axis=1)
-                        agg_dict = {col: 'sum' if col in qty_cols else 'first' for col in df_res.columns if col not in ['TempKey']}
-                        df_res = df_res.groupby('TempKey', as_index=False).agg(agg_dict)
+                if 'Item Code' in df_res.columns:
+                    df_res['TempKey'] = df_res.apply(lambda x: x['Sr. No.'] if str(x['Item Code']).strip() == '' else x['Item Code'], axis=1)
+                    agg_dict = {col: 'sum' if col in qty_cols else 'first' for col in df_res.columns if col not in ['TempKey']}
+                    df_res = df_res.groupby('TempKey', as_index=False).agg(agg_dict)
 
-                    # Date logic
-                    for col in ['Dispatch Date', 'BOQ Date']:
-                        if col in df_res.columns:
-                            df_res[col] = pd.to_datetime(df_res[col], errors='coerce').dt.strftime('%d-%b-%Y')
+                for col in ['Dispatch Date', 'BOQ Date']:
+                    if col in df_res.columns:
+                        df_res[col] = pd.to_datetime(df_res[col], errors='coerce').dt.strftime('%d-%b-%Y')
 
-                    df_res = df_res.fillna('').astype(str).replace(['None', 'nan', 'NULL', 'NaT'], '')
-                    st.session_state['boq_df'] = df_res
-                else:
-                    st.error("No data found!")
-                    st.session_state.pop('boq_df', None)
+                df_res = df_res.fillna('').astype(str).replace(['None', 'nan', 'NULL', 'NaT'], '')
+                st.session_state['boq_df'] = df_res
 
-        # --- Big Colorful Table ---
         if 'boq_df' in st.session_state:
             df = st.session_state['boq_df']
             final_cols = [c for c in mera_sequence if c in df.columns]
