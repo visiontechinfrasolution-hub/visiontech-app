@@ -909,10 +909,9 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
 if st.session_state.current_page == "JMS":
     st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>📄 Realistic JMS Generator</h2>", unsafe_allow_html=True)
     
-    # १. डेटा फेचिंग (Supabase)
     try:
-        # तुमच्या मूळ टेबलचे नाव 'VIS Portal Site Data' असल्याची खात्री करा
-        site_res = supabase.table("VIS Portal Site Data").select("PROJECT ID, SITE NAME, CLUSTER, SITE ID").execute()
+        # ✅ सुपॅबेसमधून स्पेस असलेले कॉलम्स अशा प्रकारे सिलेक्ट केले आहेत
+        site_res = supabase.table("VIS Portal Site Data").select('"PROJECT ID", "SITE ID", "SITE NAME", "CLUSTER"').execute()
         jms_sites_df = pd.DataFrame(site_res.data)
     except Exception as e:
         st.error(f"Database Error: {e}")
@@ -921,82 +920,72 @@ if st.session_state.current_page == "JMS":
     if not jms_sites_df.empty:
         col1, col2 = st.columns(2)
         with col1:
-            sel_pid = st.selectbox("Select Project ID", [""] + jms_sites_df["PROJECT ID"].tolist(), key="jms_pid_f")
+            sel_pid = st.selectbox("1️⃣ Select Project ID", [""] + jms_sites_df["PROJECT ID"].tolist())
         with col2:
-            # ऑडिटर्सची नावे (तुमच्या signatures/ फोल्डरमधील फोटोंच्या नावाप्रमाणे)
-            auditors = ["Abhijeet Chougule", "Akib Patel", "Amit Kumar Sharma", "Arun D Chavan", "Azeem", "Faruq Khan"]
-            sel_aud = st.selectbox("Select Auditor", [""] + auditors, key="jms_aud_f")
+            auditors = ["Abhijeet Chougule", "Akib Patel", "Amit Kumar Sharma", "Arun D Chavan", "Azeem", "Faruq Khan", "Ejaz Ahmad Karnataka", "Gaurtam Kumar", "Guru Karnataka", "Imran Khan 1 Karnataka", "Imran Khan 2Karnataka"]
+            sel_aud = st.selectbox("2️⃣ Select Auditor Name", [""] + auditors)
         
-        uploaded_tsv = st.file_uploader("Upload export.tsv (TSV Format)", type=['tsv', 'txt'], key="jms_tsv_f")
+        uploaded_tsv = st.file_uploader("3️⃣ Upload export.tsv", type=['tsv', 'txt'])
 
-        if st.button("🚀 Generate & Preview Scanned JMS"):
+        if st.button("🚀 Generate & Preview JMS", use_container_width=True):
             if sel_pid and sel_aud and uploaded_tsv:
                 try:
-                    # TSV वाचणे
                     df_tsv = pd.read_csv(uploaded_tsv, sep='\t', quoting=3, encoding='ISO-8859-1')
                     df_tsv.columns = [str(c).replace('"', '').strip() for c in df_tsv.columns]
                     site_info = jms_sites_df[jms_sites_df["PROJECT ID"] == sel_pid].iloc[0].to_dict()
                     
-                    # --- २. IMAGE ENGINE (Original Scanned Look) ---
+                    # --- IMAGE GENERATION ---
                     width, height = 1240, 1754
                     paper = Image.new('RGB', (width, height), (255, 255, 255))
                     draw = ImageDraw.Draw(paper)
                     
                     try:
-                        f_h1 = ImageFont.truetype("arialbd.ttf", 45)
-                        f_body = ImageFont.truetype("arial.ttf", 25)
-                        f_hand = ImageFont.truetype("courier.ttf", 32)
+                        f_h1 = ImageFont.truetype("arialbd.ttf", 40)
+                        f_body = ImageFont.truetype("arial.ttf", 24)
+                        f_hand = ImageFont.truetype("courier.ttf", 30)
                     except:
                         f_h1 = f_body = f_hand = ImageFont.load_default()
 
-                    # Header & Site Info
-                    draw.text((320, 80), "VISIONTECH INFRA SOLUTIONS", fill="black", font=f_h1)
-                    draw.text((400, 180), "Joint Measurement Sheet", fill="black", font=f_h1)
-                    
-                    # Details Box
-                    draw.rectangle([80, 280, 1160, 420], outline="black", width=2)
-                    draw.text((100, 300), f"Project ID: {sel_pid}  |  Site ID: {site_info.get('SITE ID','')}", fill="black", font=f_body)
-                    draw.text((100, 350), f"Site Name: {site_info.get('SITE NAME','')} | Cluster: {site_info.get('CLUSTER','')}", fill="black", font=f_body)
+                    # Header
+                    draw.text((350, 80), "VISIONTECH INFRA SOLUTIONS", fill="black", font=f_h1)
+                    draw.text((420, 140), "Joint Measurement Sheet", fill="black", font=f_h1)
 
-                    # Qty Logic (Round & Tick)
-                    y = 520
+                    # Info
+                    draw.text((100, 300), f"Project ID: {sel_pid} | Site ID: {site_info.get('SITE ID','')}", fill="black", font=f_body)
+                    draw.text((100, 340), f"Site Name: {site_info.get('SITE NAME','')} | Cluster: {site_info.get('CLUSTER','')}", fill="black", font=f_body)
+
+                    # Table Logic (Round & Tick)
+                    y = 500
                     for i, r in df_tsv.iterrows():
-                        if i > 15: break
+                        if i > 18: break
                         q1 = float(pd.to_numeric(r.get('Ordered',0), errors='coerce') or 0)
                         q2 = float(pd.to_numeric(r.get('Requested/Delivered',0), errors='coerce') or 0)
                         
-                        draw.text((100, y), str(r.get('Description',''))[:60], font=f_body, fill="black")
-                        draw.text((840, y), str(int(q1)), font=f_hand, fill="black")
-                        draw.text((1020, y), str(int(q2)), font=f_hand, fill="black")
+                        draw.text((100, y), str(r.get('Description',''))[:55], font=f_body, fill="black")
+                        draw.text((850, y), str(int(q1)), font=f_hand, fill="black")
+                        draw.text((1000, y), str(int(q2)), font=f_hand, fill="black")
 
-                        # RULE: Round for mismatch, Tick for match
-                        if q1 != q2: draw.ellipse([820, y-10, 890, y+30], outline="red", width=3)
-                        if q1 == q2: draw.line([(1075, y+5), (1085, y+25), (1105, y-10)], fill="green", width=5)
-                        y += 55
+                        if q1 != q2: draw.ellipse([830, y-5, 890, y+35], outline="red", width=3)
+                        if q1 == q2: draw.line([(1050, y+10), (1060, y+30), (1080, y)], fill="green", width=5)
+                        y += 50
 
-                    # Signatures
-                    y_sign = height - 300
-                    draw.text((100, y_sign), f"Prepared By: {random.choice(['विजय पाटील', 'अशोक गाडे'])}", font=f_hand, fill=(10, 40, 150))
-                    
+                    # Signature Paste
                     s_file = f"signatures/{sel_aud}.png"
                     if os.path.exists(s_file):
-                        s_img = Image.open(s_file).resize((200, 100))
-                        paper.paste(s_img, (800, y_sign), s_img if s_img.mode == 'RGBA' else None)
+                        s_img = Image.open(s_file).convert("RGBA").resize((200, 100))
+                        paper.paste(s_img, (850, height-250), s_img)
 
-                    # --- ३. DUSTY SCAN EFFECT ---
+                    # Scanner Effect
                     p_arr = np.array(paper)
-                    noise = np.random.randint(0, 12, p_arr.shape, dtype='uint8')
+                    noise = np.random.randint(0, 10, p_arr.shape, dtype='uint8')
                     paper = Image.fromarray(np.clip(p_arr.astype('int16') - noise, 0, 255).astype('uint8'))
                     
-                    st.image(paper, caption="JMS Scanned Preview", use_container_width=True)
+                    st.image(paper, caption="JMS Scanned Look", use_container_width=True)
                     
                     pdf_io = io.BytesIO()
                     paper.save(pdf_io, format="PDF")
-                    st.download_button("📥 Download Official JMS PDF", pdf_io.getvalue(), f"JMS_{sel_pid}.pdf", "application/pdf", use_container_width=True)
-                
+                    st.download_button("📥 Download JMS PDF", pdf_io.getvalue(), f"JMS_{sel_pid}.pdf", "application/pdf")
                 except Exception as ex:
-                    st.error(f"प्रक्रिया करताना एरर आली: {ex}")
-            else:
-                st.warning("कृपया सर्व माहिती भरा!")
+                    st.error(f"Error: {ex}")
     else:
-        st.info("डेटाबेस लोड होत नाहीये. इंटरनेट तपासा.")
+        st.info("डेटा लोड होत नाहीये, सुपॅबेस टेबल चेक करा.")
