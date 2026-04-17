@@ -9,6 +9,8 @@ from email.mime.text import MIMEText
 import requests
 import json
 import time
+from fpdf import FPDF
+import io
 
 # --- 1. CONNECTION ---
 URL = "https://sckyflvukpmdqmdzjzhs.supabase.co"
@@ -785,3 +787,5 @@ else:
         if not st.session_state.billing_df.empty:
             st.write("### Pending Billing List")
             st.dataframe(st.session_state.billing_df[['SITE ID', 'SITE NAME', 'RFAI STATUS', 'WCC NO.']], use_container_width=True, hide_index=True)
+
+
