@@ -906,12 +906,12 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
 # =====================================================================
 # 📄 PAGE: JMS GENERATOR (100% Realistic Scanned Look)
 # =====================================================================
-elif st.session_state.current_page == "JMS Generator":
+if st.session_state.current_page == "JMS Generator":
     st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>📄 Realistic JMS Generator</h2>", unsafe_allow_html=True)
     
     # १. डेटा फेचिंग (Supabase)
     try:
-        # तुमच्या मूळ टेबलचे नाव 'VIS Portal Site Data' असल्याची खात्री करा
+        # टेबलचे नाव आणि कॉलम्स बरोबर आहेत ना हे एकदा तपासा
         site_res = supabase.table("VIS Portal Site Data").select("PROJECT ID, SITE NAME, CLUSTER, SITE ID").execute()
         jms_sites_df = pd.DataFrame(site_res.data)
     except Exception as e:
@@ -919,12 +919,12 @@ elif st.session_state.current_page == "JMS Generator":
         jms_sites_df = pd.DataFrame()
 
     if not jms_sites_df.empty:
-        # --- UI विभाग: सिलेक्शन आणि फाईल अपलोड ---
+        # --- UI विभाग ---
         col1, col2 = st.columns(2)
         with col1:
             sel_pid = st.selectbox("1️⃣ Select Project ID", [""] + jms_sites_df["PROJECT ID"].tolist(), key="jms_pid_v_final")
         with col2:
-            # ऑडिटर्सची नावे (signatures/ फोल्डरमधील फोटोंशी मॅच असावीत)
+            # ऑडिटर्सची नावे
             auditors_list = ["Rahul Sharma", "Amit Patil", "Saira Quzi", "Prakash Ji"]
             sel_aud = st.selectbox("2️⃣ Select Auditor Name", [""] + auditors_list, key="jms_aud_v_final")
         
@@ -940,80 +940,76 @@ elif st.session_state.current_page == "JMS Generator":
                     df_tsv.columns = [str(c).replace('"', '').strip() for c in df_tsv.columns]
                     
                     # साईटची माहिती शोधणे
-                    site_info = jms_sites_df[jms_sites_df["PROJECT ID"] == sel_pid].iloc[0].to_dict()
-                    
-                    # --- २. IMAGE ENGINE (Handwritten & Scanned Effect) ---
-                    width, height = 1240, 1754
-                    paper = Image.new('RGB', (width, height), (255, 255, 255))
-                    draw = ImageDraw.Draw(paper)
-
-                    # फॉन्ट लोडिंग
-                    try:
-                        f_h1 = ImageFont.truetype("arialbd.ttf", 45)
-                        f_body = ImageFont.truetype("arial.ttf", 25)
-                        f_hand = ImageFont.truetype("courier.ttf", 32)
-                    except:
-                        f_h1 = f_body = f_hand = ImageFont.load_default()
-
-                    # Letterhead
-                    draw.text((320, 80), "VISIONTECH INFRA SOLUTIONS", fill="black", font=f_h1)
-                    draw.text((400, 150), "Joint Measurement Sheet", fill="black", font=f_h1)
-                    
-                    # Details Box
-                    draw.rectangle([80, 280, 1160, 420], outline="black", width=2)
-                    draw.text((100, 300), f"Project ID: {sel_pid}  |  Site ID: {site_info.get('SITE ID','')}", fill="black", font=f_body)
-                    draw.text((100, 350), f"Site Name: {site_info.get('SITE NAME','')} | Cluster: {site_info.get('CLUSTER','')}", fill="black", font=f_body)
-
-                    # Table Rules (Round & Tick)
-                    y = 450
-                    draw.rectangle([80, y, 1160, y+60], outline="black", width=2, fill=(240, 240, 240))
-                    draw.text((100, y+15), "Description", font=f_body, fill="black")
-                    draw.text((820, y+15), "Ord", font=f_body, fill="black")
-                    draw.text((1000, y+15), "Del", font=f_body, fill="black")
-
-                    y += 65
-                    for i, r in df_tsv.iterrows():
-                        if i > 15: break
-                        q1 = float(pd.to_numeric(r.get('Ordered',0), errors='coerce') or 0)
-                        q2 = float(pd.to_numeric(r.get('Requested/Delivered',0), errors='coerce') or 0)
+                    site_match = jms_sites_df[jms_sites_df["PROJECT ID"] == sel_pid]
+                    if not site_match.empty:
+                        site_info = site_match.iloc[0].to_dict()
                         
-                        draw.text((100, y+10), str(r.get('Description',''))[:60], font=f_body, fill="black")
-                        draw.text((840, y+10), str(int(q1)), font=f_hand, fill="black")
-                        draw.text((1020, y+10), str(int(q2)), font=f_hand, fill="black")
+                        # --- २. IMAGE ENGINE (Original Scanned Effect) ---
+                        width, height = 1240, 1754
+                        paper = Image.new('RGB', (width, height), (255, 255, 255))
+                        draw = ImageDraw.Draw(paper)
 
-                        # RULE: Mismatch = RED ROUND | Match = GREEN TICK
-                        if q1 != q2: draw.ellipse([820, y, 890, y+40], outline="red", width=3)
-                        if q1 == q2: draw.line([(1075, y+15), (1085, y+35), (1105, y)], fill="green", width=5)
-                        y += 55
+                        # फॉन्ट लोडिंग (System default जर arial नसेल तर)
+                        try:
+                            f_h1 = ImageFont.truetype("arialbd.ttf", 45)
+                            f_body = ImageFont.truetype("arial.ttf", 25)
+                            f_hand = ImageFont.truetype("courier.ttf", 32)
+                        except:
+                            f_h1 = f_body = f_hand = ImageFont.load_default()
 
-                    # Signatures (Marathi Random Name)
-                    y_s = height - 250
-                    m_names = ["विजय पाटील", "संदीप चव्हाण", "अशोक गाडे", "महेश मोरे"]
-                    draw.text((100, y_s), f"Prepared By: {random.choice(m_names)}", font=f_hand, fill=(10, 40, 150))
-                    
-                    # Auditor Sign
-                    s_file = f"signatures/{sel_aud}.png"
-                    if os.path.exists(s_file):
-                        s_img = Image.open(s_file).resize((180, 90))
-                        paper.paste(s_img, (800, y_s), s_img if s_img.mode == 'RGBA' else None)
-                    else:
-                        draw.text((800, y_s), f"Verified By: {sel_aud}", font=f_hand, fill=(10, 40, 150))
+                        # मजकूर ड्रॉ करणे
+                        draw.text((320, 80), "VISIONTECH INFRA SOLUTIONS", fill="black", font=f_h1)
+                        draw.text((400, 150), "Joint Measurement Sheet", fill="black", font=f_h1)
+                        
+                        # Table Header
+                        y = 450
+                        draw.rectangle([80, y, 1160, y+60], outline="black", width=2, fill=(240, 240, 240))
+                        draw.text((100, y+15), "Description", font=f_body, fill="black")
+                        draw.text((820, y+15), "Ord", font=f_body, fill="black")
+                        draw.text((1000, y+15), "Del", font=f_body, fill="black")
 
-                    # --- ३. Realistic Effect ---
-                    p_arr = np.array(paper)
-                    noise = np.random.randint(0, 12, p_arr.shape, dtype='uint8')
-                    paper = Image.fromarray(np.clip(p_arr.astype('int16') - noise, 0, 255).astype('uint8'))
-                    
-                    # निकाल (Preview & Download)
-                    st.image(paper, caption="JMS Scanned Preview", use_container_width=True)
-                    
-                    pdf_io = io.BytesIO()
-                    paper.save(pdf_io, format="PDF")
-                    st.download_button("📥 Download Official JMS PDF", pdf_io.getvalue(), f"JMS_{sel_pid}.pdf", "application/pdf", use_container_width=True)
+                        y += 65
+                        for i, r in df_tsv.iterrows():
+                            if i > 15: break
+                            q1 = float(pd.to_numeric(r.get('Ordered',0), errors='coerce') or 0)
+                            q2 = float(pd.to_numeric(r.get('Requested/Delivered',0), errors='coerce') or 0)
+                            
+                            draw.text((100, y+10), str(r.get('Description',''))[:60], font=f_body, fill="black")
+                            draw.text((840, y+10), str(int(q1)), font=f_hand, fill="black")
+                            draw.text((1020, y+10), str(int(q2)), font=f_hand, fill="black")
+
+                            # ROUND & TICK RULE
+                            if q1 != q2: draw.ellipse([820, y, 890, y+40], outline="red", width=3)
+                            if q1 == q2: draw.line([(1075, y+15), (1085, y+35), (1105, y)], fill="green", width=5)
+                            y += 55
+
+                        # Signatures
+                        y_s = height - 250
+                        m_name = random.choice(["विजय पाटील", "संदीप चव्हाण", "अशोक गाडे", "महेश मोरे"])
+                        draw.text((100, y_s), f"Prepared By: {m_name}", font=f_hand, fill=(10, 40, 150))
+                        
+                        s_file = f"signatures/{sel_aud}.png"
+                        if os.path.exists(s_file):
+                            s_img = Image.open(s_file).resize((180, 90))
+                            paper.paste(s_img, (800, y_s), s_img if s_img.mode == 'RGBA' else None)
+                        else:
+                            draw.text((800, y_s), f"Verified By: {sel_aud}", font=f_hand, fill=(10, 40, 150))
+
+                        # Scanned Noise Effect
+                        p_arr = np.array(paper)
+                        noise = np.random.randint(0, 12, p_arr.shape, dtype='uint8')
+                        paper = Image.fromarray(np.clip(p_arr.astype('int16') - noise, 0, 255).astype('uint8'))
+                        
+                        # Preview & Download
+                        st.image(paper, caption="JMS Scanned Preview", use_container_width=True)
+                        
+                        pdf_io = io.BytesIO()
+                        paper.save(pdf_io, format="PDF")
+                        st.download_button("📥 Download Official JMS PDF", pdf_io.getvalue(), f"JMS_{sel_pid}.pdf", "application/pdf", use_container_width=True)
                 
                 except Exception as ex:
                     st.error(f"प्रक्रिया करताना एरर आली: {ex}")
             else:
                 st.warning("कृपया सर्व माहिती भरा!")
     else:
-        st.info("डेटा लोड होत नाहीये. कृपया Refresh करा.")
+        st.info("डेटाबेस लोड झाला नाही. सुपॅबेस चेक करा.")
