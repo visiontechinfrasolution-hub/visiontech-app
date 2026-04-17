@@ -320,8 +320,7 @@ else:
     # =====================================================================
     # 📡 TAB 5: WCC STATUS
     # =====================================================================
-# Logic fix: Using 'if' instead of 'elif' to bypass the 'else' block error
-    if st.session_state.current_page == "WCC":
+elif st.session_state.current_page == "WCC":
         st.markdown("""
             <style>
                 .site-badge { background-color: #E0F2FE; color: #0369A1; padding: 2px 8px; border-radius: 12px; font-weight: 600; font-size: 11px; border: 1px solid #BAE6FD; }
@@ -378,7 +377,7 @@ else:
                         v_wno = st.text_input("Enter/Update WCC Number", value=str(row_data.get("WCC Number", "")) if is_edit else "")
                     
                     if st.form_submit_button("💾 Save Changes", use_container_width=True):
-                        def clean_id(v): return str(v).strip() if v else None
+                        def clean_id(v): return str(v).strip() if v else ""
                         payload = {"Project ID": v_pid, "WCC Number": clean_id(v_wno)}
                         if role == "requester": 
                             payload.update({"Project": v_proj, "Site ID": v_sid, "Site Name": v_snm, "PO Number": clean_id(v_po), "Reqeust Date": str(v_dt), "WCC Status": v_sts})
@@ -387,8 +386,14 @@ else:
             data_list = fetch_wcc_data_simple()
             df_wcc = pd.DataFrame(data_list)[::-1] if data_list else pd.DataFrame()
             
-            if role == "requester":
-                if st.button("➕ Add New Site Request", type="primary"): wcc_edit_modal()
+            c_top1, c_top2 = st.columns([1, 1])
+            with c_top1:
+                if role == "requester":
+                    if st.button("➕ Add New Site Request", type="primary"): wcc_edit_modal()
+            with c_top2:
+                if not df_wcc.empty:
+                    excel_data = df_wcc.to_csv(index=False).encode('utf-8')
+                    st.download_button("📥 Download WCC Report (Excel)", data=excel_data, file_name=f"WCC_Report_{datetime.now().strftime('%d_%b_%Y')}.csv", mime="text/csv")
             
             st.divider()
 
@@ -396,7 +401,7 @@ else:
                 h_cols = st.columns([1, 0.5, 1, 1.2, 1, 1.2, 1, 1, 1.2])
                 cols_names = ["Actions", "Sr.", "Project", "Project ID", "Site ID", "Site Name", "PO No", "WCC No", "Status"]
                 for col, name in zip(h_cols, cols_names):
-                    col.markdown(f"<p style='color:#1E3A8A; font-weight:bold; font-size:12px; text-align:center;'>{name}</p>", unsafe_allow_html=True)
+                    col.markdown(f"<p style='color:#1E3A8A; font-weight:bold; font-size:11px; text-align:center;'>{name}</p>", unsafe_allow_html=True)
                 st.markdown("<hr style='margin:2px 0px; border-top: 2px solid #1E3A8A;'>", unsafe_allow_html=True)
 
                 for i, row in df_wcc.iterrows():
@@ -416,19 +421,24 @@ else:
                         if b1.button("✏️", key=f"edit_{row['Project ID']}_{i}"): wcc_edit_modal(row)
                         if role == 'requester':
                             msg = (
-                                f"Hello Visiontech Billing Team,\n"
-                                f"Raise WCC urgently for below site:\n\n"
+                                f"Hello Prkash Ji,\n"
+                                f"Raise WCC urgently...\n\n"
                                 f"Project :- {clean_none(row.get('Project'))}\n"
                                 f"Project ID :- {clean_none(row.get('Project ID'))}\n"
                                 f"Site ID :- {clean_none(row.get('Site ID'))}\n"
                                 f"Site Name :- {clean_none(row.get('Site Name'))}\n"
                                 f"PO Number :- {clean_none(row.get('PO Number'))}\n"
                                 f"Reqeust Date :- {formatted_date}\n"
+                                f"WCC Number :- {clean_none(row.get('WCC Number'))}\n"
                                 f"WCC Status :- {clean_none(row.get('WCC Status'))}\n\n"
-                                f"Thanks,\nMayur Patil"
+                                f"Cable Bililg\n\n"
+                                f"Thanks,\n"
+                                f"Mayur Patil\n"
+                                f"7350533473"
                             )
                             wa_url = f"https://wa.me/?text={urllib.parse.quote(msg)}"
-                            b2.markdown(f'<a href="{wa_url}" target="_blank" class="wa-btn" style="text-align:center; display:block; text-decoration:none;">💬</a>', unsafe_allow_html=True)
+                            # target="_blank" काढून टाकले आहे टॅब कंट्रोल करण्यासाठी
+                            b2.markdown(f'<a href="{wa_url}" class="wa-btn" style="text-align:center; display:block; text-decoration:none;">💬</a>', unsafe_allow_html=True)
                     
                     r_cols[1].markdown(f"<p style='font-size:11px; text-align:center;'>{i+1}</p>", unsafe_allow_html=True)
                     r_cols[2].markdown(f"<p style='font-size:11px; text-align:center;'>{clean_none(row.get('Project'))}</p>", unsafe_allow_html=True)
@@ -440,8 +450,7 @@ else:
                     r_cols[8].markdown(f"<p style='font-size:11px; text-align:center;'>{clean_none(row.get('WCC Status'))}</p>", unsafe_allow_html=True)
                     st.markdown("<hr style='margin:1px 0px; border-top: 1px solid #E5E7EB;'>", unsafe_allow_html=True)
 
-    # Independent 'if' block for Data page
-    if st.session_state.current_page == "Data":
+    elif st.session_state.current_page == "Data":
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center & Tracker</h3>", unsafe_allow_html=True)
         doc_sub1, doc_sub2, doc_sub3 = st.tabs(["📤 Manager Upload", "🔍 Team Search", "📊 Tracker"])
     # =====================================================================
