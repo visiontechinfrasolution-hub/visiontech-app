@@ -9,6 +9,11 @@ from email.mime.text import MIMEText
 import requests
 import json
 import time
+import io
+import os
+import random
+import numpy as np
+from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps
 
 # --- 1. CONNECTION ---
 URL = "https://sckyflvukpmdqmdzjzhs.supabase.co"
@@ -896,5 +901,149 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
         if not st.session_state.billing_df.empty:
             st.write("### Pending Billing List")
             st.dataframe(st.session_state.billing_df[['SITE ID', 'SITE NAME', 'RFAI STATUS', 'WCC NO.']], use_container_width=True, hide_index=True)
+
+# =====================================================================
+# 📸 REALISTIC JMS SCANNED COPY GENERATOR (BY MAYUR PATIL)
+# =====================================================================
+
+def generate_handwritten_jms(sel_pid, site_info, processed_items, auditor_name):
+    # १. A4 साईज कॅनव्हास (150 DPI)
+    width, height = 1240, 1754
+    paper = Image.new('RGB', (width, height), (255, 255, 255))
+    draw = ImageDraw.Draw(paper)
+
+    # फॉन्ट सेटिंग्स (तुमच्या सिस्टमवरचे पाथ तपासा)
+    try:
+        font_h1 = ImageFont.truetype("arialbd.ttf", 45)  # Company Name
+        font_h2 = ImageFont.truetype("arial.ttf", 28)    # Address
+        font_body = ImageFont.truetype("arial.ttf", 24)  # Table Text
+        font_hand = ImageFont.truetype("courier.ttf", 32) # Handwriting effect
+    except:
+        font_h1 = font_h2 = font_body = font_hand = ImageFont.load_default()
+
+    # २. लेटरहेड मजकूर
+    draw.text((width//2 - 300, 80), "VISIONTECH INFRA SOLUTIONS", fill=(20, 20, 20), font=font_h1)
+    draw.text((width//2 - 250, 140), "Karve Nagar, Pune - 411052 | vispltower@gmail.com", fill=(50, 50, 50), font=font_h2)
+    draw.text((width//2 - 150, 200), "Joint Measurement Sheet", fill=(0, 0, 0), font=font_h1)
+
+    # ३. साईट डिटेल्स (Box Layout)
+    draw.rectangle([80, 280, 1160, 420], outline="black", width=2)
+    draw.text((100, 300), f"Site Name: {site_info.get('SITE NAME','-')}", fill="black", font=font_body)
+    draw.text((100, 350), f"Project ID: {sel_pid}", fill="black", font=font_body)
+    draw.text((700, 300), f"Site ID: {site_info.get('SITE ID','-')}", fill="black", font=font_body)
+    draw.text((700, 350), f"Cluster: {site_info.get('CLUSTER','-')}", fill="black", font=font_body)
+
+    # ४. टेबल ड्रॉईंग (Handmade Look)
+    y = 450
+    draw.rectangle([80, y, 1160, y+60], outline="black", width=3, fill=(240, 240, 240))
+    draw.text((95, y+15), "Sr.", font=font_body, fill="black")
+    draw.text((180, y+15), "Item Description (Max 100 Words)", font=font_body, fill="black")
+    draw.text((820, y+15), "Qty 1 (Ord)", font=font_body, fill="black")
+    draw.text((1000, y+15), "Qty 2 (Del)", font=font_body, fill="black")
+
+    y += 65
+    for i, item in enumerate(processed_items[:18]): # जास्तीत जास्त १८ ओळी
+        draw.rectangle([80, y, 1160, y+55], outline="black", width=1)
+        draw.text((95, y+12), str(i+1), font=font_body, fill="black")
+        
+        # Description 100 शब्दांच्या मर्यादेत
+        desc_text = " ".join(item['Item Description'].split()[:100])
+        draw.text((180, y+12), desc_text[:65] + "...", font=font_body, fill="black")
+
+        q1, q2 = item['Ordered Qty'], item['Delivered Qty']
+        
+        # --- RULE 1: Mismatch असेल तर Qty 1 ला Round ---
+        draw.text((850, y+12), str(int(q1)), font=font_hand, fill=(30, 30, 30))
+        if q1 != q2:
+            # हाताने गोल केल्यासारखे (लाल शाई)
+            draw.ellipse([835, y+5, 895, y+45], outline=(200, 0, 0), width=3)
+
+        # --- RULE 2: Match असेल तर Qty 2 ला Tick ---
+        draw.text((1030, y+12), str(int(q2)), font=font_hand, fill=(30, 30, 30))
+        if q1 == q2:
+            # हाताने 'V' टिक केल्यासारखे (हिरवी शाई)
+            draw.line([(1085, y+20), (1095, y+40), (1115, y+5)], fill=(0, 120, 0), width=4)
+        
+        y += 55
+
+    # ५. सिग्नेचर सेक्शन (Real Human Touch)
+    y_sign = height - 280
+    marathi_names = ["विजय पाटील", "संदीप चव्हाण", "अशोक गाडे", "महेश मोरे", "सुनील पवार"]
+    left_sign_name = random.choice(marathi_names)
+
+    draw.text((100, y_sign), "Prepared By (Visiontech):", font=font_body, fill="black")
+    draw.text((120, y_sign+60), left_sign_name, font=font_hand, fill=(10, 40, 150)) # Blue Ink
+
+    draw.text((800, y_sign), "Verified By (Auditor):", font=font_body, fill="black")
+    
+    # Auditor फिक्स सिग्नेचर इमेज लोड करणे
+    sign_file = f"signatures/{auditor_name}.png"
+    if os.path.exists(sign_file):
+        s_img = Image.open(sign_file).convert("RGBA")
+        s_img = s_img.resize((180, 90))
+        paper.paste(s_img, (800, y_sign+50), s_img)
+    else:
+        draw.text((820, y_sign+60), auditor_name, font=font_hand, fill=(10, 40, 150))
+
+    # ६. 🌫️ डॉक्युमेंटला "स्कॅन" केलेला फिल देणे
+    # A. चुरगळलेला आणि फोल्ड इफेक्ट (Linear Shadows)
+    overlay = Image.new('RGBA', (width, height), (0,0,0,0))
+    o_draw = ImageDraw.Draw(overlay)
+    o_draw.line([(0, height//2), (width, height//2+15)], fill=(0,0,0,25), width=20) # Fold Mark
+    paper.paste(overlay, (0,0), overlay)
+
+    # B. थोडी धूळ आणि पेपर टेक्सचर (Noise)
+    paper_arr = np.array(paper)
+    noise = np.random.randint(0, 12, paper_arr.shape, dtype='uint8')
+    paper = Image.fromarray(np.clip(paper_arr.astype('int16') - noise, 0, 255).astype('uint8'))
+
+    # C. कॅमेरा फोटोसारखा थोडा तिरपा करणे
+    paper = paper.rotate(random.uniform(-0.4, 0.4), expand=False, fillcolor=(245, 245, 245))
+
+    # ७. PDF म्हणून बाहेर काढणे
+    final_output = io.BytesIO()
+    paper.save(final_output, format="PDF", resolution=150.0)
+    return final_output.getvalue()
+
+# --- Streamlit Frontend ---
+with t_finance:
+    st.subheader("📝 Professional JMS Scanned Copy Generator")
+    
+    # १. ऑडिटर मास्टर लिस्ट (तुमच्या फाईल नेम्सप्रमाणे)
+    auditors = ["Rahul Sharma", "Amit Patil", "Saira Quzi", "Prakash Ji"]
+    
+    col1, col2 = st.columns(2)
+    with col1: sel_pid = st.selectbox("Select Project ID", [""] + jms_sites_df["PROJECT ID"].tolist(), key="jms_p")
+    with col2: sel_aud = st.selectbox("Select Auditor", [""] + auditors, key="jms_a")
+    
+    uploaded_tsv = st.file_uploader("Upload TSV (export.tsv)", type=['tsv'])
+
+    if st.button("🚀 Generate & Download JMS"):
+        if sel_pid and sel_aud and uploaded_tsv:
+            # TSV वाचणे
+            df_tsv = pd.read_csv(uploaded_tsv, sep='\t', quoting=3, encoding='ISO-8859-1')
+            df_tsv.columns = [str(c).replace('"', '').strip() for c in df_tsv.columns]
+            
+            # डेटा तयार करणे
+            items = []
+            for _, r in df_tsv.iterrows():
+                items.append({
+                    "Item Description": str(r.get('Description','')),
+                    "Ordered Qty": float(pd.to_numeric(r.get('Ordered',0), errors='coerce') or 0),
+                    "Delivered Qty": float(pd.to_numeric(r.get('Requested/Delivered',0), errors='coerce') or 0)
+                })
+            
+            site_info = jms_sites_df[jms_sites_df["PROJECT ID"] == sel_pid].iloc[0].to_dict()
+            
+            # इमेज-टू-पीडीएफ जनरेट करणे
+            pdf_bytes = generate_handwritten_jms(sel_pid, site_info, items, sel_aud)
+            
+            st.download_button(
+                label="📥 Download Scanned JMS Copy",
+                data=pdf_bytes,
+                file_name=f"JMS_{sel_pid}.pdf",
+                mime="application/pdf"
+            )
+            st.success("JMS Generated with 100% realistic look!")
 
 
