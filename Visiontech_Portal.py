@@ -475,7 +475,7 @@ else:
     elif st.session_state.current_page == "Data":
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center & Tracker</h3>", unsafe_allow_html=True)
 
-# =====================================================================
+    # =====================================================================
     # 📁 TAB 6: DATA ENTRY (Document Center & Tracker)
     # =====================================================================
     elif st.session_state.current_page == "Data":
@@ -497,9 +497,9 @@ else:
                 return None
 
         # --- Sub-Tabs ---
-        doc_sub1, doc_sub2, doc_sub3 = st.tabs(["📤 Manager Upload", "🔍 Team Search", "📊 Tracker"])
+        d_sub1, d_sub2, d_sub3 = st.tabs(["📤 Manager Upload", "🔍 Team Search", "📊 Tracker"])
         
-        with doc_sub1:
+        with d_sub1:
             st.markdown("#### 📂 Upload New Document Details")
             with st.form("doc_upload_form_v2", clear_on_submit=True):
                 c1, c2 = st.columns(2)
@@ -529,26 +529,22 @@ else:
                     else:
                         st.warning("⚠️ Please enter Site ID / Project ID.")
 
-        with doc_sub2:
+        with d_sub2:
             st.markdown("#### 🔍 Search Documents")
             search_q = st.text_input("Search Site ID / Project ID / PO Number", key="doc_search_box")
             if search_q:
                 all_docs = fetch_doc_data()
-                if all_docs:
-                    results = [d for d in all_docs if search_q.lower() in str(d).lower()]
-                    if results:
-                        st.dataframe(pd.DataFrame(results), use_container_width=True)
-                    else:
-                        st.info("No matching records found.")
+                results = [d for d in all_docs if search_q.lower() in str(d).lower()]
+                if results:
+                    st.dataframe(pd.DataFrame(results), use_container_width=True)
                 else:
-                    st.info("No data available to search.")
+                    st.info("No matching records found.")
 
-        with doc_sub3:
+        with d_sub3:
             st.markdown("#### 📊 Document Tracker")
             raw_docs = fetch_doc_data()
             if raw_docs:
-                df_tracker = pd.DataFrame(raw_docs)
-                st.dataframe(df_tracker[::-1], use_container_width=True)
+                st.dataframe(pd.DataFrame(raw_docs)[::-1], use_container_width=True)
             else:
                 st.info("No documents tracked yet.")
     # =====================================================================
