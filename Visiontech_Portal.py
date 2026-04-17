@@ -177,7 +177,7 @@ else:
     # =====================================================================
     # 🟩 TAB 1: BOQ REPORT (Clean & Modern Version)
     # =====================================================================
-elif st.session_state.current_page == "BOQ":
+        elif st.session_state.current_page == "BOQ":
         st.markdown("""
             <style>
                 /* Table Custom Styling */
