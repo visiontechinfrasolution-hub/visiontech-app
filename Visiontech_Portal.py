@@ -474,6 +474,50 @@ else:
 
     elif st.session_state.current_page == "Data":
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center & Tracker</h3>", unsafe_allow_html=True)
+
+    # =====================================================================
+    # 📁 TAB 6: DATA ENTRY (RESTORED CODE)
+    # =====================================================================
+    elif st.session_state.current_page == "Data":
+        st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center & Tracker</h3>", unsafe_allow_html=True)
+        
+        doc_sub1, doc_sub2, doc_sub3 = st.tabs(["📤 Manager Upload", "🔍 Team Search", "📊 Tracker"])
+        
+        with doc_sub1:
+            st.markdown("#### 📂 Upload New Document")
+            with st.form("doc_upload_form", clear_on_submit=True):
+                c1, c2 = st.columns(2)
+                d_proj = c1.selectbox("Project Name", ["Operation", "Maintenance", "I-Tower", "Other"])
+                d_site = c2.text_input("Site ID / Project ID")
+                d_type = st.selectbox("Document Type", ["WCC", "PO", "BOQ", "Invoice", "Approval Letter", "Other"])
+                d_file = st.file_uploader("Choose File", type=['pdf', 'png', 'jpg', 'jpeg', 'xlsx'])
+                if st.form_submit_button("🚀 Upload to Portal"):
+                    if d_site and d_file:
+                        st.success(f"File '{d_file.name}' for {d_site} uploaded successfully! (Simulation)")
+                    else: st.warning("Please fill Site ID and select a file.")
+
+        with doc_sub2:
+            st.markdown("#### 🔍 Search Documents")
+            search_q = st.text_input("Search by Site ID, Project ID or PO Number")
+            if search_q:
+                st.info(f"Searching records for: {search_q}...")
+                st.write("No matching documents found in Supabase Storage.")
+
+        with doc_sub3:
+            st.markdown("#### 📊 Document Tracker")
+            st.write("Live status of all uploaded documents will appear here.")
+            # Dummy Tracker Table
+            tracker_df = pd.DataFrame([
+                {"Date": "16-Apr-2026", "Site ID": "IN-1270079", "Doc": "WCC", "Status": "Verified"},
+                {"Date": "17-Apr-2026", "Site ID": "IN-6012304", "Doc": "Invoice", "Status": "Pending"}
+            ])
+            st.table(tracker_df)
+
+    # =====================================================================
+    # 🏁 FINAL ELSE: FALLBACK
+    # =====================================================================
+    else:
+        st.info("Please select a page from the sidebar to continue.")
     # =====================================================================
     # 💰 TAB 7: FINANCE ENTRY 
     # =====================================================================
