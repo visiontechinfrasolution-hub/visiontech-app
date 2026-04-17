@@ -338,8 +338,12 @@ else:
                 return []
 
         def update_wcc_record(payload):
-            try: return supabase.table("WCC Status").upsert(payload).execute()
-            except: return None
+            try: 
+                res = supabase.table("WCC Status").upsert(payload).execute()
+                return res
+            except Exception as e:
+                st.error(f"Database Error: {e}") # इथे एरर दिसेल
+                return None
 
         st.title("📡 WCC Status Tracker")
         
@@ -377,11 +381,25 @@ else:
                         v_wno = st.text_input("Enter/Update WCC Number", value=str(row_data.get("WCC Number", "")) if is_edit else "")
                     
                     if st.form_submit_button("💾 Save Changes", use_container_width=True):
-                        def clean_id(v): return str(v).strip() if v else ""
-                        payload = {"Project ID": v_pid, "WCC Number": clean_id(v_wno)}
-                        if role == "requester": 
-                            payload.update({"Project": v_proj, "Site ID": v_sid, "Site Name": v_snm, "PO Number": clean_id(v_po), "Reqeust Date": str(v_dt), "WCC Status": v_sts})
-                        if update_wcc_record(payload): st.rerun()
+                        if not v_pid:
+                            st.error("Project ID is required!")
+                        else:
+                            def clean_id(v): return str(v).strip() if v else ""
+                            payload = {"Project ID": v_pid, "WCC Number": clean_id(v_wno)}
+                            if role == "requester": 
+                                payload.update({
+                                    "Project": v_proj, 
+                                    "Site ID": v_sid, 
+                                    "Site Name": v_snm, 
+                                    "PO Number": clean_id(v_po), 
+                                    "Reqeust Date": str(v_dt), 
+                                    "WCC Status": v_sts
+                                })
+                            
+                            result = update_wcc_record(payload)
+                            if result:
+                                st.success("Data Saved Successfully!")
+                                st.rerun()
 
             data_list = fetch_wcc_data_simple()
             df_wcc = pd.DataFrame(data_list)[::-1] if data_list else pd.DataFrame()
@@ -392,7 +410,7 @@ else:
             with c_top2:
                 if not df_wcc.empty:
                     excel_data = df_wcc.to_csv(index=False).encode('utf-8')
-                    st.download_button("📥 Download WCC Report (Excel)", data=excel_data, file_name=f"WCC_Report_{datetime.now().strftime('%d_%b_%Y')}.csv", mime="text/csv")
+                    st.download_button("📥 Download WCC Report", data=excel_data, file_name=f"WCC_Report_{datetime.now().strftime('%d_%b_%Y')}.csv", mime="text/csv")
             
             st.divider()
 
@@ -419,7 +437,6 @@ else:
                         b1, b2 = st.columns(2)
                         if b1.button("✏️", key=f"edit_{row['Project ID']}_{i}"): wcc_edit_modal(row)
                         if role == 'requester':
-                            # Message format updated with * for WhatsApp bold effect
                             msg = (
                                 f"*Hello Prkash Ji,*\n"
                                 f"Raise WCC urgently...\n\n"
@@ -450,7 +467,6 @@ else:
 
     elif st.session_state.current_page == "Data":
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center & Tracker</h3>", unsafe_allow_html=True)
-        doc_sub1, doc_sub2, doc_sub3 = st.tabs(["📤 Manager Upload", "🔍 Team Search", "📊 Tracker"])
     # =====================================================================
     # 💰 TAB 7: FINANCE ENTRY 
     # =====================================================================
