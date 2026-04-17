@@ -275,82 +275,79 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
     # =====================================================================
     # 📊 TAB 4: INDUS BASIC DATA
     # =====================================================================
-    elif st.session_state.current_page == "Indus":
-        st.markdown("""
-            <style>
-                .indus-card {
-                    background-color: #f8f9fa;
-                    border-left: 5px solid #1E3A8A;
-                    padding: 15px;
-                    border-radius: 8px;
-                    margin-bottom: 15px;
-                    box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
-                }
-                .call-btn {
-                    background-color: #1E3A8A;
-                    color: white !important;
-                    padding: 8px 15px;
-                    border-radius: 5px;
-                    text-decoration: none;
-                    font-weight: bold;
-                    display: inline-block;
-                    margin-right: 10px;
-                }
-                .wa-btn-indus {
-                    background-color: #25D366;
-                    color: white !important;
-                    padding: 8px 15px;
-                    border-radius: 5px;
-                    text-decoration: none;
-                    font-weight: bold;
-                    display: inline-block;
-                }
-            </style>
-        """, unsafe_allow_html=True)
+    with tab4:
+    st.markdown("<h3 style='text-align: center;'>📊 Indus Basic Data</h3>", unsafe_allow_html=True)
+    with st.form("ind_form_v5"):
+        i1, i2, i3 = st.columns(3)
+        with i1: in_id = st.text_input("📍 Site ID Search")
+        with i2: in_nm = st.text_input("🏢 Site Name Search")
+        with i3: st.write(""); sub_ind = st.form_submit_button("🔍 Search Indus")
+    if sub_ind:
+        res_ind = supabase.table("Indus Data").select("*").ilike("Site ID", f"%{in_id}%").execute()
+        if res_ind.data:
+            df_ind = pd.DataFrame(res_ind.data)
+            st.dataframe(df_ind, use_container_width=True, hide_index=True)
+            st.divider()
+            st.subheader("📌 Vertical Site Details")
+            row_in = res_ind.data[0]
+            def call_html(label, name, num):
+                if num and str(num).strip() not in ['-', '', 'None', 'nan']:
+                    return f'{label}: **{name}** ({num}) <a href="tel:{num}"><button style="background-color:#007bff;color:white;border:none;padding:2px 10px;border-radius:5px;cursor:pointer;font-weight:bold;">📞 Call</button></a>'
+                return f'{label}: **{name}** (-)'
+            v1, v2 = st.columns(2)
+            with v1:
+                st.markdown(f"🛰️ **Area Name** :- {row_in.get('Area Name','-')}")
+                st.markdown(call_html("👨‍🔧 **Tech Name**", row_in.get('Tech Name','-'), row_in.get('Tech Number','-')), unsafe_allow_html=True)
+                st.markdown(call_html("👷 **FSE**", row_in.get('FSE','-'), row_in.get('FSE Number','-')), unsafe_allow_html=True)
+            with v2:
+                st.markdown(call_html("👨‍💼 **AOM Name**", row_in.get('AOM Name','-'), row_in.get('AOM Number','-')), unsafe_allow_html=True)
+                lat, lon = row_in.get('Lat', ''), row_in.get('Long', '')
+                if lat and lon and str(lat).strip() not in ['-', '', 'None', 'nan']:
+                    maps_url = f"https://www.google.com/maps?q={lat},{lon}"
+                    st.markdown(f"📍 **Lat/Long** :- {lat} / {lon} <a href='{maps_url}' target='_blank'><button style='background-color:#EA4335;color:white;border:none;padding:2px 10px;border-radius:5px;cursor:pointer;font-weight:bold;'>📍 Direction</button></a>", unsafe_allow_html=True)
+                else: st.markdown(f"📍 **Lat/Long** :- {lat if lat else '-'} / {lon if lon else '-'}")
+        else: st.info("No Indus data found.")
 
-        st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>📊 Indus Basic Data</h3>", unsafe_allow_html=True)
-        
-        with st.form("ind_form_v5"):
-            in_id = st.text_input("📍 Site ID Search", placeholder="Enter Site ID...")
-            submit_ind = st.form_submit_button("🔍 Search Indus Data")
-
-        if submit_ind and in_id:
-            res_ind = supabase.table("Indus Data").select("*").ilike("Site ID", f"%{in_id.strip()}%").execute()
-            
-            if res_ind.data:
-                st.success(f"Found {len(res_ind.data)} Records")
-                for row in res_ind.data:
-                    s_id = row.get('Site ID', '')
-                    s_nm = row.get('Site Name', '')
-                    f_nm = row.get('Field Engineer', 'N/A')
-                    f_no = row.get('FE Number', '')
-                    cluster = row.get('Cluster', 'N/A')
-                    route = row.get('Route Plan', 'No Route Info')
-
-                    # Card Display
-                    with st.container():
-                        st.markdown(f"""
-                            <div class="indus-card">
-                                <h4>📍 {s_id} - {s_nm}</h4>
-                                <p><b>Cluster:</b> {cluster} | <b>Route:</b> {route}</p>
-                                <p><b>Engineer:</b> {f_nm} ({f_no})</p>
-                            </div>
-                        """, unsafe_allow_html=True)
-                        
-                        # Action Buttons
-                        c1, c2, c3 = st.columns([1, 1, 2])
-                        with c1:
-                            if f_no:
-                                st.markdown(f'<a href="tel:{f_no}" class="call-btn">📞 Call FE</a>', unsafe_allow_html=True)
-                        with c2:
-                            if f_no:
-                                wa_msg = urllib.parse.quote(f"Hello {f_nm},\nRegarding Site: {s_id} ({s_nm})...")
-                                st.markdown(f'<a href="https://wa.me/{f_no}?text={wa_msg}" class="wa-btn-indus">💬 WhatsApp</a>', unsafe_allow_html=True)
-                        with c3:
-                            st.info(f"🛣️ Route: {route}")
-                    st.divider()
-            else:
-                st.warning("No data found for this Site ID.")
+    st.divider()
+    st.subheader("🧭 Route Plan")
+    if 'route_list' not in st.session_state: st.session_state.route_list = []
+    with st.expander("🛠️ Create New Route Plan", expanded=False):
+        c1, c2 = st.columns(2)
+        with c1: start_coords = st.text_input("🏠 Start Location (City or Lat, Long)", placeholder="e.g. Pune")
+        with c2: end_coords = st.text_input("🏁 End Location (City or Lat, Long)", placeholder="e.g. Mumbai")
+        with st.form("add_site_form", clear_on_submit=True):
+            add_sid = st.text_input("📍 Add Indus Site ID")
+            if st.form_submit_button("➕ Add +"):
+                if add_sid:
+                    s_res = supabase.table("Indus Data").select("*").ilike("Site ID", f"%{add_sid.strip()}%").execute()
+                    if s_res.data: st.session_state.route_list.append(s_res.data[0]); st.success(f"Site {add_sid} added!")
+                    else: st.error("Site ID not found!")
+        if st.session_state.route_list:
+            st.write("**Current Sites:** " + ", ".join([s['Site ID'] for s in st.session_state.route_list]))
+            if st.button("🗑️ Clear List"): st.session_state.route_list = []; st.rerun()
+    if st.button("🚀 Calculate Best Route", use_container_width=True):
+        if not start_coords or not end_coords or not st.session_state.route_list: st.warning("Incomplete details!")
+        else:
+            try:
+                geolocator = Nominatim(user_agent="vis_route_planner")
+                def get_lat_lon(loc):
+                    if ',' in loc and any(c.isdigit() for c in loc): return [float(x.strip()) for x in loc.split(',')]
+                    l = geolocator.geocode(loc); return [l.latitude, l.longitude] if l else None
+                curr_p, end_p = get_lat_lon(start_coords), get_lat_lon(end_coords)
+                if not curr_p or not end_p: st.error("Check Start/End location name.")
+                else:
+                    unvisited = st.session_state.route_list.copy(); final_path = []
+                    while unvisited:
+                        next_s = min(unvisited, key=lambda x: geodesic(curr_p, (float(x['Lat']), float(x['Long']))).km)
+                        final_path.append(next_s); curr_p = (float(next_s['Lat']), float(next_s['Long'])); unvisited.remove(next_s)
+                    route_data = [{"Serial No": "0", "Task": "START", "Site ID": "Home/Office", "Location": start_coords}]
+                    for i, s in enumerate(final_path, 1): route_data.append({"Serial No": str(i), "Task": "Visit", "Site ID": s['Site ID'], "Location": f"{s['Lat']}, {s['Long']}"})
+                    route_data.append({"Serial No": str(len(final_path)+1), "Task": "END", "Site ID": "Destination", "Location": end_coords})
+                    st.table(pd.DataFrame(route_data))
+                    coords_str = "/".join([start_coords] + [f"{s['Lat']},{s['Long']}" for s in final_path] + [end_coords])
+                    gmaps_route = f"https://www.google.com/maps?q=lat,long{coords_str}"
+                    st.markdown(f'<a href="{gmaps_route}" target="_blank"><button style="width:100%; background-color:#4285F4; color:white; border:none; padding:10px; border-radius:5px; font-weight:bold; cursor:pointer;">🗺️ Open Full Route in Maps</button></a>', unsafe_allow_html=True)
+            except Exception as e: st.error(f"Error: {e}")
 
     # =====================================================================
     # 📡 TAB 5: WCC STATUS
