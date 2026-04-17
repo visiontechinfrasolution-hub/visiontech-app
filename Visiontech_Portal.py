@@ -906,3 +906,115 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
 # =====================================================================
 # 📄 PAGE: JMS GENERATOR (100% Realistic Scanned Look)
 # =====================================================================
+if st.session_state.current_page == "Dashboard":
+    st.markdown("<h1 style='text-align: center; color: #1E3A8A;'>🚀 Visiontech Portal</h1>", unsafe_allow_html=True)
+    
+    spacer1, c1, c2, c3, spacer2 = st.columns([1.5, 2, 2, 2, 1.5])
+    
+    with c1:
+        if st.button("📦\nBOQ Report"): navigate_to("BOQ")
+        if st.button("📊\nIndus Data"): navigate_to("Indus")
+        if st.button("💰\nFinance"): navigate_to("Finance")
+    with c2:
+        if st.button("🧾\nPO Report"): navigate_to("PO")
+        if st.button("📡\nWCC Tracker"): navigate_to("WCC")
+        if st.button("📝\nAudit Portal"): navigate_to("Audit")
+    with c3:
+        if st.button("🏗️\nSite Detail"): navigate_to("Site")
+        if st.button("📁\nData Entry"): navigate_to("Data")
+        if st.button("📢\nRFAI Billing"): navigate_to("RFAI")
+        if st.button("📄\nJMS Generator"): navigate_to("JMS")
+
+elif st.session_state.current_page != "Dashboard":
+    # बॅक बटन (सर्व पेजेसवर कॉमन)
+    st.markdown("<div class='back-btn'>", unsafe_allow_html=True)
+    if st.button("⬅️ Dashboard"):
+        navigate_to("Dashboard")
+    st.markdown("</div>", unsafe_allow_html=True)
+    st.divider()
+
+    # --- आता प्रत्येक पेजचे कोड एकाखाली एक ---
+    
+    if st.session_state.current_page == "JMS":
+        st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>📄 Realistic JMS Generator</h2>", unsafe_allow_html=True)
+        
+        try:
+            # Supabase Fetch (Quoted column names)
+            site_res = supabase.table("VIS Portal Site Data").select('"PROJECT ID", "SITE ID", "SITE NAME", "CLUSTER"').execute()
+            jms_sites_df = pd.DataFrame(site_res.data)
+        except Exception as e:
+            st.error(f"Database Error: {e}")
+            jms_sites_df = pd.DataFrame()
+
+        if not jms_sites_df.empty:
+            col1, col2 = st.columns(2)
+            with col1:
+                sel_pid = st.selectbox("1️⃣ Select Project ID", [""] + jms_sites_df["PROJECT ID"].tolist(), key="jms_p_id")
+            with col2:
+                auditors = ["Abhijeet Chougule", "Akib Patel", "Amit Kumar Sharma", "Arun D Chavan", "Azeem", "Faruq Khan", "Ejaz Ahmad Karnataka", "Gaurtam Kumar", "Guru Karnataka", "Imran Khan 1 Karnataka", "Imran Khan 2Karnataka"]
+                sel_aud = st.selectbox("2️⃣ Select Auditor Name", [""] + auditors, key="jms_aud_name")
+            
+            uploaded_tsv = st.file_uploader("3️⃣ Upload export.tsv", type=['tsv', 'txt'], key="jms_file_up")
+
+            if st.button("🚀 Generate Scanned JMS Copy", use_container_width=True):
+                if sel_pid and sel_aud and uploaded_tsv:
+                    try:
+                        # TSV Reading & safe conversion
+                        df_tsv = pd.read_csv(uploaded_tsv, sep='\t', quoting=3, encoding='ISO-8859-1')
+                        df_tsv.columns = [str(c).replace('"', '').strip() for c in df_tsv.columns]
+                        site_info = jms_sites_df[jms_sites_df["PROJECT ID"] == sel_pid].iloc[0].to_dict()
+                        
+                        # --- IMAGE ENGINE ---
+                        width, height = 1240, 1754
+                        paper = Image.new('RGB', (width, height), (255, 255, 255))
+                        draw = ImageDraw.Draw(paper)
+                        
+                        try:
+                            f_h1 = ImageFont.truetype("arialbd.ttf", 40)
+                            f_body = ImageFont.truetype("arial.ttf", 24)
+                            f_hand = ImageFont.truetype("courier.ttf", 30)
+                        except:
+                            f_h1 = f_body = f_hand = ImageFont.load_default()
+
+                        draw.text((350, 80), "VISIONTECH INFRA SOLUTIONS", fill="black", font=f_h1)
+                        draw.text((420, 140), "Joint Measurement Sheet", fill="black", font=f_h1)
+                        draw.text((100, 300), f"Project ID: {sel_pid} | Site ID: {site_info.get('SITE ID','')}", fill="black", font=f_body)
+
+                        y = 500
+                        for i, r in df_tsv.iterrows():
+                            if i > 18: break
+                            q1_val = pd.to_numeric(r.get('Ordered', 0), errors='coerce')
+                            q1 = float(q1_val) if pd.notnull(q1_val) else 0.0
+                            q2_val = pd.to_numeric(r.get('Requested/Delivered', 0), errors='coerce')
+                            q2 = float(q2_val) if pd.notnull(q2_val) else 0.0
+                            
+                            draw.text((100, y), str(r.get('Description',''))[:55], font=f_body, fill="black")
+                            draw.text((850, y), str(int(q1)), font=f_hand, fill="black")
+                            draw.text((1000, y), str(int(q2)), font=f_hand, fill="black")
+
+                            if q1 != q2: draw.ellipse([830, y-5, 890, y+35], outline="red", width=3)
+                            if q1 == q2: draw.line([(1050, y+10), (1060, y+30), (1080, y)], fill="green", width=5)
+                            y += 50
+
+                        # Signatures & Scanned Effect
+                        s_file = f"signatures/{sel_aud}.png"
+                        if os.path.exists(s_file):
+                            s_img = Image.open(s_file).convert("RGBA").resize((200, 100))
+                            paper.paste(s_img, (850, height-250), s_img)
+                        
+                        draw.text((100, height-250), f"Prepared By: {random.choice(['विजय पाटील', 'संदीप चव्हाण'])}", font=f_hand, fill=(10, 40, 150))
+
+                        # Scanner Noise
+                        p_arr = np.array(paper)
+                        noise = np.random.randint(0, 10, p_arr.shape, dtype='uint8')
+                        paper = Image.fromarray(np.clip(p_arr.astype('int16') - noise, 0, 255).astype('uint8'))
+                        
+                        st.image(paper, caption="JMS Preview", use_container_width=True)
+                        
+                        pdf_io = io.BytesIO()
+                        paper.save(pdf_io, format="PDF")
+                        st.download_button("📥 Download JMS PDF", pdf_io.getvalue(), f"JMS_{sel_pid}.pdf", "application/pdf")
+                    except Exception as ex:
+                        st.error(f"Error: {ex}")
+        else:
+            st.info("डेटाबेस कनेक्ट झाला नाही.")
