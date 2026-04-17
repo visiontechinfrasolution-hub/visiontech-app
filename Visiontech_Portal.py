@@ -476,40 +476,82 @@ else:
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center & Tracker</h3>", unsafe_allow_html=True)
 
     # =====================================================================
-    # 📁 TAB 6: DATA ENTRY (Working Code)
+    # 📁 TAB 6: DATA ENTRY (Document Center & Tracker)
     # =====================================================================
-        elif st.session_state.current_page == "Data":
+    elif st.session_state.current_page == "Data":
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center & Tracker</h3>", unsafe_allow_html=True)
+        
+        # --- Database Functions ---
         def fetch_doc_data():
-            try: return supabase.table("Document_Tracker").select("*").execute().data
-            except: return []
+            try:
+                res = supabase.table("Document_Tracker").select("*").execute()
+                return res.data
+            except Exception as e:
+                return []
+
         def save_doc_entry(data):
-            try: return supabase.table("Document_Tracker").insert(data).execute()
-            except: return None
+            try:
+                return supabase.table("Document_Tracker").insert(data).execute()
+            except Exception as e:
+                st.error(f"❌ Save Error: {e}")
+                return None
 
+        # --- Sub-Tabs ---
         doc_sub1, doc_sub2, doc_sub3 = st.tabs(["📤 Manager Upload", "🔍 Team Search", "📊 Tracker"])
+        
         with doc_sub1:
-            with st.form("doc_upload_form_final", clear_on_submit=True):
-                c1, c2 = st.columns(2); d_proj = c1.selectbox("Project", ["Operation", "Maintenance", "I-Tower"]); d_site = c2.text_input("Site ID *")
-                c3, d_type = st.columns(2); d_type = d_type.selectbox("Doc Type", ["WCC", "PO", "Invoice"]); d_po = c3.text_input("PO No")
-                if st.form_submit_button("🚀 Save Entry"):
+            st.markdown("#### 📂 Upload New Document Details")
+            with st.form("doc_upload_form_v2", clear_on_submit=True):
+                c1, c2 = st.columns(2)
+                d_proj = c1.selectbox("Project Name", ["Operation", "Maintenance", "I-Tower", "Other"])
+                d_site = c2.text_input("Site ID / Project ID *")
+                
+                c3, c4 = st.columns(2)
+                d_type = c3.selectbox("Document Type", ["WCC", "PO", "BOQ", "Invoice", "Approval Letter", "Other"])
+                d_po = c4.text_input("PO Number (Optional)")
+                
+                d_remarks = st.text_area("Remarks / Notes")
+                
+                if st.form_submit_button("🚀 Save Entry to Portal", use_container_width=True):
                     if d_site:
-                        if save_doc_entry({"Date": str(datetime.now().date()), "Project": d_proj, "Site_ID": d_site, "Doc_Type": d_type, "PO_Number": d_po, "Status": "Uploaded"}):
-                            st.success("Saved!"); st.rerun()
-                    else: st.warning("Enter Site ID")
-        with doc_sub2:
-            search_q = st.text_input("Search Site ID")
-            if search_q:
-                res = [d for d in fetch_doc_data() if search_q.lower() in str(d.get('Site_ID','')).lower()]
-                st.dataframe(pd.DataFrame(res))
-        with doc_sub3:
-            st.dataframe(pd.DataFrame(fetch_doc_data())[::-1], use_container_width=True)
+                        entry_data = {
+                            "Date": datetime.now().strftime("%Y-%m-%d"),
+                            "Project": d_proj,
+                            "Site_ID": d_site.strip(),
+                            "Doc_Type": d_type,
+                            "PO_Number": d_po.strip() if d_po else None,
+                            "Remarks": d_remarks.strip() if d_remarks else None,
+                            "Status": "Uploaded"
+                        }
+                        if save_doc_entry(entry_data):
+                            st.success(f"✅ Entry for {d_site} saved successfully!")
+                            st.rerun()
+                    else:
+                        st.warning("⚠️ Please enter Site ID / Project ID.")
 
-    # =====================================================================
-    # 🏁 FINAL ELSE: FALLBACK
-    # =====================================================================
-    else:
-        st.info("Please select a page from the sidebar to continue.")
+        with doc_sub2:
+            st.markdown("#### 🔍 Search Documents")
+            search_q = st.text_input("Search Site ID / Project ID / PO Number", key="doc_search_box")
+            if search_q:
+                all_docs = fetch_doc_data()
+                if all_docs:
+                    results = [d for d in all_docs if search_q.lower() in str(d).lower()]
+                    if results:
+                        st.dataframe(pd.DataFrame(results), use_container_width=True)
+                    else:
+                        st.info("No matching records found.")
+                else:
+                    st.info("No data available to search.")
+
+        with doc_sub3:
+            st.markdown("#### 📊 Document Tracker")
+            raw_docs = fetch_doc_data()
+            if raw_docs:
+                df_tracker = pd.DataFrame(raw_docs)
+                # नवीन एंट्री वर दिसण्यासाठी
+                st.dataframe(df_tracker[::-1], use_container_width=True)
+            else:
+                st.info("No documents tracked yet.")
     # =====================================================================
     # 💰 TAB 7: FINANCE ENTRY 
     # =====================================================================
