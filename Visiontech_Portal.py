@@ -481,77 +481,77 @@ else:
     elif st.session_state.current_page == "Data":
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center & Tracker</h3>", unsafe_allow_html=True)
         
-        # --- Database Functions ---
+        # --- १. डेटाबेस फंक्शन्स ---
         def fetch_doc_data():
             try:
                 res = supabase.table("Document_Tracker").select("*").execute()
-                return res.data
-            except Exception as e:
+                return res.data if res.data else []
+            except:
                 return []
 
         def save_doc_entry(data):
             try:
                 return supabase.table("Document_Tracker").insert(data).execute()
             except Exception as e:
-                st.error(f"❌ Save Error: {e}")
+                st.error(f"Save Error: {e}")
                 return None
 
-        # --- Sub-Tabs ---
-        doc_sub1, doc_sub2, doc_sub3 = st.tabs(["📤 Manager Upload", "🔍 Team Search", "📊 Tracker"])
+        # --- २. टॅब्स तयार करणे ---
+        # हे टॅब्स आता स्क्रीनवर १००% दिसतील
+        d_sub1, d_sub2, d_sub3 = st.tabs(["📤 Manager Upload", "🔍 Team Search", "📊 Tracker"])
         
-        with doc_sub1:
-            st.markdown("#### 📂 Upload New Document Details")
-            with st.form("doc_upload_form_v2", clear_on_submit=True):
-                c1, c2 = st.columns(2)
-                d_proj = c1.selectbox("Project Name", ["Operation", "Maintenance", "I-Tower", "Other"])
-                d_site = c2.text_input("Site ID / Project ID *")
+        with d_sub1:
+            st.markdown("##### 📂 नवीन डॉक्युमेंट एन्ट्री करा")
+            with st.form("doc_upload_form_v3", clear_on_submit=True):
+                col1, col2 = st.columns(2)
+                p_proj = col1.selectbox("Project Name", ["Operation", "Maintenance", "I-Tower", "Other"], key="p_proj")
+                p_site = col2.text_input("Site ID / Project ID *", key="p_site")
                 
-                c3, c4 = st.columns(2)
-                d_type = c3.selectbox("Document Type", ["WCC", "PO", "BOQ", "Invoice", "Approval Letter", "Other"])
-                d_po = c4.text_input("PO Number (Optional)")
+                col3, col4 = st.columns(2)
+                p_type = col3.selectbox("Document Type", ["WCC", "PO", "BOQ", "Invoice", "Other"], key="p_type")
+                p_po = col4.text_input("PO Number (Optional)", key="p_po")
                 
-                d_remarks = st.text_area("Remarks / Notes")
+                p_rem = st.text_area("Remarks", key="p_rem")
                 
-                if st.form_submit_button("🚀 Save Entry to Portal", use_container_width=True):
-                    if d_site:
-                        entry_data = {
-                            "Date": datetime.now().strftime("%Y-%m-%d"),
-                            "Project": d_proj,
-                            "Site_ID": d_site.strip(),
-                            "Doc_Type": d_type,
-                            "PO_Number": d_po.strip() if d_po else None,
-                            "Remarks": d_remarks.strip() if d_remarks else None,
+                submit_btn = st.form_submit_button("🚀 पोर्टलवर सेव्ह करा", use_container_width=True)
+                
+                if submit_btn:
+                    if p_site:
+                        new_data = {
+                            "Date": str(datetime.now().date()),
+                            "Project": p_proj,
+                            "Site_ID": p_site.strip(),
+                            "Doc_Type": p_type,
+                            "PO_Number": p_po.strip() if p_po else None,
+                            "Remarks": p_rem.strip() if p_rem else None,
                             "Status": "Uploaded"
                         }
-                        if save_doc_entry(entry_data):
-                            st.success(f"✅ Entry for {d_site} saved successfully!")
+                        if save_doc_entry(new_data):
+                            st.success(f"✅ {p_site} चा डेटा यशस्वीरित्या सेव्ह झाला!")
                             st.rerun()
                     else:
-                        st.warning("⚠️ Please enter Site ID / Project ID.")
+                        st.warning("⚠️ कृपया Site ID / Project ID टाका.")
 
-        with doc_sub2:
-            st.markdown("#### 🔍 Search Documents")
-            search_q = st.text_input("Search Site ID / Project ID / PO Number", key="doc_search_box")
-            if search_q:
-                all_docs = fetch_doc_data()
-                if all_docs:
-                    results = [d for d in all_docs if search_q.lower() in str(d).lower()]
-                    if results:
-                        st.dataframe(pd.DataFrame(results), use_container_width=True)
-                    else:
-                        st.info("No matching records found.")
+        with d_sub2:
+            st.markdown("##### 🔍 डॉक्युमेंट शोधा")
+            search_key = st.text_input("Site ID टाकून सर्च करा...", key="search_site")
+            if search_key:
+                all_records = fetch_doc_data()
+                filtered = [r for r in all_records if search_key.lower() in str(r.get('Site_ID','')).lower()]
+                if filtered:
+                    st.dataframe(pd.DataFrame(filtered), use_container_width=True)
                 else:
-                    st.info("No data available to search.")
+                    st.info("निकाल सापडला नाही.")
 
-        with doc_sub3:
-            st.markdown("#### 📊 Document Tracker")
-            raw_docs = fetch_doc_data()
-            if raw_docs:
-                df_tracker = pd.DataFrame(raw_docs)
-                # नवीन एंट्री वर दिसण्यासाठी
-                st.dataframe(df_tracker[::-1], use_container_width=True)
+        with d_sub3:
+            st.markdown("##### 📊 सर्व डॉक्युमेंट्स")
+            live_data = fetch_doc_data()
+            if live_data:
+                st.dataframe(pd.DataFrame(live_data)[::-1], use_container_width=True)
             else:
-                st.info("No documents tracked yet.")
+                st.info("अद्याप कोणतीही एन्ट्री केलेली नाही.")
+
+    # --- पुढच्या Finance पेजच्या आधी चुकूनही else टाकू नका ---
     # =====================================================================
     # 💰 TAB 7: FINANCE (या ओळीची स्पेस नीट तपासा)
     # =====================================================================
