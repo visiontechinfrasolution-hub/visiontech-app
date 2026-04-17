@@ -1047,4 +1047,96 @@ with t_finance:
             )
             st.success("JMS Generated with 100% realistic look!")
 
+# =====================================================================
+# 📄 TAB 10: JMS GENERATOR (Professional Scanned Copy)
+# =====================================================================
+elif st.session_state.current_page == "RFAI":
+    # तुमचा जुना RFAI कोड इथे असेलच...
+    pass
+
+elif st.session_state.current_page == "JMS":
+    st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>📄 Realistic JMS Generator</h2>", unsafe_allow_html=True)
+    
+    # १. डेटा फेचिंग (Supabase)
+    try:
+        site_res = supabase.table("VIS Portal Site Data").select("PROJECT ID, SITE NAME, CLUSTER, SITE ID").execute()
+        jms_sites_df = pd.DataFrame(site_res.data)
+    except: jms_sites_df = pd.DataFrame()
+
+    col1, col2 = st.columns(2)
+    with col1:
+        sel_pid = st.selectbox("Select Project ID", [""] + jms_sites_df["PROJECT ID"].tolist())
+    with col2:
+        # ऑडिटर्सची नावे (signatures/ फोल्डरमध्ये याच नावाने फोटो असावेत)
+        auditors = ["Rahul Sharma", "Amit Patil", "Saira Quzi", "Prakash Ji"]
+        sel_aud = st.selectbox("Select Auditor", [""] + auditors)
+    
+    uploaded_tsv = st.file_uploader("Upload export.tsv", type=['tsv'])
+
+    if st.button("🚀 Generate & Download Realistic JMS"):
+        if sel_pid and sel_aud and uploaded_tsv:
+            df_tsv = pd.read_csv(uploaded_tsv, sep='\t', quoting=3, encoding='ISO-8859-1')
+            df_tsv.columns = [str(c).replace('"', '').strip() for c in df_tsv.columns]
+            site_info = jms_sites_df[jms_sites_df["PROJECT ID"] == sel_pid].iloc[0].to_dict()
+            
+            # --- IMAGE PROCESSING (FOLD & SCAN EFFECT) ---
+            width, height = 1240, 1754
+            paper = Image.new('RGB', (width, height), (255, 255, 255))
+            draw = ImageDraw.Draw(paper)
+            
+            try:
+                font_h1 = ImageFont.truetype("arialbd.ttf", 45)
+                font_body = ImageFont.truetype("arial.ttf", 25)
+                font_hand = ImageFont.truetype("courier.ttf", 32)
+            except: font_h1 = font_body = font_hand = ImageFont.load_default()
+
+            # Header & Details
+            draw.text((320, 80), "VISIONTECH INFRA SOLUTIONS", fill="black", font=font_h1)
+            draw.text((400, 200), "Joint Measurement Sheet", fill="black", font=font_h1)
+            draw.rectangle([80, 280, 1160, 420], outline="black", width=2)
+            draw.text((100, 300), f"Project ID: {sel_pid}  |  Site ID: {site_info.get('SITE ID','')}", fill="black", font=font_body)
+            draw.text((100, 350), f"Site Name: {site_info.get('SITE NAME','')} | Cluster: {site_info.get('CLUSTER','')}", fill="black", font=font_body)
+
+            # Table & Logic
+            y = 450
+            draw.rectangle([80, y, 1160, y+60], outline="black", width=2, fill=(240, 240, 240))
+            draw.text((100, y+15), "Description", font=font_body, fill="black")
+            draw.text((820, y+15), "Ord", font=font_body, fill="black")
+            draw.text((1000, y+15), "Del", font=font_body, fill="black")
+
+            y += 65
+            for i, r in df_tsv.iterrows():
+                if i > 18: break
+                desc = " ".join(str(r.get('Description','')).split()[:100])
+                q1 = float(pd.to_numeric(r.get('Ordered',0), errors='coerce') or 0)
+                q2 = float(pd.to_numeric(r.get('Requested/Delivered',0), errors='coerce') or 0)
+
+                draw.text((100, y+10), desc[:60], font=font_body, fill="black")
+                draw.text((840, y+10), str(int(q1)), font=font_hand, fill="black")
+                draw.text((1020, y+10), str(int(q2)), font=font_hand, fill="black")
+
+                # ROUND & TICK RULE
+                if q1 != q2: draw.ellipse([820, y, 890, y+40], outline="red", width=3)
+                if q1 == q2: draw.line([(1075, y+15), (1085, y+35), (1105, y)], fill="green", width=5)
+                y += 55
+
+            # Signatures (Random Marathi Name)
+            y_sign = height - 250
+            marathi_name = random.choice(["विजय पाटील", "संदीप चव्हाण", "अशोक गाडे", "महेश मोरे"])
+            draw.text((100, y_sign), f"Prepared By: {marathi_name}", font=font_hand, fill=(10, 40, 150))
+            
+            sign_file = f"signatures/{sel_aud}.png"
+            if os.path.exists(sign_file):
+                s_img = Image.open(sign_file).resize((180, 90))
+                paper.paste(s_img, (800, y_sign), s_img if s_img.mode == 'RGBA' else None)
+
+            # Fold & Dusty Effect
+            paper_arr = np.array(paper)
+            noise = np.random.randint(0, 12, paper_arr.shape, dtype='uint8')
+            paper = Image.fromarray(np.clip(paper_arr.astype('int16') - noise, 0, 255).astype('uint8'))
+            
+            output = io.BytesIO()
+            paper.save(output, format="PDF")
+            st.download_button("📥 Download Scanned JMS", output.getvalue(), f"JMS_{sel_pid}.pdf")
+
 
