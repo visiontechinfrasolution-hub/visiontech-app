@@ -339,11 +339,9 @@ else:
 
         def update_wcc_record(payload):
             try: 
-                # डेटा पाठवण्यापूर्वी तो रिकाम्या जागांशिवाय आहे का ते तपासणे
                 res = supabase.table("WCC Status").upsert(payload).execute()
                 return res
             except Exception as e:
-                # जर सुपॅबेसने नकार दिला तर इथे मेसेज येईल
                 st.error(f"SUPABASE ERROR: {str(e)}")
                 return None
 
@@ -384,28 +382,31 @@ else:
                     
                     if st.form_submit_button("💾 Save Changes", use_container_width=True):
                         if not v_pid or v_pid.strip() == "":
-                            st.warning("Project ID टाका, त्याशिवाय सेव्ह होणार नाही!")
+                            st.warning("Project ID is mandatory!")
                         else:
+                            # Numeric fields handle करण्यासाठी मदत: जर रिकांमे असेल तर None पाठवणे
+                            def to_num(val):
+                                val = str(val).strip()
+                                return val if val != "" else None
+
                             payload = {
                                 "Project ID": v_pid.strip(),
-                                "WCC Number": v_wno.strip() if v_wno else ""
+                                "WCC Number": to_num(v_wno)
                             }
                             if role == "requester": 
                                 payload.update({
                                     "Project": v_proj, 
                                     "Site ID": v_sid, 
                                     "Site Name": v_snm, 
-                                    "PO Number": v_po, 
+                                    "PO Number": to_num(v_po), 
                                     "Reqeust Date": str(v_dt), 
                                     "WCC Status": v_sts
                                 })
                             
                             response = update_wcc_record(payload)
                             if response:
-                                st.success("Data Updated Successfully!")
+                                st.success("Data Saved!")
                                 st.rerun()
-                            else:
-                                st.error("Data Save होऊ शकला नाही. कृपया इंटरनेट कनेक्शन किंवा सुपॅबेस तपासा.")
 
             data_list = fetch_wcc_data_simple()
             df_wcc = pd.DataFrame(data_list)[::-1] if data_list else pd.DataFrame()
