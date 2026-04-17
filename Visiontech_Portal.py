@@ -9,8 +9,6 @@ from email.mime.text import MIMEText
 import requests
 import json
 import time
-from fpdf import FPDF
-import io
 
 # --- 1. CONNECTION ---
 URL = "https://sckyflvukpmdqmdzjzhs.supabase.co"
