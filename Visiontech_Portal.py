@@ -478,7 +478,7 @@ else:
     # =====================================================================
     # 📁 TAB 6: DATA ENTRY (Working Code)
     # =====================================================================
-    elif st.session_state.current_page == "Data":
+        elif st.session_state.current_page == "Data":
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center & Tracker</h3>", unsafe_allow_html=True)
         def fetch_doc_data():
             try: return supabase.table("Document_Tracker").select("*").execute().data
