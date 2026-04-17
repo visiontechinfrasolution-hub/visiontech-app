@@ -3,6 +3,7 @@ from supabase import create_client
 
 # Modular Pages Import
 # आपण इथे 'jms_generator' नवीन ॲड केला आहे
+import jms_generator
 from pages_code import (
     boq_report, po_report, site_detail, indus_data, 
     wcc_tracker, data_entry, finance_entry, 
