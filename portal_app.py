@@ -2,12 +2,12 @@ import streamlit as st
 from supabase import create_client
 
 # Modular Pages Import
-# आपण इथे 'jms_generator' नवीन ॲड केला आहे
-import jms_generator
+# टीप: आपण jms_generator थेट रिपॉझिटरीमधून इंपोर्ट करतोय
+import jms_generator 
 from pages_code import (
     boq_report, po_report, site_detail, indus_data, 
     wcc_tracker, data_entry, finance_entry, 
-    audit_portal, rfai_billing, jms_generator
+    audit_portal, rfai_billing
 )
 
 # --- 1. CONNECTION ---
@@ -80,7 +80,6 @@ if st.session_state.current_page == "Dashboard":
         if st.button("🏗️\nSite Detail"): navigate_to("Site")
         if st.button("📁\nData Entry"): navigate_to("Data")
         if st.button("📢\nRFAI Billing"): navigate_to("RFAI")
-        # 👇 हे नवीन बटण जे आपण ॲड केलं आहे
         if st.button("📄\nJMS Generator"): navigate_to("JMS")
 
 # --- 5. PAGE ROUTING ---
@@ -93,5 +92,5 @@ elif st.session_state.current_page == "Data": data_entry.show(supabase, URL)
 elif st.session_state.current_page == "Finance": finance_entry.show(supabase)
 elif st.session_state.current_page == "Audit": audit_portal.show(supabase)
 elif st.session_state.current_page == "RFAI": rfai_billing.show(supabase)
-# 👇 हे महत्त्वाचे: नवीन JMS पेज इथून लोड होईल
+# 👇 हे इथून लोड होईल
 elif st.session_state.current_page == "JMS": jms_generator.show(supabase)
