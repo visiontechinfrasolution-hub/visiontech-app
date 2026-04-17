@@ -175,19 +175,12 @@ else:
     st.divider()
 
     # =====================================================================
-    # 🟩 TAB 1: BOQ REPORT (Clean & Modern Version)
+    # 🟩 TAB 1: BOQ REPORT (Indentation Fixed)
     # =====================================================================
-        elif st.session_state.current_page == "BOQ":
+    elif st.session_state.current_page == "BOQ":
         st.markdown("""
             <style>
-                /* Table Custom Styling */
-                [data-testid="stDataFrame"] {
-                    border: 2px solid #1E3A8A;
-                    border-radius: 12px;
-                    overflow: hidden;
-                    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-                }
-                /* Big Search Button Styling */
+                [data-testid="stDataFrame"] { border: 2px solid #1E3A8A; border-radius: 12px; }
                 .stButton button {
                     height: 55px !important;
                     font-size: 20px !important;
@@ -195,97 +188,59 @@ else:
                     background-color: #1E3A8A !important;
                     color: white !important;
                     border-radius: 10px !important;
-                    border: none !important;
-                    transition: 0.3s;
-                }
-                .stButton button:hover {
-                    background-color: #2563EB !important;
-                    transform: scale(1.02);
-                }
-                /* Title Styling */
-                .main-title {
-                    text-align: center;
-                    color: #1E3A8A;
-                    font-weight: 800;
-                    font-size: 32px;
-                    margin-bottom: 20px;
-                    text-transform: uppercase;
-                    letter-spacing: 2px;
                 }
             </style>
         """, unsafe_allow_html=True)
 
-        st.markdown("<div class='main-title'>🔍 Visiontech Infra Solutions</div>", unsafe_allow_html=True)
+        st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🔍 Visiontech Infra Solutions</h3>", unsafe_allow_html=True)
         
         mera_sequence = ['Sr. No.', 'Site ID', 'Product', 'Transaction Type', 'Issue From', 'Project Number', 'BOQ', 'Item Code', 'Item Description', 'Qty A', 'Qty B', 'Qty C', 'Dispatch Date', 'Parent/Child', 'Line Status', 'Transporter', 'TSP Partner Name', 'LR Number', 'Vehicle Number', 'Challan Number', 'BOQ Date', 'Department', 'Item Category', 'Source Of Fulfilment']
 
         if 'cleared' not in st.session_state:
             st.session_state.cleared = False
 
-        # --- Search Form (Simplified) ---
         with st.form("search_form", clear_on_submit=st.session_state.cleared):
             c1, c2, c3, c_btn = st.columns([1.5, 1.5, 1.5, 1])
-            
-            with c1: project_query = st.text_input("📁 Project Number", placeholder="Enter Project No.", key="boq_p_v6")
-            with c2: site_query = st.text_input("📍 Site ID", placeholder="Enter Site ID", key="boq_s_v6")
-            with c3: boq_query = st.text_input("📄 BOQ Number", placeholder="Enter BOQ No.", key="boq_b_v6")
-            
+            with c1: project_query = st.text_input("📁 Project Number", key="boq_p_v6")
+            with c2: site_query = st.text_input("📍 Site ID", key="boq_s_v6")
+            with c3: boq_query = st.text_input("📄 BOQ Number", key="boq_b_v6")
             with c_btn:
-                st.write(" ") # For alignment
+                st.write(" ") 
                 submit_search = st.form_submit_button("🔍 SEARCH DATA", use_container_width=True)
                 if submit_search: st.session_state.cleared = False
 
-        st.markdown("---")
+        st.divider()
 
-        # --- Data Fetching Logic ---
         if submit_search:
-            with st.spinner("Fetching Data..."):
-                query = supabase.table("BOQ Report").select("*").limit(50000)
-                
-                if project_query: query = query.ilike("Project Number", f"%{project_query.strip()}%")
-                if site_query: query = query.ilike("Site ID", f"%{site_query.strip()}%")
-                if boq_query: query = query.ilike("BOQ", f"%{boq_query.strip()}%")
-                
-                response = query.execute()
-                
-                if response.data:
-                    df_res = pd.DataFrame(response.data)
-                    
-                    # Number cleaning
-                    qty_cols = ['Qty A', 'Qty B', 'Qty C']
-                    for col in qty_cols:
-                        if col in df_res.columns:
-                            df_res[col] = pd.to_numeric(df_res[col], errors='coerce').fillna(0).astype(int)
+            query = supabase.table("BOQ Report").select("*").limit(50000)
+            if project_query: query = query.ilike("Project Number", f"%{project_query.strip()}%")
+            if site_query: query = query.ilike("Site ID", f"%{site_query.strip()}%")
+            if boq_query: query = query.ilike("BOQ", f"%{boq_query.strip()}%")
+            
+            response = query.execute()
+            if response.data:
+                df_res = pd.DataFrame(response.data)
+                qty_cols = ['Qty A', 'Qty B', 'Qty C']
+                for col in qty_cols:
+                    if col in df_res.columns:
+                        df_res[col] = pd.to_numeric(df_res[col], errors='coerce').fillna(0).astype(int)
 
-                    # Grouping Logic
-                    if 'Item Code' in df_res.columns:
-                        df_res['TempKey'] = df_res.apply(lambda x: x['Sr. No.'] if str(x['Item Code']).strip() == '' else x['Item Code'], axis=1)
-                        agg_dict = {col: 'sum' if col in qty_cols else 'first' for col in df_res.columns if col not in ['TempKey']}
-                        df_res = df_res.groupby('TempKey', as_index=False).agg(agg_dict)
+                if 'Item Code' in df_res.columns:
+                    df_res['TempKey'] = df_res.apply(lambda x: x['Sr. No.'] if str(x['Item Code']).strip() == '' else x['Item Code'], axis=1)
+                    agg_dict = {col: 'sum' if col in qty_cols else 'first' for col in df_res.columns if col not in ['TempKey']}
+                    df_res = df_res.groupby('TempKey', as_index=False).agg(agg_dict)
 
-                    # Date Formatting
-                    for col in ['Dispatch Date', 'BOQ Date']:
-                        if col in df_res.columns:
-                            df_res[col] = pd.to_datetime(df_res[col], errors='coerce').dt.strftime('%d-%b-%Y')
+                for col in ['Dispatch Date', 'BOQ Date']:
+                    if col in df_res.columns:
+                        df_res[col] = pd.to_datetime(df_res[col], errors='coerce').dt.strftime('%d-%b-%Y')
 
-                    df_res = df_res.fillna('').astype(str).replace(['None', 'nan', 'NULL', 'NaT'], '')
-                    st.session_state['boq_df'] = df_res
-                else:
-                    st.warning("No data found for the given search criteria.")
-                    st.session_state.pop('boq_df', None)
+                df_res = df_res.fillna('').astype(str).replace(['None', 'nan', 'NULL', 'NaT'], '')
+                st.session_state['boq_df'] = df_res
 
-        # --- Display Data Table ---
         if 'boq_df' in st.session_state:
             df = st.session_state['boq_df']
             final_cols = [c for c in mera_sequence if c in df.columns]
-            
-            # Larger Display Height
-            st.dataframe(
-                df[final_cols], 
-                use_container_width=True, 
-                hide_index=True,
-                height=600 # Big size for better visibility
-            )
+            st.dataframe(df[final_cols], use_container_width=True, hide_index=True, height=600)
 
     # =====================================================================
     # 🧾 TAB 2: PO REPORT
