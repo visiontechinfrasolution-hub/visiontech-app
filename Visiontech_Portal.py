@@ -272,106 +272,25 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                 res_sd = supabase.table("Site Data").select("*").ilike("SITE ID", f"%{site_id_sd}%").execute()
                 if res_sd.data: st.write(res_sd.data)
 
-    # =====================================================================
-# 📊 TAB 4: INDUS BASIC DATA (Fully Restored with Actions)
 # =====================================================================
-with tab4:
-    st.markdown("""
-        <style>
-            .indus-card {
-                background-color: #f8f9fa;
-                border-left: 5px solid #1E3A8A;
-                padding: 15px;
-                border-radius: 8px;
-                margin-bottom: 15px;
-                box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
-            }
-            .call-btn {
-                background-color: #1E3A8A;
-                color: white !important;
-                padding: 8px 15px;
-                border-radius: 5px;
-                text-decoration: none;
-                font-weight: bold;
-                display: inline-block;
-                margin-right: 10px;
-                font-size: 13px;
-            }
-            .wa-btn-indus {
-                background-color: #25D366;
-                color: white !important;
-                padding: 8px 15px;
-                border-radius: 5px;
-                text-decoration: none;
-                font-weight: bold;
-                display: inline-block;
-                font-size: 13px;
-            }
-            .dir-btn {
-                background-color: #EA4335;
-                color: white !important;
-                padding: 8px 15px;
-                border-radius: 5px;
-                text-decoration: none;
-                font-weight: bold;
-                display: inline-block;
-                font-size: 13px;
-            }
-        </style>
-    """, unsafe_allow_html=True)
 
-    st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>📊 Indus Basic Data</h3>", unsafe_allow_html=True)
-    
-    with st.form("ind_form_v_final"):
-        i1, i2 = st.columns(2)
-        with i1: in_id = st.text_input("📍 Site ID Search", placeholder="Enter Site ID...")
-        with i2: st.write(""); sub_ind = st.form_submit_button("🔍 Search Indus Details")
+    # 📊 TAB 4: INDUS BASIC DATA
 
-    if sub_ind and in_id:
-        res_ind = supabase.table("Indus Data").select("*").ilike("Site ID", f"%{in_id.strip()}%").execute()
-        
-        if res_ind.data:
-            st.success(f"Found {len(res_ind.data)} Records")
-            for row in res_ind.data:
-                s_id = row.get('Site ID', '')
-                s_nm = row.get('Site Name', '')
-                f_nm = row.get('Tech Name', row.get('Field Engineer', 'N/A'))
-                f_no = row.get('Tech Number', row.get('FE Number', ''))
-                cluster = row.get('Cluster', row.get('Area Name', 'N/A'))
-                route = row.get('Route Plan', 'No Route Info')
-                lat, lon = row.get('Lat', ''), row.get('Long', '')
+    # =====================================================================
 
-                # कार्ड डिस्प्ले
-                st.markdown(f"""
-                    <div class="indus-card">
-                        <h4 style="margin:0;">📍 {s_id} - {s_nm}</h4>
-                        <p style="margin:5px 0;"><b>Area/Cluster:</b> {cluster} | <b>Route:</b> {route}</p>
-                        <p style="margin:5px 0;"><b>Engineer:</b> {f_nm} ({f_no})</p>
-                    </div>
-                """, unsafe_allow_html=True)
-                
-                # अ‍ॅक्शन बटन्स
-                btn_c1, btn_c2, btn_c3 = st.columns([1, 1, 1.5])
-                with btn_c1:
-                    if f_no and str(f_no).strip() not in ['-', 'None', '']:
-                        st.markdown(f'<a href="tel:{f_no}" class="call-btn">📞 Call Engineer</a>', unsafe_allow_html=True)
-                with btn_c2:
-                    if f_no and str(f_no).strip() not in ['-', 'None', '']:
-                        wa_msg = urllib.parse.quote(f"Hello {f_nm},\nRegarding Indus Site: {s_id} ({s_nm})...")
-                        st.markdown(f'<a href="https://wa.me/91{f_no}?text={wa_msg}" class="wa-btn-indus">💬 WhatsApp</a>', unsafe_allow_html=True)
-                with btn_c3:
-                    if lat and lon and str(lat).strip() not in ['-', 'None', '']:
-                        maps_url = f"https://www.google.com/maps/search/?api=1&query={lat},{lon}"
-                        st.markdown(f'<a href="{maps_url}" target="_blank" class="dir-btn">📍 Google Maps</a>', unsafe_allow_html=True)
-                st.divider()
-        else:
-            st.error("Site ID not found in Indus Database.")
+    elif st.session_state.current_page == "Indus":
 
-    # --- Route Planner Section (मूळ लॉजिक तसेच ठेवले आहे) ---
-    st.markdown("### 🧭 Route Planner")
-    with st.expander("🛠️ Open Route Settings", expanded=False):
-        # ... (येथे तुमचे वरचे Route Plan चे लॉजिक तसेच चालू राहील)
-        st.info("Use the search above to find details, or use the route planner below for multiple sites.")
+        st.markdown("<h3 style='text-align: center;'>📊 Indus Basic Data</h3>", unsafe_allow_html=True)
+
+        with st.form("ind_form_v5"):
+
+            in_id = st.text_input("📍 Site ID Search")
+
+            if st.form_submit_button("🔍 Search Indus"):
+
+                res_ind = supabase.table("Indus Data").select("*").ilike("Site ID", f"%{in_id}%").execute()
+
+                if res_ind.data: st.dataframe(pd.DataFrame(res_ind.data))
 
     # =====================================================================
     # 📡 TAB 5: WCC STATUS
