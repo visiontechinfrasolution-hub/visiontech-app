@@ -170,6 +170,7 @@ if st.session_state.current_page == "Dashboard":
         if st.button("🏗️\nSite Detail"): navigate_to("Site")
         if st.button("📁\nData Entry"): navigate_to("Data")
         if st.button("📢\nRFAI Billing"): navigate_to("RFAI")
+        if st.button("📄\nJMS Generator"): navigate_to("JMS")
 
 # --- PAGES LOGIC ---
 elif st.session_state.current_page != "Dashboard": # लाईन १७० वर 'else' काढून हे टाकले आहे
