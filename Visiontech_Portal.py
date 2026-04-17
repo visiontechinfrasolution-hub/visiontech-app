@@ -981,7 +981,7 @@ elif st.session_state.current_page == "JMS Generator":
 
                         draw.text((100, y+10), desc[:60], font=f_body, fill="black")
                         draw.text((840, y+10), str(int(q1)), font=f_hand, fill="black")
-                        draw.text((1020, y+10), str(int(q2)), font=font_hand, fill="black")
+                        draw.text((1020, y+10), str(int(q2)), font=f_hand, fill="black")
 
                         # RULE: Mismatch = RED ROUND | Match = GREEN TICK
                         if q1 != q2: draw.ellipse([820, y, 890, y+40], outline="red", width=3)
