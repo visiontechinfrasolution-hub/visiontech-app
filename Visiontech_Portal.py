@@ -376,22 +376,24 @@ else:
                         v_sts = st.selectbox("WCC Status", ["Creation Pending", "Pending for Approval", "Proceed", "Rejected", "Cancel"], 
                                              index=0 if not is_edit else ["Creation Pending", "Pending for Approval", "Proceed", "Rejected", "Cancel"].index(row_data.get("WCC Status", "Creation Pending")))
                         v_wno = st.text_input("WCC Number", value=str(row_data.get("WCC Number", "")) if is_edit else "")
+                        v_rem = st.text_area("Remark", value=str(row_data.get("Remark", "")) if is_edit else "")
                     else:
                         v_pid = row_data.get('Project ID')
                         v_wno = st.text_input("Enter/Update WCC Number", value=str(row_data.get("WCC Number", "")) if is_edit else "")
+                        v_rem = st.text_area("Remark", value=str(row_data.get("Remark", "")) if is_edit else "")
                     
                     if st.form_submit_button("💾 Save Changes", use_container_width=True):
                         if not v_pid or v_pid.strip() == "":
                             st.warning("Project ID is mandatory!")
                         else:
-                            # Numeric fields handle करण्यासाठी मदत: जर रिकांमे असेल तर None पाठवणे
                             def to_num(val):
                                 val = str(val).strip()
                                 return val if val != "" else None
 
                             payload = {
                                 "Project ID": v_pid.strip(),
-                                "WCC Number": to_num(v_wno)
+                                "WCC Number": to_num(v_wno),
+                                "Remark": v_rem
                             }
                             if role == "requester": 
                                 payload.update({
@@ -418,18 +420,44 @@ else:
                 if not df_wcc.empty:
                     excel_data = df_wcc.to_csv(index=False).encode('utf-8')
                     st.download_button("📥 Download Report", data=excel_data, file_name=f"WCC_Report.csv", mime="text/csv")
+
+            # --- BULK UPDATE SECTION ---
+            with st.expander("🛠️ Bulk Update WCC & Remarks via Excel"):
+                uploaded_file = st.file_uploader("Upload Excel/CSV (Columns: Project ID, PO Number, WCC Number, Remark)", type=["csv", "xlsx"])
+                if uploaded_file:
+                    try:
+                        up_df = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
+                        if st.button("🆙 Start Update Process"):
+                            success_count = 0
+                            for _, up_row in up_df.iterrows():
+                                pid = str(up_row.get('Project ID', '')).strip()
+                                po_no = str(up_row.get('PO Number', '')).strip()
+                                wcc_no = str(up_row.get('WCC Number', '')).strip()
+                                remark = str(up_row.get('Remark', '')).strip()
+
+                                if pid and po_no:
+                                    # Match check against existing data
+                                    match = df_wcc[(df_wcc['Project ID'] == pid) & (df_wcc['PO Number'].astype(str) == po_no)]
+                                    if not match.empty:
+                                        payload = {"Project ID": pid, "WCC Number": wcc_no, "Remark": remark}
+                                        update_wcc_record(payload)
+                                        success_count += 1
+                            st.success(f"Updated {success_count} records successfully!")
+                            st.rerun()
+                    except Exception as e:
+                        st.error(f"Upload Error: {e}")
             
             st.divider()
 
             if not df_wcc.empty:
-                h_cols = st.columns([1, 0.5, 1, 1.2, 1, 1.2, 1, 1, 1.2])
-                cols_names = ["Actions", "Sr.", "Project", "Project ID", "Site ID", "Site Name", "PO No", "WCC No", "Status"]
+                h_cols = st.columns([1, 0.4, 0.8, 1.2, 0.8, 1, 0.8, 0.8, 1, 1])
+                cols_names = ["Actions", "Sr.", "Project", "Project ID", "Site ID", "Site Name", "PO No", "WCC No", "Status", "Remark"]
                 for col, name in zip(h_cols, cols_names):
                     col.markdown(f"<p style='color:#1E3A8A; font-weight:bold; font-size:11px; text-align:center;'>{name}</p>", unsafe_allow_html=True)
                 st.markdown("<hr style='margin:2px 0px; border-top: 2px solid #1E3A8A;'>", unsafe_allow_html=True)
 
                 for i, row in df_wcc.iterrows():
-                    r_cols = st.columns([1, 0.5, 1, 1.2, 1, 1.2, 1, 1, 1.2])
+                    r_cols = st.columns([1, 0.4, 0.8, 1.2, 0.8, 1, 0.8, 0.8, 1, 1])
                     
                     raw_date = row.get('Reqeust Date', '')
                     try:
@@ -470,11 +498,11 @@ else:
                     r_cols[6].markdown(f"<p style='font-size:11px; text-align:center;'>{clean_none(row.get('PO Number'))}</p>", unsafe_allow_html=True)
                     r_cols[7].markdown(f"<p style='font-size:11px; text-align:center; color:#0369A1; font-weight:bold;'>{clean_none(row.get('WCC Number'))}</p>", unsafe_allow_html=True)
                     r_cols[8].markdown(f"<p style='font-size:11px; text-align:center;'>{clean_none(row.get('WCC Status'))}</p>", unsafe_allow_html=True)
+                    r_cols[9].markdown(f"<p style='font-size:10px; color:gray; text-align:center;'>{clean_none(row.get('Remark'))}</p>", unsafe_allow_html=True)
                     st.markdown("<hr style='margin:1px 0px; border-top: 1px solid #E5E7EB;'>", unsafe_allow_html=True)
 
     elif st.session_state.current_page == "Data":
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center & Tracker</h3>", unsafe_allow_html=True)
-
     # =====================================================================
     # 📁 TAB 6: DATA ENTRY (Document Center & Tracker)
     # =====================================================================
