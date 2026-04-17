@@ -420,19 +420,18 @@ else:
                         if b1.button("✏️", key=f"edit_{row['Project ID']}_{i}"): wcc_edit_modal(row)
                         if role == 'requester':
                             msg = (
-                                f"Hello Prkash Ji,\n"
+                                f"*Hello Prkash Ji*,\n"
                                 f"Raise WCC urgently...\n\n"
-                                f"Project :- {clean_none(row.get('Project'))}\n"
-                                f"Project ID :- {clean_none(row.get('Project ID'))}\n"
-                                f"Site ID :- {clean_none(row.get('Site ID'))}\n"
-                                f"Site Name :- {clean_none(row.get('Site Name'))}\n"
-                                f"PO Number :- {clean_none(row.get('PO Number'))}\n"
-                                f"Reqeust Date :- {formatted_date}\n"
-                                f"WCC Number :- {clean_none(row.get('WCC Number'))}\n"
-                                f"WCC Status :- {clean_none(row.get('WCC Status'))}\n\n"
-                                f"Cable Bililg\n\n"
+                                f"*Project* :- {clean_none(row.get('Project'))}\n"
+                                f"*Project ID* :- {clean_none(row.get('Project ID'))}\n"
+                                f"*Site ID* :- {clean_none(row.get('Site ID'))}\n"
+                                f"*Site Name* :- {clean_none(row.get('Site Name'))}\n"
+                                f"*PO Numbe*r :- {clean_none(row.get('PO Number'))}\n"
+                                f"*Reqeust Date* :- {formatted_date}\n"
+                                f"*WCC Numbe*r :- {clean_none(row.get('WCC Number'))}\n"
+                                f"*WCC Status* :- {clean_none(row.get('WCC Status'))}\n\n"
                                 f"Thanks,\n"
-                                f"Mayur Patil\n"
+                                f"*Mayur Patil*\n"
                                 f"7350533473"
                             )
                             # Protocol changed to whatsapp:// to avoid opening new browser tabs
