@@ -911,98 +911,107 @@ elif st.session_state.current_page == "JMS":
     
     # १. डेटा फेचिंग (Supabase)
     try:
-        # तुमच्या मूळ टेबलचे नाव 'VIS Portal Site Data' असल्याची खात्री करा
         site_res = supabase.table("VIS Portal Site Data").select("PROJECT ID, SITE NAME, CLUSTER, SITE ID").execute()
         jms_sites_df = pd.DataFrame(site_res.data)
     except Exception as e:
-        st.error(f"Data Error: {e}")
+        st.error(f"डेटाबेस कनेक्शन एरर: {e}")
         jms_sites_df = pd.DataFrame()
 
     if not jms_sites_df.empty:
         col1, col2 = st.columns(2)
         with col1:
-            sel_pid = st.selectbox("Select Project ID", [""] + jms_sites_df["PROJECT ID"].tolist(), key="jms_pid_unique")
+            sel_pid = st.selectbox("Select Project ID", [""] + jms_sites_df["PROJECT ID"].tolist(), key="jms_pid_unique_v2")
         with col2:
-            # ऑडिटर्सची नावे (तुमच्या signatures/ फोल्डरमधील नावाप्रमाणे)
+            # ऑडिटर्सची नावे
             auditors = ["Rahul Sharma", "Amit Patil", "Saira Quzi", "Prakash Ji"]
-            sel_aud = st.selectbox("Select Auditor", [""] + auditors, key="jms_aud_unique")
+            sel_aud = st.selectbox("Select Auditor", [""] + auditors, key="jms_aud_unique_v2")
         
-        uploaded_tsv = st.file_uploader("Upload export.tsv", type=['tsv'], key="jms_file_unique")
+        uploaded_tsv = st.file_uploader("Upload export.tsv (TSV Format)", type=['tsv', 'txt'], key="jms_file_unique_v2")
 
-        if st.button("🚀 Generate & Download Scanned JMS"):
+        if st.button("🚀 Generate Scanned JMS Copy", use_container_width=True):
             if sel_pid and sel_aud and uploaded_tsv:
-                # TSV वाचणे
-                df_tsv = pd.read_csv(uploaded_tsv, sep='\t', quoting=3, encoding='ISO-8859-1')
-                df_tsv.columns = [str(c).replace('"', '').strip() for c in df_tsv.columns]
-                
-                # साईट माहिती शोधणे
-                site_info = jms_sites_df[jms_sites_df["PROJECT ID"] == sel_pid].iloc[0].to_dict()
-                
-                # --- २. IMAGE GENERATION (Handwritten Look) ---
-                width, height = 1240, 1754
-                paper = Image.new('RGB', (width, height), (255, 255, 255))
-                draw = ImageDraw.Draw(paper)
-
                 try:
-                    # सिस्टिम फॉन्ट्स (खात्री करा की हे तुमच्या सिस्टिमवर आहेत)
-                    font_h1 = ImageFont.truetype("arialbd.ttf", 45)
-                    font_body = ImageFont.truetype("arial.ttf", 25)
-                    font_hand = ImageFont.truetype("courier.ttf", 32)
-                except:
-                    font_h1 = font_body = font_hand = ImageFont.load_default()
+                    # TSV वाचणे
+                    df_tsv = pd.read_csv(uploaded_tsv, sep='\t', quoting=3, encoding='ISO-8859-1')
+                    df_tsv.columns = [str(c).replace('"', '').strip() for c in df_tsv.columns]
+                    
+                    # साईट माहिती शोधणे
+                    site_info = jms_sites_df[jms_sites_df["PROJECT ID"] == sel_pid].iloc[0].to_dict()
+                    
+                    # --- २. IMAGE GENERATION ENGINE ---
+                    width, height = 1240, 1754
+                    paper = Image.new('RGB', (width, height), (255, 255, 255))
+                    draw = ImageDraw.Draw(paper)
 
-                # Header & Details
-                draw.text((320, 80), "VISIONTECH INFRA SOLUTIONS", fill="black", font=font_h1)
-                draw.text((400, 200), "Joint Measurement Sheet", fill="black", font=font_h1)
-                draw.rectangle([80, 280, 1160, 420], outline="black", width=2)
-                draw.text((100, 300), f"Project ID: {sel_pid}  |  Site ID: {site_info.get('SITE ID','')}", fill="black", font=font_body)
-                draw.text((100, 350), f"Site Name: {site_info.get('SITE NAME','')} | Cluster: {site_info.get('CLUSTER','')}", fill="black", font=font_body)
+                    # फॉन्ट लोडिंग
+                    try:
+                        font_h1 = ImageFont.truetype("arialbd.ttf", 45)
+                        font_body = ImageFont.truetype("arial.ttf", 25)
+                        font_hand = ImageFont.truetype("courier.ttf", 32)
+                    except:
+                        font_h1 = font_body = font_hand = ImageFont.load_default()
 
-                # Table Header
-                y = 450
-                draw.rectangle([80, y, 1160, y+60], outline="black", width=2, fill=(240, 240, 240))
-                draw.text((100, y+15), "Description", font=font_body, fill="black")
-                draw.text((820, y+15), "Ord", font=font_body, fill="black")
-                draw.text((1000, y+15), "Del", font=font_body, fill="black")
+                    # Letterhead
+                    draw.text((320, 80), "VISIONTECH INFRA SOLUTIONS", fill="black", font=font_h1)
+                    draw.text((400, 150), "Joint Measurement Sheet", fill="black", font=font_h1)
+                    
+                    # Details Box
+                    draw.rectangle([80, 280, 1160, 420], outline="black", width=2)
+                    draw.text((100, 300), f"Project ID: {sel_pid}  |  Site ID: {site_info.get('SITE ID','')}", fill="black", font=font_body)
+                    draw.text((100, 350), f"Site Name: {site_info.get('SITE NAME','')} | Cluster: {site_info.get('CLUSTER','')}", fill="black", font=font_body)
 
-                # Table Rows & Rules
-                y += 65
-                for i, r in df_tsv.iterrows():
-                    if i > 15: break
-                    desc = " ".join(str(r.get('Description','')).split()[:100])
-                    q1 = float(pd.to_numeric(r.get('Ordered',0), errors='coerce') or 0)
-                    q2 = float(pd.to_numeric(r.get('Requested/Delivered',0), errors='coerce') or 0)
+                    # Table Header
+                    y = 450
+                    draw.rectangle([80, y, 1160, y+60], outline="black", width=2, fill=(240, 240, 240))
+                    draw.text((100, y+15), "Description", font=font_body, fill="black")
+                    draw.text((820, y+15), "Ord", font=font_body, fill="black")
+                    draw.text((1000, y+15), "Del", font=font_body, fill="black")
 
-                    draw.text((100, y+10), desc[:60], font=font_body, fill="black")
-                    draw.text((840, y+10), str(int(q1)), font=font_hand, fill="black")
-                    draw.text((1020, y+10), str(int(q2)), font=font_hand, fill="black")
+                    # Table Rows (Round & Tick Rules)
+                    y += 65
+                    for i, r in df_tsv.iterrows():
+                        if i > 15: break
+                        desc = " ".join(str(r.get('Description','')).split()[:100])
+                        q1 = float(pd.to_numeric(r.get('Ordered',0), errors='coerce') or 0)
+                        q2 = float(pd.to_numeric(r.get('Requested/Delivered',0), errors='coerce') or 0)
 
-                    # ROUND & TICK RULE
-                    if q1 != q2: draw.ellipse([820, y, 890, y+40], outline="red", width=3)
-                    if q1 == q2: draw.line([(1075, y+15), (1085, y+35), (1105, y)], fill="green", width=5)
-                    y += 55
+                        draw.text((100, y+10), desc[:60], font=font_body, fill="black")
+                        draw.text((840, y+10), str(int(q1)), font=font_hand, fill="black")
+                        draw.text((1020, y+10), str(int(q2)), font=font_hand, fill="black")
 
-                # Signatures (Marathi Random Name)
-                y_sign = height - 250
-                m_name = random.choice(["विजय पाटील", "संदीप चव्हाण", "अशोक गाडे", "महेश मोरे"])
-                draw.text((100, y_sign), f"Prepared By: {m_name}", font=font_hand, fill=(10, 40, 150))
+                        # RULE: Mismatch = RED ROUND | Match = GREEN TICK
+                        if q1 != q2: draw.ellipse([820, y, 890, y+40], outline="red", width=3)
+                        if q1 == q2: draw.line([(1075, y+15), (1085, y+35), (1105, y)], fill="green", width=5)
+                        y += 55
+
+                    # Signatures
+                    y_sign = height - 250
+                    m_name = random.choice(["विजय पाटील", "संदीप चव्हाण", "अशोक गाडे", "महेश मोरे"])
+                    draw.text((100, y_sign), f"Prepared By: {m_name}", font=font_hand, fill=(10, 40, 150))
+                    
+                    sign_file = f"signatures/{sel_aud}.png"
+                    if os.path.exists(sign_file):
+                        s_img = Image.open(sign_file).resize((180, 90))
+                        paper.paste(s_img, (800, y_sign), s_img if s_img.mode == 'RGBA' else None)
+                    else:
+                        draw.text((800, y_sign), f"Verified By: {sel_aud}", font=font_hand, fill=(10, 40, 150))
+
+                    # --- ३. SCAN & DUST EFFECT ---
+                    paper_arr = np.array(paper)
+                    noise = np.random.randint(0, 12, paper_arr.shape, dtype='uint8')
+                    paper = Image.fromarray(np.clip(paper_arr.astype('int16') - noise, 0, 255).astype('uint8'))
+                    
+                    # Preview दाखवणे
+                    st.image(paper, caption="JMS Preview (Scanned Look)", use_container_width=True)
+
+                    # PDF Download Button
+                    pdf_out = io.BytesIO()
+                    paper.save(pdf_out, format="PDF")
+                    st.download_button("📥 Download Official JMS PDF", pdf_out.getvalue(), f"JMS_{sel_pid}.pdf", "application/pdf", use_container_width=True)
                 
-                # Auditor Signature from Folder
-                sign_file = f"signatures/{sel_aud}.png"
-                if os.path.exists(sign_file):
-                    s_img = Image.open(sign_file).resize((180, 90))
-                    paper.paste(s_img, (800, y_sign), s_img if s_img.mode == 'RGBA' else None)
-
-                # --- ३. SCAN & FOLD EFFECT ---
-                paper_arr = np.array(paper)
-                noise = np.random.randint(0, 12, paper_arr.shape, dtype='uint8')
-                paper = Image.fromarray(np.clip(paper_arr.astype('int16') - noise, 0, 255).astype('uint8'))
-                
-                # PDF Save
-                output = io.BytesIO()
-                paper.save(output, format="PDF")
-                st.download_button("📥 Download Scanned JMS", output.getvalue(), f"JMS_{sel_pid}.pdf")
+                except Exception as e:
+                    st.error(f"प्रक्रिया करताना चूक झाली: {e}")
             else:
-                st.warning("कृपया Project, Auditor निवडा आणि TSV अपलोड करा!")
+                st.warning("कृपया सर्व रकान्यांची माहिती भरा!")
     else:
-        st.info("डेटाबेसमध्ये कोणतीही माहिती सापडली नाही.")
+        st.info("डेटाबेसमध्ये साईटची माहिती सापडली नाही. कृपया इंटरनेट कनेक्शन तपासा."))
