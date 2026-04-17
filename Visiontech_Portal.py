@@ -177,7 +177,7 @@ else:
     # =====================================================================
     # 🟩 TAB 1: BOQ REPORT (Fixed Indentation)
     # =====================================================================
-        elif st.session_state.current_page == "BOQ":
+      elif st.session_state.current_page == "BOQ":
             st.markdown("""
             <style>
                 [data-testid="stDataFrame"] { border: 2px solid #1E3A8A; border-radius: 12px; }
