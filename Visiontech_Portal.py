@@ -904,13 +904,12 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
             st.dataframe(st.session_state.billing_df[['SITE ID', 'SITE NAME', 'RFAI STATUS', 'WCC NO.']], use_container_width=True, hide_index=True)
 
 # =====================================================================
-    # 📄 PAGE 10: JMS GENERATOR (100% Realistic Scanned Look)
+    # 📄 PAGE 10: JMS GENERATOR (100% Realistic Scanned Look - FIXED)
     # =====================================================================
     elif st.session_state.current_page == "JMS":
         st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>📄 Realistic JMS Generator</h2>", unsafe_allow_html=True)
         
         try:
-            # सुपॅबेसमधून 'VIS Portal Site Data' टेबलचा डेटा फेच करणे
             site_res = supabase.table("VIS Portal Site Data").select('"PROJECT ID", "SITE ID", "SITE NAME", "CLUSTER"').execute()
             jms_sites_df = pd.DataFrame(site_res.data)
         except Exception as e:
@@ -920,80 +919,94 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
         if not jms_sites_df.empty:
             col1, col2 = st.columns(2)
             with col1:
-                sel_pid = st.selectbox("1️⃣ Select Project ID", [""] + jms_sites_df["PROJECT ID"].tolist(), key="final_jms_pid_v10")
+                sel_pid = st.selectbox("1️⃣ Select Project ID", [""] + jms_sites_df["PROJECT ID"].tolist(), key="final_jms_pid_v11")
             with col2:
-                # तुमच्या ऑडिटर्सची लिस्ट
-                auditors = ["Abhijeet Chougule", "Akib Patel", "Amit Kumar Sharma", "Arun D Chavan", "Azeem", "Faruq Khan", "Ejaz Ahmad Karnataka", "Gaurtam Kumar", "Guru Karnataka", "Imran Khan 1 Karnataka", "Imran Khan 2Karnataka"]
-                sel_aud = st.selectbox("2️⃣ Select Auditor Name", [""] + auditors, key="final_jms_aud_v10")
+                auditors = ["Abhijeet Chougule", "Akib Patel", "Amit Kumar Sharma", "Arun D Chavan", "Azeem", "Faruq Khan"]
+                sel_aud = st.selectbox("2️⃣ Select Auditor Name", [""] + auditors, key="final_jms_aud_v11")
             
-            st.markdown("---")
-            uploaded_tsv = st.file_uploader("3️⃣ Upload export.tsv", type=['tsv', 'txt'], key="final_jms_file_v10")
+            uploaded_tsv = st.file_uploader("3️⃣ Upload export.tsv", type=['tsv', 'txt'], key="final_jms_file_v11")
 
-            if st.button("🚀 Generate Scanned JMS Copy", use_container_width=True, key="final_jms_btn_v10"):
+            if st.button("🚀 Generate Scanned JMS Copy", use_container_width=True, key="final_jms_btn_v11"):
                 if sel_pid and sel_aud and uploaded_tsv:
                     try:
-                        # TSV फाईल प्रोसेसिंग
                         df_tsv = pd.read_csv(uploaded_tsv, sep='\t', quoting=3, encoding='ISO-8859-1')
                         df_tsv.columns = [str(c).replace('"', '').strip() for c in df_tsv.columns]
                         site_info = jms_sites_df[jms_sites_df["PROJECT ID"] == sel_pid].iloc[0].to_dict()
                         
-                        # --- IMAGE GENERATION ENGINE ---
+                        # --- IMAGE ENGINE ---
                         width, height = 1240, 1754
                         paper = Image.new('RGB', (width, height), (255, 255, 255))
                         draw = ImageDraw.Draw(paper)
                         
                         try:
-                            f_h1 = ImageFont.truetype("arialbd.ttf", 40)
-                            f_body = ImageFont.truetype("arial.ttf", 24)
-                            f_hand = ImageFont.truetype("courier.ttf", 30)
+                            f_h1 = ImageFont.truetype("arialbd.ttf", 45)
+                            f_body = ImageFont.truetype("arial.ttf", 26)
+                            f_hand = ImageFont.truetype("courier.ttf", 32)
                         except:
                             f_h1 = f_body = f_hand = ImageFont.load_default()
 
-                        # Header
-                        draw.text((350, 80), "VISIONTECH INFRA SOLUTIONS", fill="black", font=f_h1)
-                        draw.text((420, 140), "Joint Measurement Sheet", fill="black", font=f_h1)
-                        draw.text((100, 300), f"Project ID: {sel_pid} | Site ID: {site_info.get('SITE ID','')}", fill="black", font=f_body)
+                        # Header & Titles [cite: 3, 4]
+                        draw.text((320, 80), "VISIONTECH INFRA SOLUTIONS", fill="black", font=f_h1)
+                        draw.text((400, 160), "Joint Measurement Sheet", fill="black", font=f_h1)
+                        
+                        # Site Details Section [cite: 1]
+                        draw.rectangle([80, 260, 1160, 400], outline="black", width=3)
+                        draw.text((100, 280), f"Project ID: {sel_pid}  |  Site ID: {site_info.get('SITE ID','')}", fill="black", font=f_body)
+                        draw.text((100, 330), f"Site Name: {site_info.get('SITE NAME','')} | Cluster: {site_info.get('CLUSTER','')}", fill="black", font=f_body)
 
-                        y = 500
+                        # Table Headers
+                        y = 450
+                        draw.rectangle([80, y, 1160, y+60], outline="black", width=2, fill=(230, 230, 230))
+                        draw.text((100, y+15), "Item Description", font=f_body, fill="black")
+                        draw.text((850, y+15), "Ord Qty", font=f_body, fill="black")
+                        draw.text((1030, y+15), "Del Qty", font=f_body, fill="black")
+
+                        # Table Rows logic 
+                        y += 75
                         for i, r in df_tsv.iterrows():
-                            if i > 18: break
+                            if i > 16: break # पानाच्या बाहेर जाऊ नये म्हणून मर्यादा
+                            
                             # Qty NaN handling
                             q1_val = pd.to_numeric(r.get('Ordered', 0), errors='coerce')
                             q1 = float(q1_val) if pd.notnull(q1_val) else 0.0
                             q2_val = pd.to_numeric(r.get('Requested/Delivered', 0), errors='coerce')
                             q2 = float(q2_val) if pd.notnull(q2_val) else 0.0
                             
-                            draw.text((100, y), str(r.get('Description',''))[:55], font=f_body, fill="black")
-                            draw.text((850, y), str(int(q1)), font=f_hand, fill="black")
-                            draw.text((1000, y), str(int(q2)), font=f_hand, fill="black")
+                            # Description cleaning (डिस्क्रिप्शन ७० अक्षरांच्या पुढे तोडणे)
+                            full_desc = str(r.get('Description','')).replace('"', '').strip()
+                            clean_desc = (full_desc[:65] + '..') if len(full_desc) > 65 else full_desc
+                            
+                            # Drawing row elements with fixed spacing
+                            draw.text((100, y), clean_desc, font=f_body, fill="black")
+                            draw.text((880, y), str(int(q1)), font=f_hand, fill="black")
+                            draw.text((1060, y), str(int(q2)), font=f_hand, fill="black")
 
-                            # Round & Tick Rules
-                            if q1 != q2: draw.ellipse([830, y-5, 890, y+35], outline="red", width=3)
-                            if q1 == q2: draw.line([(1050, y+10), (1060, y+30), (1080, y)], fill="green", width=5)
-                            y += 50
+                            # Round & Tick Rules (Handwritten look)
+                            if q1 != q2: draw.ellipse([850, y-5, 950, y+40], outline="red", width=3)
+                            if q1 == q2: draw.line([(1060, y+15), (1075, y+35), (1110, y)], fill="green", width=5)
+                            
+                            # फिकट रेषा (Table Grid)
+                            draw.line([(80, y+50), (1160, y+50)], fill=(200, 200, 200), width=1)
+                            y += 65
 
-                        # Signatures
+                        # Signatures & Scanned Effect [cite: 5, 6]
+                        y_sign = height - 280
                         s_file = f"signatures/{sel_aud}.png"
                         if os.path.exists(s_file):
-                            s_img = Image.open(s_file).convert("RGBA").resize((200, 100))
-                            paper.paste(s_img, (850, height-250), s_img)
+                            s_img = Image.open(s_file).convert("RGBA").resize((220, 110))
+                            paper.paste(s_img, (850, y_sign-40), s_img)
                         
-                        draw.text((100, height-250), f"Prepared By: {random.choice(['विजय पाटील', 'संदीप चव्हाण'])}", font=f_hand, fill=(10, 40, 150))
+                        draw.text((100, y_sign), f"Prepared By: {random.choice(['Abhi Chougule', 'Sandeep Chavan'])}", font=f_hand, fill=(10, 40, 150))
 
-                        # Scanner Noise Effect
+                        # Scanner Noise & Dust Effect
                         p_arr = np.array(paper)
-                        noise = np.random.randint(0, 10, p_arr.shape, dtype='uint8')
+                        noise = np.random.randint(0, 15, p_arr.shape, dtype='uint8')
                         paper = Image.fromarray(np.clip(p_arr.astype('int16') - noise, 0, 255).astype('uint8'))
                         
-                        # Output
-                        st.image(paper, caption="JMS Scanned Look Preview", use_container_width=True)
+                        st.image(paper, caption="Improved JMS Preview", use_container_width=True)
                         
                         pdf_io = io.BytesIO()
                         paper.save(pdf_io, format="PDF")
-                        st.download_button("📥 Download Official JMS PDF", pdf_io.getvalue(), f"JMS_{sel_pid}.pdf", "application/pdf", key="final_jms_dl_v10")
+                        st.download_button("📥 Download Official JMS PDF", pdf_io.getvalue(), f"JMS_{sel_pid}.pdf", "application/pdf", key="final_jms_dl_v11")
                     except Exception as ex:
                         st.error(f"Error: {ex}")
-                else:
-                    st.warning("Please fill all details and upload TSV!")
-        else:
-            st.info("Database not connected. Please check Supabase table 'VIS Portal Site Data'.")
