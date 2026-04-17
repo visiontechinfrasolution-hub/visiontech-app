@@ -476,42 +476,34 @@ else:
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center & Tracker</h3>", unsafe_allow_html=True)
 
     # =====================================================================
-    # 📁 TAB 6: DATA ENTRY (RESTORED CODE)
+    # 📁 TAB 6: DATA ENTRY (Working Code)
     # =====================================================================
     elif st.session_state.current_page == "Data":
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center & Tracker</h3>", unsafe_allow_html=True)
-        
+        def fetch_doc_data():
+            try: return supabase.table("Document_Tracker").select("*").execute().data
+            except: return []
+        def save_doc_entry(data):
+            try: return supabase.table("Document_Tracker").insert(data).execute()
+            except: return None
+
         doc_sub1, doc_sub2, doc_sub3 = st.tabs(["📤 Manager Upload", "🔍 Team Search", "📊 Tracker"])
-        
         with doc_sub1:
-            st.markdown("#### 📂 Upload New Document")
-            with st.form("doc_upload_form", clear_on_submit=True):
-                c1, c2 = st.columns(2)
-                d_proj = c1.selectbox("Project Name", ["Operation", "Maintenance", "I-Tower", "Other"])
-                d_site = c2.text_input("Site ID / Project ID")
-                d_type = st.selectbox("Document Type", ["WCC", "PO", "BOQ", "Invoice", "Approval Letter", "Other"])
-                d_file = st.file_uploader("Choose File", type=['pdf', 'png', 'jpg', 'jpeg', 'xlsx'])
-                if st.form_submit_button("🚀 Upload to Portal"):
-                    if d_site and d_file:
-                        st.success(f"File '{d_file.name}' for {d_site} uploaded successfully! (Simulation)")
-                    else: st.warning("Please fill Site ID and select a file.")
-
+            with st.form("doc_upload_form_final", clear_on_submit=True):
+                c1, c2 = st.columns(2); d_proj = c1.selectbox("Project", ["Operation", "Maintenance", "I-Tower"]); d_site = c2.text_input("Site ID *")
+                c3, d_type = st.columns(2); d_type = d_type.selectbox("Doc Type", ["WCC", "PO", "Invoice"]); d_po = c3.text_input("PO No")
+                if st.form_submit_button("🚀 Save Entry"):
+                    if d_site:
+                        if save_doc_entry({"Date": str(datetime.now().date()), "Project": d_proj, "Site_ID": d_site, "Doc_Type": d_type, "PO_Number": d_po, "Status": "Uploaded"}):
+                            st.success("Saved!"); st.rerun()
+                    else: st.warning("Enter Site ID")
         with doc_sub2:
-            st.markdown("#### 🔍 Search Documents")
-            search_q = st.text_input("Search by Site ID, Project ID or PO Number")
+            search_q = st.text_input("Search Site ID")
             if search_q:
-                st.info(f"Searching records for: {search_q}...")
-                st.write("No matching documents found in Supabase Storage.")
-
+                res = [d for d in fetch_doc_data() if search_q.lower() in str(d.get('Site_ID','')).lower()]
+                st.dataframe(pd.DataFrame(res))
         with doc_sub3:
-            st.markdown("#### 📊 Document Tracker")
-            st.write("Live status of all uploaded documents will appear here.")
-            # Dummy Tracker Table
-            tracker_df = pd.DataFrame([
-                {"Date": "16-Apr-2026", "Site ID": "IN-1270079", "Doc": "WCC", "Status": "Verified"},
-                {"Date": "17-Apr-2026", "Site ID": "IN-6012304", "Doc": "Invoice", "Status": "Pending"}
-            ])
-            st.table(tracker_df)
+            st.dataframe(pd.DataFrame(fetch_doc_data())[::-1], use_container_width=True)
 
     # =====================================================================
     # 🏁 FINAL ELSE: FALLBACK
