@@ -181,7 +181,7 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
     st.divider()
 
 # =====================================================================
-    # 🟩 TAB 1: BOQ REPORT (Balloons, Spinner & Clear Button Added)
+    # 🟩 TAB 1: BOQ REPORT (Full Code: Double Table Filter & Search)
     # =====================================================================
     if st.session_state.current_page == "BOQ":
         st.markdown("""
@@ -196,54 +196,63 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                     border-radius: 12px !important;
                     width: 100% !important;
                 }
-                /* Clear बटनसाठी लाल रंग */
-                div.stButton > button[key="boq_clear_btn"] {
-                    background-color: #ef4444 !important;
+                .table-header { 
+                    background-color: #1E3A8A; 
+                    color: white; 
+                    padding: 10px; 
+                    border-radius: 8px; 
+                    margin-top: 25px; 
+                    text-align: center;
+                    font-weight: bold;
                 }
             </style>
         """, unsafe_allow_html=True)
 
         st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>🔍 Visiontech Infra Solutions</h2>", unsafe_allow_html=True)
         
-        # कॉलमचा ठरवलेला क्रम 
         mera_sequence = ['Sr. No.', 'Site ID', 'Product', 'Transaction Type', 'Issue From', 'Project Number', 'BOQ', 'Item Code', 'Item Description', 'Qty A', 'Qty B', 'Qty C', 'Dispatch Date', 'Parent/Child', 'Line Status', 'Transporter', 'TSP Partner Name', 'LR Number', 'Vehicle Number', 'Challan Number', 'BOQ Date', 'Department', 'Item Category', 'Source Of Fulfilment']
 
         if 'cleared' not in st.session_state:
             st.session_state.cleared = False
 
-        # --- SEARCH FORM ---
+        # --- SEARCH & DATE FILTER FORM ---
         with st.form("search_form_final", clear_on_submit=st.session_state.cleared):
             c1, c2, c3 = st.columns(3)
             with c1: project_query = st.text_input("📁 Project Number", key="boq_p_final")
             with c2: site_query = st.text_input("📍 Site ID", key="boq_s_final")
             with c3: boq_query = st.text_input("📄 BOQ Number", key="boq_b_final")
             
-            # बटन्ससाठी २ कॉलम्स
+            # 📅 तारीख निवडण्याचा नवीन ऑप्शन
+            selected_date = st.date_input("📅 Select Dispatch Date (Optional)", value=None, key="boq_date_final")
+            
             btn_col1, btn_col2 = st.columns(2)
             with btn_col1:
-                submit_search = st.form_submit_button("🔍 SEARCH BOQ DATA")
+                submit_search = st.form_submit_button("🔍 SEARCH & GENERATE TABLES")
             with btn_col2:
-                clear_search = st.form_submit_button("🧹 CLEAR SEARCH")
+                clear_search = st.form_submit_button("🧹 CLEAR ALL")
 
             if submit_search: 
                 st.session_state.cleared = False
 
-            # --- CLEAR SEARCH LOGIC ---
             if clear_search:
-                if 'boq_df' in st.session_state:
-                    del st.session_state['boq_df']
+                if 'boq_df' in st.session_state: del st.session_state['boq_df']
                 st.session_state.cleared = True
                 st.rerun()
 
         st.markdown("---")
 
-        # --- SEARCH LOGIC (Balloons & Spinner) ---
+        # --- SEARCH LOGIC ---
         if submit_search:
-            # सर्च सुरू झाल्यावर फुगे उडवणे
             st.balloons() 
-            
-            with st.spinner('🔍 डेटा शोधत आहे, कृपया थांबा...'):
+            with st.spinner('🔍 डेटा प्रोसेस होत आहे, कृपया थांबा...'):
                 query = supabase.table("BOQ Report").select("*").limit(50000)
+                
+                # जर तारीख निवडली असेल तर आधी तारखेनुसार फिल्टर
+                if selected_date:
+                    filter_date_str = selected_date.strftime('%Y-%m-%d')
+                    query = query.eq("Dispatch Date", filter_date_str)
+                
+                # इतर सर्च फिल्टर्स
                 if project_query: query = query.ilike("Project Number", f"%{project_query.strip()}%")
                 if site_query: query = query.ilike("Site ID", f"%{site_query.strip()}%")
                 if boq_query: query = query.ilike("BOQ", f"%{boq_query.strip()}%")
@@ -251,40 +260,53 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                 response = query.execute()
                 
                 if response.data:
-                    # यश मिळाल्यावर मेसेज 
-                    st.success(f"✅ {len(response.data)} रेकॉर्ड्स सापडले!")
-                    
                     df_res = pd.DataFrame(response.data)
-                    qty_cols = ['Qty A', 'Qty B', 'Qty C']
                     
-                    # Qty कॉलम फॉरमॅटिंग 
+                    # डेटा फॉरमॅटिंग (Qty & Dates)
+                    qty_cols = ['Qty A', 'Qty B', 'Qty C']
                     for col in qty_cols:
                         if col in df_res.columns:
                             df_res[col] = pd.to_numeric(df_res[col], errors='coerce').fillna(0).astype(int)
 
-                    # Parent/Child लॉजिक आणि ग्रुपिंग 
                     if 'Item Code' in df_res.columns:
                         df_res['TempKey'] = df_res.apply(lambda x: x['Sr. No.'] if str(x['Item Code']).strip() == '' else x['Item Code'], axis=1)
                         agg_dict = {col: 'sum' if col in qty_cols else 'first' for col in df_res.columns if col not in ['TempKey']}
                         df_res = df_res.groupby('TempKey', as_index=False).agg(agg_dict)
 
-                    # तारखेचा फॉरमॅट 'DD-Mon-YYYY' मध्ये बदलणे 
+                    # मूळ डेटा राखून ठेवणे (डिस्प्ले फॉरमॅटसह)
+                    df_display = df_res.copy()
                     for col in ['Dispatch Date', 'BOQ Date']:
-                        if col in df_res.columns:
-                            df_res[col] = pd.to_datetime(df_res[col], errors='coerce').dt.strftime('%d-%b-%Y')
+                        if col in df_display.columns:
+                            df_display[col] = pd.to_datetime(df_display[col], errors='coerce').dt.strftime('%d-%b-%Y')
+                    
+                    df_display = df_display.fillna('').astype(str).replace(['None', 'nan', 'NULL', 'NaT'], '')
+                    st.session_state['boq_df'] = df_display
+                    
+                    # 📅 तारीख फॉरमॅट (डिस्प्लेसाठी)
+                    disp_date = selected_date.strftime('%d-%b-%Y') if selected_date else datetime.now().strftime('%d-%b-%Y')
 
-                    df_res = df_res.fillna('').astype(str).replace(['None', 'nan', 'NULL', 'NaT'], '')
-                    st.session_state['boq_df'] = df_res
+                    # --- TABLE 1: Filter by Transporter (Visiontech) ---
+                    df_trans = df_display[df_display['Transporter'].str.contains('visiontech', case=False, na=False)]
+                    st.markdown(f"<div class='table-header'>📦 Dispatch on {disp_date} from Transporter</div>", unsafe_allow_html=True)
+                    if not df_trans.empty:
+                        st.dataframe(df_trans[mera_sequence], use_container_width=True, hide_index=True)
+                    else:
+                        st.info("Transporter मध्ये 'Visiontech' चा डेटा सापडला नाही.")
+
+                    # --- TABLE 2: Filter by TSP Partner Name (Visiontech) ---
+                    df_tsp = df_display[df_display['TSP Partner Name'].str.contains('visiontech', case=False, na=False)]
+                    st.markdown(f"<div class='table-header'>🏗️ Dispatch on {disp_date} from TSP Partner Name</div>", unsafe_allow_html=True)
+                    if not df_tsp.empty:
+                        st.dataframe(df_tsp[mera_sequence], use_container_width=True, hide_index=True)
+                    else:
+                        st.info("TSP Partner Name मध्ये 'Visiontech' चा डेटा सापडला नाही.")
                 else:
                     st.warning("☹️ कोणतीही माहिती सापडली नाही.")
-                    if 'boq_df' in st.session_state:
-                        del st.session_state['boq_df']
+                    if 'boq_df' in st.session_state: del st.session_state['boq_df']
 
-        # --- DISPLAY RESULTS ---
-        if 'boq_df' in st.session_state:
-            df = st.session_state['boq_df']
-            final_cols = [c for c in mera_sequence if c in df.columns]
-            st.dataframe(df[final_cols], use_container_width=True, hide_index=True, height=700)
+        # जर आधीच डेटा सर्च केलेला असेल तर तो दाखवणे
+        elif 'boq_df' in st.session_state and not submit_search:
+            st.info("जुना सर्च रिझल्ट पाहण्यासाठी पुन्हा सर्च करा किंवा 'Clear All' करा.")
     # =====================================================================
     # 🧾 TAB 2: PO REPORT
     # =====================================================================
