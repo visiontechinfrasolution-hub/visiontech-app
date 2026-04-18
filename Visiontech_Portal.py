@@ -181,10 +181,11 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
     st.divider()
 
 # =====================================================================
-    # 🟩 TAB 1: BOQ REPORT (Date Range + Qty Summation + Parent/Child Logic)
+    # 🟩 TAB 1: BOQ REPORT (Project-wise Merging & Batch Fetch)
     # =====================================================================
     if st.session_state.current_page == "BOQ":
         import io
+        import random
 
         st.markdown("""
             <style>
@@ -202,111 +203,112 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
 
         st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>🔍 Visiontech Infra Solutions</h2>", unsafe_allow_html=True)
         
-        # तुमचा ओरिजनल कॉलम सिक्वेन्स
         mera_sequence = ['Sr. No.', 'Site ID', 'Product', 'Transaction Type', 'Issue From', 'Project Number', 'BOQ', 'Item Code', 'Item Description', 'Qty A', 'Qty B', 'Qty C', 'Dispatch Date', 'Parent/Child', 'Line Status', 'Transporter', 'TSP Partner Name', 'LR Number', 'Vehicle Number', 'Challan Number', 'BOQ Date', 'Department', 'Item Category', 'Source Of Fulfilment']
 
-        # --- १. SEARCH FORM (Single Search) ---
-        with st.form("search_form_v24", clear_on_submit=False):
+        # --- १. SEARCH FORM ---
+        with st.form("search_form_v27", clear_on_submit=False):
             st.markdown("#### 🔎 Single Site / Project Search")
             c1, c2, c3 = st.columns(3)
-            with c1: project_query = st.text_input("📁 Project Number", key="boq_p_v24")
-            with c2: site_query = st.text_input("📍 Site ID", key="boq_s_v24")
-            with c3: boq_query = st.text_input("📄 BOQ Number", key="boq_b_v24")
+            with c1: project_query = st.text_input("📁 Project Number", key="boq_p_v27")
+            with c2: site_query = st.text_input("📍 Site ID", key="boq_s_v27")
+            with c3: boq_query = st.text_input("📄 BOQ Number", key="boq_b_v27")
             submit_search = st.form_submit_button("🔍 SEARCH SINGLE DATA")
 
         # --- २. DATE RANGE FILTER FORM ---
         st.markdown("---")
-        with st.form("date_range_filter_v24"):
+        with st.form("date_range_filter_v27"):
             st.markdown("#### 📅 Date Range Dispatch Reports")
             c_from, c_to, c_btn = st.columns([1.5, 1.5, 1])
             with c_from: start_date = st.date_input("From Date", value=datetime.now().date())
             with c_to: end_date = st.date_input("To Date", value=datetime.now().date())
             with c_btn: btn_range_gen = st.form_submit_button("🚀 GENERATE DATA")
 
-        # --- ३. डेटा प्रोसेसिंग फंक्शन (तुमचा जुना Qty आणि Parent लॉजिक) ---
+        # --- ३. सुधारित डेटा प्रोसेसिंग फंक्शन (Project ID + Item Code Logic) ---
         def process_boq_data(raw_data):
             if not raw_data: return pd.DataFrame()
-            
             df_res = pd.DataFrame(raw_data)
-            qty_cols = ['Qty A', 'Qty B', 'Qty C']
+            df_res.columns = [str(c).strip() for c in df_res.columns]
             
-            # १. Qty कॉलम्सना नंबरमध्ये बदलणे
+            qty_cols = ['Qty A', 'Qty B', 'Qty C']
             for col in qty_cols:
                 if col in df_res.columns:
                     df_res[col] = pd.to_numeric(df_res[col], errors='coerce').fillna(0).astype(int)
-
-            # २. Item Code नुसार ग्रुपिंग आणि Qty ची बेरीज (तुमचे जुने लॉजिक)
-            if 'Item Code' in df_res.columns:
-                # रिकाम्या Item Code साठी Sr. No. वापरणे
-                df_res['TempKey'] = df_res.apply(lambda x: x['Sr. No.'] if str(x['Item Code']).strip() == '' else x['Item Code'], axis=1)
+            
+            # Project Number आणि Item Code नुसार ग्रुपिंग 
+            if 'Item Code' in df_res.columns and 'Project Number' in df_res.columns:
+                df_res['TempKey'] = df_res.apply(lambda x: x.get('Sr. No.', random.random()) if str(x.get('Item Code','')).strip() == '' else x['Item Code'], axis=1)
                 
-                # अ‍ॅग्रीगेशन डिक्शनरी: Qty ची बेरीज करा, बाकीचे पहिले व्हॅल्यू ठेवा
-                agg_dict = {col: 'sum' if col in qty_cols else 'first' for col in df_res.columns if col not in ['TempKey']}
-                df_res = df_res.groupby('TempKey', as_index=False).agg(agg_dict)
-
-            # ३. तारखेचा फॉरमॅट '18-Apr-2026' मध्ये बदलणे
+                # अ‍ॅग्रीगेशन: फक्त एकाच प्रोजेक्टमधील सारखे आयटम मर्ज होतील 
+                agg_dict = {col: 'sum' if col in qty_cols else 'first' for col in df_res.columns if col not in ['Project Number', 'TempKey']}
+                df_res = df_res.groupby(['Project Number', 'TempKey'], as_index=False).agg(agg_dict)
+            
             for col in ['Dispatch Date', 'BOQ Date']:
                 if col in df_res.columns:
                     df_res[col] = pd.to_datetime(df_res[col], errors='coerce').dt.strftime('%d-%b-%Y')
+            
+            return df_res.fillna('').astype(str).replace(['None', 'nan', 'NULL', 'NaT'], '')
 
-            # ४. क्लीनअप (None/NaN काढणे)
-            df_res = df_res.fillna('').astype(str).replace(['None', 'nan', 'NULL', 'NaT'], '')
-            return df_res
+        # --- ४. BATCH FETCH (Timeout एरर फिक्स करण्यासाठी) ---
+        def fetch_complete_data(query_builder):
+            all_records = []
+            page_size = 1000 
+            offset = 0
+            while True:
+                response = query_builder.range(offset, offset + page_size - 1).execute()
+                batch = response.data
+                if not batch: break
+                all_records.extend(batch)
+                if len(batch) < page_size: break
+                offset += page_size
+            return all_records
 
-        # --- ४. EXECUTION: SINGLE SEARCH ---
+        # --- ५. EXECUTION ---
         if submit_search:
             st.balloons()
-            with st.spinner('डेटा शोधत आहे...'):
-                query = supabase.table("BOQ Report").select("*").limit(1000)
+            with st.spinner('शोधत आहे...'):
+                query = supabase.table("BOQ Report").select("*")
                 if project_query: query = query.ilike("Project Number", f"%{project_query.strip()}%")
                 if site_query: query = query.ilike("Site ID", f"%{site_query.strip()}%")
                 if boq_query: query = query.ilike("BOQ", f"%{boq_query.strip()}%")
                 
-                res = query.execute()
-                df_final = process_boq_data(res.data)
-                
+                data = fetch_complete_data(query)
+                df_final = process_boq_data(data)
                 if not df_final.empty:
                     st.success(f"✅ {len(df_final)} Records Found!")
                     st.dataframe(df_final[[c for c in mera_sequence if c in df_final.columns]], use_container_width=True, hide_index=True)
-                else: st.warning("कोणतीही माहिती सापडली नाही.")
 
-        # --- ५. EXECUTION: DATE RANGE DOUBLE TABLES ---
         if btn_range_gen:
             st.balloons()
             delta = end_date - start_date
-            # निवडलेल्या कालावधीतील तारखांची लिस्ट 'DD-Mon-YYYY' फॉरमॅटमध्ये
             date_list = [(start_date + timedelta(days=i)).strftime('%d-%b-%Y') for i in range(delta.days + 1)]
             
-            with st.spinner('रिपोर्ट तयार होत आहे...'):
+            with st.spinner('संपूर्ण डेटा फेच होत आहे...'):
                 try:
-                    # 'in' ऑपरेटरने डेटा ओढणे
-                    res = supabase.table("BOQ Report").select("*").in_('"Dispatch Date"', date_list).execute()
+                    query = supabase.table("BOQ Report").select("*").in_('"Dispatch Date"', date_list)
+                    data = fetch_complete_data(query)
                     
-                    if res.data:
-                        # जुन्या लॉजिकनुसार डेटा प्रोसेस करणे
-                        df_processed = process_boq_data(res.data)
+                    if data:
+                        df_processed = process_boq_data(data)
                         
-                        # --- Table 1: Transporter (Visiontech) ---
+                        # --- Table 1: Transporter (Flexible Search) ---
                         df_trans = df_processed[df_processed['Transporter'].astype(str).str.contains('Visiotech|Visiontech', case=False, na=False)]
                         st.markdown(f"<div class='table-header'>📦 Transporter Dispatch Report ({start_date.strftime('%d-%b')} to {end_date.strftime('%d-%b')})</div>", unsafe_allow_html=True)
                         if not df_trans.empty:
                             buffer1 = io.BytesIO()
                             with pd.ExcelWriter(buffer1, engine='xlsxwriter') as writer:
                                 df_trans[[c for c in mera_sequence if c in df_trans.columns]].to_excel(writer, index=False, sheet_name='Transporter')
-                            st.download_button(label="📥 Download Transporter Excel", data=buffer1.getvalue(), file_name=f"Transporter_{start_date}_to_{end_date}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="dl_v24_t1")
+                            st.download_button(label="📥 Download Transporter Excel", data=buffer1.getvalue(), file_name=f"Transporter_{start_date}_to_{end_date}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="dl_f27_t1")
                             st.dataframe(df_trans[[c for c in mera_sequence if c in df_trans.columns]], use_container_width=True, hide_index=True)
-                        else: st.info("या कालावधीत Transporter डेटा उपलब्ध नाही.")
 
-                        # --- Table 2: TSP Partner (Visiontech) ---
-                        df_tsp = df_processed[df_processed['TSP Partner Name'].astype(str).str.contains('Visiontech', case=False, na=False)]
+                        # --- Table 2: TSP Partner (Flexible Search) ---
+                        df_tsp = df_processed[df_processed['TSP Partner Name'].astype(str).str.contains('Visiotech|Visiontech', case=False, na=False)]
                         st.markdown(f"<div class='table-header'>🏗️ TSP Partner Dispatch Report ({start_date.strftime('%d-%b')} to {end_date.strftime('%d-%b')})</div>", unsafe_allow_html=True)
                         if not df_tsp.empty:
                             buffer2 = io.BytesIO()
                             with pd.ExcelWriter(buffer2, engine='xlsxwriter') as writer:
                                 df_tsp[[c for c in mera_sequence if c in df_tsp.columns]].to_excel(writer, index=False, sheet_name='TSP_Partner')
-                            st.download_button(label="📥 Download TSP Partner Excel", data=buffer2.getvalue(), file_name=f"TSP_{start_date}_to_{end_date}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="dl_v24_t2")
+                            st.download_button(label="📥 Download TSP Partner Excel", data=buffer2.getvalue(), file_name=f"TSP_{start_date}_to_{end_date}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="dl_f27_t2")
                             st.dataframe(df_tsp[[c for c in mera_sequence if c in df_tsp.columns]], use_container_width=True, hide_index=True)
-                        else: st.info("या कालावधीत TSP Partner डेटा उपलब्ध नाही.")
                     else:
                         st.error(f"☹️ निवडलेल्या कालावधीत कोणताही डेटा सापडला नाही.")
                 except Exception as e:
