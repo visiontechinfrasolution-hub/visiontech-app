@@ -691,13 +691,17 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
     elif st.session_state.current_page == "Data":
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center & Tracker</h3>", unsafe_allow_html=True)
     # =====================================================================
-    # 🏗️ TAB 6: DATA ENTRY (Document Center & Tracker) - FORCED DISPLAY
+    # 🏗️ TAB 6: DATA ENTRY (Document Center & Tracker) - FINAL MASTER
     # =====================================================================
-    # 'in' keyword use kiya hai taaki agar sidebar mein emoji ya space ho toh bhi load ho jaye
-    elif "Data" in str(st.session_state.current_page) or "Entry" in str(st.session_state.current_page):
+    
+    # Debug line: Isse screen par dikhega ki sidebar mein kya select hai
+    # st.sidebar.write(f"DEBUG: Current Page is '{st.session_state.current_page}'")
+
+    # Humne 'in' use kiya hai taaki Emoji ya Space ki galti pakdi jaye
+    if "Data" in str(st.session_state.current_page) or "Entry" in str(st.session_state.current_page):
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center & Tracker</h3>", unsafe_allow_html=True)
         
-        # Aapka Original 3-Tab Logic jo aapne bheja tha
+        # Wahi 3-Tab Logic jo aapne bheja tha
         doc_sub1, doc_sub2, doc_sub3 = st.tabs(["📤 Manager Upload", "🔍 Team Search", "📊 Tracker"])
         
         with doc_sub1:
@@ -723,10 +727,10 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                                     file_options={"x-upsert": "true"}
                                 )
                                 
-                                # URL variable must be defined at the top of your file
+                                # Use your defined URL variable
                                 p_url = f"{URL}/storage/v1/object/public/site_documents/{fname}"
                                 
-                                # Master Table Upsert
+                                # Database Master Upsert
                                 supabase.table("site_documents_master").upsert({
                                     "project_number": u_proj, 
                                     "indus_id": u_indus, 
@@ -739,7 +743,7 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                             st.success("✅ Files Uploaded & Master Updated!")
                             st.rerun()
                         except Exception as e:
-                            st.error(f"❌ Upload Error: {e}")
+                            st.error(f"❌ Error: {e}")
                     else:
                         st.warning("⚠️ Files aur Project Number dalna zaroori hai!")
 
