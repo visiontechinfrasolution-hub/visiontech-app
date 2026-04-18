@@ -694,7 +694,7 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
     # 🟦 TAB 6: DATA ENTRY (Document Center & Tracker) - STRICT FIX
     # =====================================================================
     # 'in' keyword use kiya hai taaki agar sidebar mein emoji ya space ho toh bhi load ho jaye
-    elif "Data Entry" in st.session_state.current_page or "Entry" in st.session_state.current_page:
+    def show_data_entry_page():
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center & Tracker</h3>", unsafe_allow_html=True)
 
         with st.form("src_dc_upload_form", clear_on_submit=True):
@@ -729,7 +729,7 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                 else:
                     st.warning("⚠️ Please fill Site ID, DC Number and Date.")
 
-        # --- Tracker Table View ---
+        # --- LIVE TRACKER VIEW ---
         st.markdown("---")
         t_search = st.text_input("🔍 Search Tracker...", key="dc_search_unique")
         
@@ -749,11 +749,17 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                     hide_index=True
                 )
         except:
-            st.info("Tracker data fetch error or table empty.")
+            st.info("Tracker database check failed or empty.")
 
         if st.button("🗑️ Clear Tracker Database", use_container_width=True):
             supabase.table("src_dc_tracker").delete().neq("site_id", "STRICT_EMPTY").execute()
             st.rerun()
+
+    # --- FORCED ROUTING LOGIC ---
+    # Agar sidebar se koi bhi milti-julti value aaye, toh page dikhao
+    current = str(st.session_state.current_page).lower()
+    if "data" in current or "entry" in current or "document" in current or "tracker" in current:
+        show_data_entry_page()
     # =====================================================================
     # 💰 TAB 1: FINANCE ENTRY (Baaki code same rahega)
     # =====================================================================
