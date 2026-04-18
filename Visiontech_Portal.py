@@ -772,66 +772,10 @@ if st.button("🗑️ Clear Tracker Database", use_container_width=True):
     except Exception as e:
         st.error(f"Failed to clear: {e}")
 
-    # =====================================================================
-    # 🟦 TAB 6: DATA ENTRY (Document Center & Tracker) - 0% Logic Change
-    # =====================================================================
-    elif st.session_state.current_page == "Data Entry":
-        st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>📄 Document Center & SRC-DC Tracker</h3>", unsafe_allow_html=True)
-
-        with st.form("src_dc_upload_form", clear_on_submit=True):
-            st.markdown("##### 📥 Upload SRC-DC Details")
-            col1, col2, col3 = st.columns(3)
-            
-            f_site_id = col1.text_input("📍 Site ID")
-            f_dc_no = col2.text_input("📝 DC Number")
-            f_dc_date = col3.date_input("📅 DC Date", value=None)
-            
-            f_remarks = st.text_area("💬 Remarks (Optional)")
-            f_file = st.file_uploader("📎 Attach SRC-DC Copy (PDF/Image)", type=['pdf', 'png', 'jpg', 'jpeg'])
-            
-            if st.form_submit_button("🚀 Upload & Sync Tracker", use_container_width=True):
-                if f_site_id and f_dc_no and f_dc_date:
-                    try:
-                        # Overwrite logic
-                        supabase.table("src_dc_tracker").delete().eq("site_id", str(f_site_id)).execute()
-                        
-                        new_entry = {
-                            "site_id": str(f_site_id),
-                            "dc_number": str(f_dc_no),
-                            "dc_date": f_dc_date.strftime("%Y-%m-%d"),
-                            "remarks": str(f_remarks),
-                            "status": "Uploaded",
-                            "updated_by": "System Admin"
-                        }
-                        supabase.table("src_dc_tracker").insert(new_entry).execute()
-                        st.success(f"✅ SRC-DC for Site **{f_site_id}** updated successfully!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"❌ Error during sync: {e}")
-                else:
-                    st.warning("⚠️ Please fill Site ID, DC Number and Date.")
-
-        # --- LIVE TRACKER VIEW ---
-        st.markdown("---")
-        t_search = st.text_input("🔍 Search Site/DC No...", key="dc_search")
-        res_dc = supabase.table("src_dc_tracker").select("*").order("created_at", desc=True).execute()
-        
-        if res_dc.data:
-            df_dc = pd.DataFrame(res_dc.data)
-            if t_search:
-                df_dc = df_dc[df_dc.astype(str).apply(lambda x: x.str.contains(t_search, case=False)).any(axis=1)]
-            if 'dc_date' in df_dc.columns:
-                df_dc['dc_date'] = pd.to_datetime(df_dc['dc_date']).dt.strftime('%d-%b-%Y')
-
-            st.dataframe(
-                df_dc[['site_id', 'dc_number', 'dc_date', 'status', 'remarks']], 
-                use_container_width=False, 
-                hide_index=True
-            )
-
-        if st.button("🗑️ Clear Tracker Database", use_container_width=True):
-            supabase.table("src_dc_tracker").delete().neq("site_id", "CLEAR_STRICT").execute()
-            st.rerun()
+File "/mount/src/visiontech-app/Visiontech_Portal.py", line 778
+      elif st.session_state.current_page == "Data Entry":
+      ^
+SyntaxError: invalid syntax
 
     # =====================================================================
     # 💰 TAB 1: FINANCE ENTRY (PO Analyzer) - 0% Logic Change
