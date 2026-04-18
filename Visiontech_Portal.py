@@ -691,15 +691,15 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
     elif st.session_state.current_page == "Data":
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center & Tracker</h3>", unsafe_allow_html=True)
     # =====================================================================
-    # 🏗️ TAB 6: DATA ENTRY (Document Center & Tracker) - YOUR ORIGINAL CODE
+    # 🏗️ TAB 6: DATA ENTRY (Document Center & Tracker) - STRICT LOGIC
     # =====================================================================
-    elif st.session_state.current_page == "Data Entry":
+    # Safety Check: Agar sidebar mein 'Data' ya 'Entry' jaisa kuch bhi ho toh ye chalega
+    elif "Data" in st.session_state.current_page or "Entry" in st.session_state.current_page:
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center & Tracker</h3>", unsafe_allow_html=True)
         
-        # Aapka 3-Tab wala layout
+        # Wahi 3-Tab Logic jo aapne bheja tha
         doc_sub1, doc_sub2, doc_sub3 = st.tabs(["📤 Manager Upload", "🔍 Team Search", "📊 Tracker"])
         
-        # --- TAB 1: UPLOAD LOGIC ---
         with doc_sub1:
             with st.form("doc_upload_final_v1", clear_on_submit=True):
                 col_u1, col_u2 = st.columns(2)
@@ -716,17 +716,17 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                                 clean_p = u_proj.replace("/", "-").strip()
                                 fname = f"{clean_p}_{u_indus}_{u_type}_{i}.{f.name.split('.')[-1]}"
                                 
-                                # Upload to Storage
+                                # Uploading to Storage Bucket
                                 supabase.storage.from_("site_documents").upload(
                                     path=fname, 
                                     file=f.getvalue(), 
                                     file_options={"x-upsert": "true"}
                                 )
                                 
-                                # Generate URL (Aapka variable URL upar define hona chaiye)
+                                # Your URL variable (Ensure it's defined in your config)
                                 p_url = f"{URL}/storage/v1/object/public/site_documents/{fname}"
                                 
-                                # DB Upsert
+                                # Database Master Update
                                 supabase.table("site_documents_master").upsert({
                                     "project_number": u_proj, 
                                     "indus_id": u_indus, 
@@ -736,14 +736,13 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                                     "file_url": p_url
                                 }, on_conflict="file_name").execute()
                                 
-                            st.success("✅ Files Uploaded & Database Updated!")
+                            st.success("✅ Files Uploaded & Master Database Updated!")
                             st.rerun()
                         except Exception as e:
-                            st.error(f"Upload Error: {e}")
+                            st.error(f"❌ Upload Error: {e}")
                     else:
-                        st.warning("⚠️ Project Number aur Files zaroori hain!")
+                        st.warning("⚠️ Files aur Project Number dalna zaroori hai!")
 
-        # --- TAB 2: SEARCH LOGIC ---
         with doc_sub2:
             q_s = st.text_input("🔍 Search Documents (Project, Indus, Site)")
             if q_s:
@@ -758,15 +757,11 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                         c2.info(row['doc_type'])
                         c3.markdown(f'[📥 View]({row["file_url"]})')
                         st.divider()
-                else:
-                    st.info("No documents found.")
 
-        # --- TAB 3: TRACKER (Emoji Logic) ---
         with doc_sub3:
             res_t = supabase.table("site_documents_master").select("*").execute()
             if res_t.data:
                 df_t = pd.DataFrame(res_t.data)
-                # Grouping by Indus ID to show status
                 site_groups = df_t.groupby('indus_id')
                 summary = []
                 for ind_id, gp in site_groups:
@@ -782,7 +777,7 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                         "Photo": "✅" if "PHOTO" in types else "❌"
                     })
                 
-                # Chota table jo screen pe fit ho
+                # Fit table as requested
                 st.dataframe(pd.DataFrame(summary), use_container_width=True, hide_index=True)
     # =====================================================================
     # 💰 TAB 1: FINANCE ENTRY (Baaki code same rahega)
