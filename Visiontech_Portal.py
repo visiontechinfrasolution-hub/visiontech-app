@@ -854,7 +854,6 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                 cols_to_show = ['po_number', 'project_name', 'site_id', 'total_amount']
                 actual_cols = [c for c in cols_to_show if c in df_s.columns]
                 
-                # Table centering and auto-fit logic
                 col_left, col_mid, col_right = st.columns([0.05, 0.9, 0.05])
                 with col_mid:
                     st.dataframe(df_s[actual_cols], use_container_width=False, hide_index=True)
@@ -866,8 +865,8 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                 if g_search: 
                     df_d = df_d[df_d.astype(str).apply(lambda x: x.str.contains(g_search, case=False)).any(axis=1)]
                 
-                # Auto-fit for detailed items too
-                st.dataframe(df_d[['po_number', 'line_no', 'item_number', 'qty', 'amount', 'project_name', 'site_id']], use_container_width=False, hide_index=True)
+                # Description wapas add kar diya hai
+                st.dataframe(df_d[['po_number', 'line_no', 'item_number', 'description', 'qty', 'amount', 'project_name', 'site_id']], use_container_width=False, hide_index=True)
     # =====================================================================
     # 📝 TAB 8: AUDIT MANAGEMENT PORTAL
     # =====================================================================
