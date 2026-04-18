@@ -691,11 +691,13 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
     elif st.session_state.current_page == "Data":
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center & Tracker</h3>", unsafe_allow_html=True)
 # =====================================================================
-    # 🟦 TAB 6: DATA ENTRY (Document Center & Tracker) - 0% Logic Change
+    # 🟦 TAB 6: DATA ENTRY (Document Center & Tracker) - STRICT FIX
     # =====================================================================
-    elif st.session_state.current_page == "Data Entry":
+    # Humne yahan 'in' use kiya hai taaki agar naam thoda alag bhi ho toh page khul jaye
+    elif "Data Entry" in st.session_state.current_page or "Document" in st.session_state.current_page:
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>📄 Document Center & SRC-DC Tracker</h3>", unsafe_allow_html=True)
 
+        # 1. Input Form
         with st.form("src_dc_upload_form", clear_on_submit=True):
             st.markdown("##### 📥 Upload SRC-DC Details")
             col1, col2, col3 = st.columns(3)
@@ -705,12 +707,12 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
             f_dc_date = col3.date_input("📅 DC Date", value=None)
             
             f_remarks = st.text_area("💬 Remarks (Optional)")
-            f_file = st.file_uploader("📎 Attach SRC-DC Copy (PDF/Image)", type=['pdf', 'png', 'jpg', 'jpeg'])
+            f_file = st.file_uploader("📎 Attach SRC-DC Copy", type=['pdf', 'png', 'jpg', 'jpeg'])
             
             if st.form_submit_button("🚀 Upload & Sync Tracker", use_container_width=True):
                 if f_site_id and f_dc_no and f_dc_date:
                     try:
-                        # Overwrite logic
+                        # Overwrite Logic
                         supabase.table("src_dc_tracker").delete().eq("site_id", str(f_site_id)).execute()
                         
                         new_entry = {
@@ -718,41 +720,44 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                             "dc_number": str(f_dc_no),
                             "dc_date": f_dc_date.strftime("%Y-%m-%d"),
                             "remarks": str(f_remarks),
-                            "status": "Uploaded",
-                            "updated_by": "System Admin"
+                            "status": "Uploaded"
                         }
                         supabase.table("src_dc_tracker").insert(new_entry).execute()
-                        st.success(f"✅ SRC-DC for Site **{f_site_id}** updated successfully!")
+                        st.success(f"✅ Site {f_site_id} updated!")
                         st.rerun()
                     except Exception as e:
-                        st.error(f"❌ Error during sync: {e}")
+                        st.error(f"Error: {e}")
                 else:
-                    st.warning("⚠️ Please fill Site ID, DC Number and Date.")
+                    st.warning("⚠️ Fill required fields.")
 
-        # --- LIVE TRACKER VIEW ---
+        # 2. Tracker Table
         st.markdown("---")
-        t_search = st.text_input("🔍 Search Site/DC No...", key="dc_search")
-        res_dc = supabase.table("src_dc_tracker").select("*").order("created_at", desc=True).execute()
+        t_search = st.text_input("🔍 Search Tracker...", key="dc_search_unique")
         
-        if res_dc.data:
-            df_dc = pd.DataFrame(res_dc.data)
-            if t_search:
-                df_dc = df_dc[df_dc.astype(str).apply(lambda x: x.str.contains(t_search, case=False)).any(axis=1)]
-            if 'dc_date' in df_dc.columns:
-                df_dc['dc_date'] = pd.to_datetime(df_dc['dc_date']).dt.strftime('%d-%b-%Y')
+        try:
+            res_dc = supabase.table("src_dc_tracker").select("*").order("created_at", desc=True).execute()
+            if res_dc.data:
+                df_dc = pd.DataFrame(res_dc.data)
+                if t_search:
+                    df_dc = df_dc[df_dc.astype(str).apply(lambda x: x.str.contains(t_search, case=False)).any(axis=1)]
+                
+                # Date Formatting
+                if 'dc_date' in df_dc.columns:
+                    df_dc['dc_date'] = pd.to_datetime(df_dc['dc_date']).dt.strftime('%d-%b-%Y')
 
-            st.dataframe(
-                df_dc[['site_id', 'dc_number', 'dc_date', 'status', 'remarks']], 
-                use_container_width=False, 
-                hide_index=True
-            )
+                st.dataframe(df_dc[['site_id', 'dc_number', 'dc_date', 'status', 'remarks']], use_container_width=False, hide_index=True)
+            else:
+                st.info("Tracker is empty.")
+        except:
+            st.error("Database table 'src_dc_tracker' nahi mila!")
 
-        if st.button("🗑️ Clear Tracker Database", use_container_width=True):
-            supabase.table("src_dc_tracker").delete().neq("site_id", "CLEAR_STRICT").execute()
+        # 3. Clear Button
+        if st.button("🗑️ Clear Tracker"):
+            supabase.table("src_dc_tracker").delete().neq("site_id", "CLEAR").execute()
             st.rerun()
 
     # =====================================================================
-    # 💰 TAB 1: FINANCE ENTRY (PO Analyzer) - 0% Logic Change
+    # 💰 TAB 1: FINANCE ENTRY (Baaki code same rahega)
     # =====================================================================
     elif st.session_state.current_page == "Finance":
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>💰 Finance Entry (PO Analyzer)</h3>", unsafe_allow_html=True)
