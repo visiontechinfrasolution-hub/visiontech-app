@@ -806,6 +806,15 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                                 st.rerun()
                     except Exception as e: st.error(f"Error: {e}")
 
+        # Clear Button Section
+        if st.button("🗑️ Clear Database", use_container_width=True):
+            try:
+                supabase.table("po_line_items").delete().neq("po_number", "0").execute()
+                supabase.table("po_summaries").delete().neq("po_number", "0").execute()
+                st.success("Database Cleared!")
+                st.rerun()
+            except Exception as e: st.error(f"Clear Error: {e}")
+
         g_search = st.text_input("🔍 Search Database...", key="fin_g_search")
         f_t1, f_t2 = st.tabs(["📊 Summaries", "📋 Detailed Items"])
         with f_t1:
@@ -820,7 +829,6 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                 df_d = pd.DataFrame(res_d.data)
                 if g_search: df_d = df_d[df_d.astype(str).apply(lambda x: x.str.contains(g_search, case=False)).any(axis=1)]
                 st.dataframe(df_d[['po_number', 'line_no', 'item_number', 'qty', 'amount', 'project_name', 'site_id']], use_container_width=True, hide_index=True)
-
     # =====================================================================
     # 📝 TAB 8: AUDIT MANAGEMENT PORTAL
     # =====================================================================
