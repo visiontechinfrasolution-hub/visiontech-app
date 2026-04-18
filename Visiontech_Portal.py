@@ -321,14 +321,24 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
             if up_file:
                 try:
                     # फाईल रीड करणे
-                    bulk_df = pd.read_excel(up_file) if up_file.name.endswith('.xlsx') else pd.read_csv(up_file)
+                    # टीप: एक्ससेलसाठी 'openpyxl' लायब्ररी आवश्यक आहे
+                    bulk_df = pd.read_excel(up_file, engine='openpyxl') if up_file.name.endswith('.xlsx') else pd.read_csv(up_file)
                     bulk_df.columns = [str(c).strip() for c in bulk_df.columns]
                     
                     if 'Project Number' in bulk_df.columns:
                         # प्रोजेक्ट लिस्ट काढणे
                         p_list = bulk_df['Project Number'].astype(str).str.strip().unique().tolist()
                         
-                        if st.button("🚀 Process Bulk Projects", use_container_width=True):
+                        btn_bulk_col1, btn_bulk_col2 = st.columns(2)
+                        with btn_bulk_col1:
+                            submit_bulk = st.button("🚀 SUBMIT & PROCESS", use_container_width=True, key="bulk_submit_btn")
+                        with btn_bulk_col2:
+                            clear_bulk = st.button("🧹 CLEAR SEARCH", use_container_width=True, key="bulk_clear_btn")
+
+                        if clear_bulk:
+                            st.rerun()
+
+                        if submit_bulk:
                             st.balloons()
                             with st.spinner(f'{len(p_list)} प्रोजेक्ट्सचा डेटा फेच होत आहे...'):
                                 # तुमच्या मूळ सुपॅबेस लॉजिकचा वापर (०% बदल)
@@ -362,7 +372,7 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                     else:
                         st.error("फाईलमध्ये 'Project Number' नावाचा कॉलम सापडला नाही.")
                 except Exception as e:
-                    st.error(f"Error: {e}")
+                    st.error(f"Error: {e}. 'pip install openpyxl' केले असल्याची खात्री करा.")
     # =====================================================================
     # 🧾 TAB 2: PO REPORT
     # =====================================================================
