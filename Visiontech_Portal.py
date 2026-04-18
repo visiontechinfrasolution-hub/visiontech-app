@@ -691,91 +691,132 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
     elif st.session_state.current_page == "Data":
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center & Tracker</h3>", unsafe_allow_html=True)
 # =====================================================================
-# 🟦 TAB 6: DATA ENTRY (Document Center & Tracker) - 0% Logic Change
-# =====================================================================
-st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center & Tracker</h3>", unsafe_allow_html=True)
+    # 🟦 TAB 6: DATA ENTRY (Document Center & Tracker) - 0% Logic Change
+    # =====================================================================
+    elif st.session_state.current_page == "Data Entry":
+        st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>📄 Document Center & SRC-DC Tracker</h3>", unsafe_allow_html=True)
 
-# --- SECTION 1: UPLOAD FORM ---
-with st.form("src_dc_upload_form", clear_on_submit=True):
-    st.markdown("##### 📥 Upload SRC-DC Details")
-    col1, col2, col3 = st.columns(3)
-    
-    f_site_id = col1.text_input("📍 Site ID")
-    f_dc_no = col2.text_input("📝 DC Number")
-    f_dc_date = col3.date_input("📅 DC Date", value=None)
-    
-    f_remarks = st.text_area("💬 Remarks (Optional)")
-    f_file = st.file_uploader("📎 Attach SRC-DC Copy (PDF/Image)", type=['pdf', 'png', 'jpg', 'jpeg'])
-    
-    if st.form_submit_button("🚀 Upload & Sync Tracker", use_container_width=True):
-        if f_site_id and f_dc_no and f_dc_date:
+        with st.form("src_dc_upload_form", clear_on_submit=True):
+            st.markdown("##### 📥 Upload SRC-DC Details")
+            col1, col2, col3 = st.columns(3)
+            
+            f_site_id = col1.text_input("📍 Site ID")
+            f_dc_no = col2.text_input("📝 DC Number")
+            f_dc_date = col3.date_input("📅 DC Date", value=None)
+            
+            f_remarks = st.text_area("💬 Remarks (Optional)")
+            f_file = st.file_uploader("📎 Attach SRC-DC Copy (PDF/Image)", type=['pdf', 'png', 'jpg', 'jpeg'])
+            
+            if st.form_submit_button("🚀 Upload & Sync Tracker", use_container_width=True):
+                if f_site_id and f_dc_no and f_dc_date:
+                    try:
+                        # Overwrite logic
+                        supabase.table("src_dc_tracker").delete().eq("site_id", str(f_site_id)).execute()
+                        
+                        new_entry = {
+                            "site_id": str(f_site_id),
+                            "dc_number": str(f_dc_no),
+                            "dc_date": f_dc_date.strftime("%Y-%m-%d"),
+                            "remarks": str(f_remarks),
+                            "status": "Uploaded",
+                            "updated_by": "System Admin"
+                        }
+                        supabase.table("src_dc_tracker").insert(new_entry).execute()
+                        st.success(f"✅ SRC-DC for Site **{f_site_id}** updated successfully!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Error during sync: {e}")
+                else:
+                    st.warning("⚠️ Please fill Site ID, DC Number and Date.")
+
+        # --- LIVE TRACKER VIEW ---
+        st.markdown("---")
+        t_search = st.text_input("🔍 Search Site/DC No...", key="dc_search")
+        res_dc = supabase.table("src_dc_tracker").select("*").order("created_at", desc=True).execute()
+        
+        if res_dc.data:
+            df_dc = pd.DataFrame(res_dc.data)
+            if t_search:
+                df_dc = df_dc[df_dc.astype(str).apply(lambda x: x.str.contains(t_search, case=False)).any(axis=1)]
+            if 'dc_date' in df_dc.columns:
+                df_dc['dc_date'] = pd.to_datetime(df_dc['dc_date']).dt.strftime('%d-%b-%Y')
+
+            st.dataframe(
+                df_dc[['site_id', 'dc_number', 'dc_date', 'status', 'remarks']], 
+                use_container_width=False, 
+                hide_index=True
+            )
+
+        if st.button("🗑️ Clear Tracker Database", use_container_width=True):
+            supabase.table("src_dc_tracker").delete().neq("site_id", "CLEAR_STRICT").execute()
+            st.rerun()
+
+    # =====================================================================
+    # 💰 TAB 1: FINANCE ENTRY (PO Analyzer) - 0% Logic Change
+    # =====================================================================
+    elif st.session_state.current_page == "Finance":
+        st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>💰 Finance Entry (PO Analyzer)</h3>", unsafe_allow_html=True)
+        
+        def clean_num_fixed(val):
             try:
-                # 1. Overwrite logic: Same Site ID ka purana data delete
-                supabase.table("src_dc_tracker").delete().eq("site_id", str(f_site_id)).execute()
-                
-                # 2. Insert Naya Data
-                new_entry = {
-                    "site_id": str(f_site_id),
-                    "dc_number": str(f_dc_no),
-                    "dc_date": f_dc_date.strftime("%Y-%m-%d"),
-                    "remarks": str(f_remarks),
-                    "status": "Uploaded",
-                    "updated_by": "System Admin"
-                }
-                supabase.table("src_dc_tracker").insert(new_entry).execute()
-                
-                st.success(f"✅ SRC-DC for Site **{f_site_id}** updated successfully!")
-                st.rerun()
-            except Exception as e:
-                st.error(f"❌ Error during sync: {e}")
-        else:
-            st.warning("⚠️ Please fill Site ID, DC Number and Date.")
+                if val is None or str(val).strip().lower() in ['nan', 'none', '']: return 0.0
+                n = str(val).replace('"', '').replace(',', '').strip()
+                num = pd.to_numeric(n, errors='coerce')
+                return float(num) if pd.notnull(num) else 0.0
+            except: return 0.0
 
-# --- SECTION 2: LIVE TRACKER VIEW ---
-st.markdown("---")
-st.markdown("##### 📋 Live SRC-DC Tracker Status")
+        with st.form("fin_upload_fixed", clear_on_submit=True):
+            c1, c2 = st.columns([1, 2])
+            u_po = c1.text_input("📄 Enter PO Number")
+            p_file = c2.file_uploader("Upload 'export.tsv'", type=['tsv', 'txt'])
+            
+            if st.form_submit_button("🚀 Process & Overwrite Data", use_container_width=True):
+                if u_po and p_file:
+                    try:
+                        content = p_file.getvalue().decode('ISO-8859-1').splitlines()
+                        h_idx = next((i for i, line in enumerate(content) if "Project Name" in line), -1)
+                        if h_idx != -1:
+                            p_file.seek(0)
+                            df_r = pd.read_csv(p_file, sep='\t', skiprows=h_idx, quoting=3, encoding='ISO-8859-1', engine='python')
+                            df_r.columns = [str(c).replace('"', '').strip() for c in df_r.columns]
+                            for col in df_r.columns: 
+                                df_r[col] = df_r[col].astype(str).str.replace('"', '').str.strip()
+                            
+                            df_r['qty_tmp'] = df_r['Qty'].apply(clean_num_fixed)
+                            df_r['amt_tmp'] = df_r['Amount'].apply(clean_num_fixed)
+                            
+                            df_cln = df_r[df_r['qty_tmp'] > 0].copy()
+                            if not df_cln.empty:
+                                supabase.table("po_line_items").delete().eq("po_number", str(u_po)).execute()
+                                supabase.table("po_summaries").delete().eq("po_number", str(u_po)).execute()
+                                
+                                items = []
+                                for _, r in df_cln.iterrows():
+                                    items.append({
+                                        "po_number": str(u_po), "line_no": str(r.get('Line', '')), "item_number": str(r.get('Item Num', '')), 
+                                        "description": str(r.get('Description', '')), "uom": str(r.get('UOM', '')), 
+                                        "qty": clean_num_fixed(r.get('Qty')), "price": clean_num_fixed(r.get('Price')), 
+                                        "amount": clean_num_fixed(r.get('Amount')), "site_id": str(r.get('Site ID', '')), 
+                                        "site_name": str(r.get('Site Name', '')), "project_name": str(r.get('Project Name', ''))
+                                    })
+                                supabase.table("po_line_items").insert(items).execute()
+                                
+                                df_cln['group_col'] = df_cln['Project Name'].replace('', None).fillna(df_cln['Site ID'])
+                                sums = df_cln.groupby(['group_col', 'Site ID'])['amt_tmp'].sum().reset_index()
+                                
+                                summary_list = [
+                                    {"po_number": str(u_po), "project_name": str(sr['group_col']), "site_id": str(sr['Site ID']), "total_amount": float(sr['amt_tmp'])} 
+                                    for _, sr in sums.iterrows()
+                                ]
+                                supabase.table("po_summaries").insert(summary_list).execute()
+                                st.success(f"✅ PO {u_po} Synced!")
+                                st.rerun()
+                    except Exception as e: st.error(f"❌ Error: {e}")
 
-t_search = st.text_input("🔍 Search Site/DC No...", key="dc_search")
-
-# Fetch data from Supabase
-res_dc = supabase.table("src_dc_tracker").select("*").order("created_at", desc=True).execute()
-
-if res_dc.data:
-    df_dc = pd.DataFrame(res_dc.data)
-    
-    # Filter if search text exists
-    if t_search:
-        df_dc = df_dc[df_dc.astype(str).apply(lambda x: x.str.contains(t_search, case=False)).any(axis=1)]
-    
-    # Date formatting as per DD-Mon-YYYY
-    if 'dc_date' in df_dc.columns:
-        df_dc['dc_date'] = pd.to_datetime(df_dc['dc_date']).dt.strftime('%d-%b-%Y')
-
-    # Display Table - Fit to words
-    col_l, col_m, col_r = st.columns([0.02, 0.96, 0.02])
-    with col_m:
-        st.dataframe(
-            df_dc[['site_id', 'dc_number', 'dc_date', 'status', 'remarks']], 
-            use_container_width=False, 
-            hide_index=True
-        )
-else:
-    st.info("ℹ️ Tracker database is currently empty.")
-
-# --- SECTION 3: DATABASE CONTROL ---
-st.write("")
-if st.button("🗑️ Clear Tracker Database", use_container_width=True):
-    try:
-        supabase.table("src_dc_tracker").delete().neq("site_id", "STRICT_EMPTY").execute()
-        st.success("Tracker data cleared successfully!")
-        st.rerun()
-    except Exception as e:
-        st.error(f"Failed to clear: {e}")
-
-File "/mount/src/visiontech-app/Visiontech_Portal.py", line 778
-      elif st.session_state.current_page == "Data Entry":
-      ^
-SyntaxError: invalid syntax
+        if st.button("🗑️ Clear All Finance Data", use_container_width=True):
+            supabase.table("po_line_items").delete().neq("po_number", "DATA_CLEANED").execute()
+            supabase.table("po_summaries").delete().neq("po_number", "DATA_CLEANED").execute()
+            st.rerun()
 
     # =====================================================================
     # 💰 TAB 1: FINANCE ENTRY (PO Analyzer) - 0% Logic Change
