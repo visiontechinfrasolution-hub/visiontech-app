@@ -181,7 +181,7 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
     st.divider()
 
 # =====================================================================
-    # 🟩 TAB 1: BOQ REPORT (Full Final - No Logic Changes)
+    # 🟩 TAB 1: BOQ REPORT (Full Integrated with Date Range in All Tabs)
     # =====================================================================
     if st.session_state.current_page == "BOQ":
         import io
@@ -207,31 +207,24 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
         
         mera_sequence = ['Sr. No.', 'Site ID', 'Product', 'Transaction Type', 'Issue From', 'Project Number', 'BOQ', 'Item Code', 'Item Description', 'Qty A', 'Qty B', 'Qty C', 'Dispatch Date', 'Parent/Child', 'Line Status', 'Transporter', 'TSP Partner Name', 'LR Number', 'Vehicle Number', 'Challan Number', 'BOQ Date', 'Department', 'Item Category', 'Source Of Fulfilment']
 
-        # --- १. मूळ डेटा प्रोसेसिंग लॉजिक (Strictly No Change) ---
+        # --- १. मूळ डेटा प्रोसेसिंग लॉजिक ---
         def process_boq_data(raw_data):
             if not raw_data: return pd.DataFrame()
             df_res = pd.DataFrame(raw_data)
             df_res.columns = [str(c).strip() for c in df_res.columns]
-            
             qty_cols = ['Qty A', 'Qty B', 'Qty C']
             for col in qty_cols:
                 if col in df_res.columns:
                     df_res[col] = pd.to_numeric(df_res[col], errors='coerce').fillna(0).astype(int)
-            
-            # Project Number आणि Item Code नुसार ग्रुपिंग (तुमचे ओरिजनल लॉजिक)
             if 'Item Code' in df_res.columns and 'Project Number' in df_res.columns:
                 df_res['TempKey'] = df_res.apply(lambda x: x.get('Sr. No.', random.random()) if str(x.get('Item Code','')).strip() == '' else x['Item Code'], axis=1)
-                
                 agg_dict = {col: 'sum' if col in qty_cols else 'first' for col in df_res.columns if col not in ['Project Number', 'TempKey']}
                 df_res = df_res.groupby(['Project Number', 'TempKey'], as_index=False).agg(agg_dict)
-            
             for col in ['Dispatch Date', 'BOQ Date']:
                 if col in df_res.columns:
                     df_res[col] = pd.to_datetime(df_res[col], errors='coerce').dt.strftime('%d-%b-%Y')
-            
             return df_res.fillna('').astype(str).replace(['None', 'nan', 'NULL', 'NaT'], '')
 
-        # --- २. बॅच फेच लॉजिक (Timeout एरर येऊ नये म्हणून) ---
         def fetch_complete_data(query_builder):
             all_records = []
             page_size = 1000 
@@ -245,84 +238,89 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                 offset += page_size
             return all_records
 
-        # --- ३. टॅब्स तयार करणे ---
-        t_search, t_daily = st.tabs(["🔎 Single/Bulk Search", "📅 Daily Reports (Visiontech Only)"])
+        # --- २. टॅब्स तयार करणे ---
+        t_search, t_daily = st.tabs(["🔎 Search & Bulk", "📅 Visiontech Reports (From & To)"])
 
-        # --- ४. टॅब १: SEARCH & BULK (विशिष्ट सर्चसाठी) ---
+        # --- ३. टॅब १: SEARCH & BULK ---
         with t_search:
-            # Bulk Upload चा पर्याय
             with st.expander("📤 Bulk Project ID Upload", expanded=False):
-                up_file = st.file_uploader("Upload Excel/CSV", type=['xlsx', 'csv'], key="bulk_v_final")
-                if up_file and st.button("🚀 Process Bulk File", key="btn_bulk_final"):
+                up_file = st.file_uploader("Upload Excel/CSV", type=['xlsx', 'csv'], key="bulk_up_v33")
+                if up_file and st.button("🚀 Process Bulk File", key="btn_bulk_v33"):
                     df_up = pd.read_excel(up_file) if up_file.name.endswith('.xlsx') else pd.read_csv(up_file)
                     df_up.columns = [str(c).strip() for c in df_up.columns]
                     if 'Project Number' in df_up.columns:
                         st.session_state['bulk_p_list'] = df_up['Project Number'].astype(str).str.strip().unique().tolist()
                         st.success(f"✅ {len(st.session_state['bulk_p_list'])} Projects Loaded!")
-            
-            with st.form("search_form_v_final"):
+
+            with st.form("search_form_v33"):
                 c1, c2, c3 = st.columns(3)
-                with c1: p_in = st.text_input("📁 Project Number", key="p_f")
-                with c2: s_in = st.text_input("📍 Site ID", key="s_f")
-                with c3: b_in = st.text_input("📄 BOQ Number", key="b_f")
-                
-                use_bulk = st.checkbox("Use Bulk Uploaded List", value=False) if 'bulk_p_list' in st.session_state else False
+                with c1: p_in = st.text_input("📁 Project Number", key="p_v33")
+                with c2: s_in = st.text_input("📍 Site ID", key="s_v33")
+                with c3: b_in = st.text_input("📄 BOQ Number", key="b_v33")
+                use_bulk = st.checkbox("Use Bulk List", value=False) if 'bulk_p_list' in st.session_state else False
                 submit_search = st.form_submit_button("🔍 SEARCH DATA")
 
             if submit_search:
                 st.balloons()
-                with st.spinner('डेटा शोधत आहे...'):
+                with st.spinner('शोधत आहे...'):
                     query = supabase.table("BOQ Report").select("*")
-                    if use_bulk:
-                        query = query.in_("Project Number", st.session_state['bulk_p_list'])
+                    if use_bulk: query = query.in_("Project Number", st.session_state['bulk_p_list'])
                     else:
                         if p_in: query = query.ilike("Project Number", f"%{p_in.strip()}%")
                         if s_in: query = query.ilike("Site ID", f"%{s_in.strip()}%")
                         if b_in: query = query.ilike("BOQ", f"%{b_in.strip()}%")
                     
                     data = fetch_complete_data(query)
-                    df_final = process_boq_data(data)
-                    if not df_final.empty:
-                        st.dataframe(df_final[[c for c in mera_sequence if c in df_final.columns]], use_container_width=True, hide_index=True)
+                    df_res = process_boq_data(data)
+                    if not df_res.empty:
+                        st.success(f"✅ {len(df_res)} Records Found!")
+                        st.dataframe(df_res[[c for c in mera_sequence if c in df_res.columns]], use_container_width=True, hide_index=True)
 
-        # --- ५. टॅब २: DAILY DOUBLE TABLE (Strict Visiontech Only) ---
+        # --- ४. टॅब २: VISIONTECH REPORTS (With From & To Range) ---
         with t_daily:
-            with st.form("daily_form_v_final"):
-                c_date, c_btn = st.columns([2, 1])
-                with c_date: target_date = st.date_input("Select Dispatch Date", value=datetime.now().date())
-                btn_daily = st.form_submit_button("🚀 GENERATE DAILY TABLES")
+            with st.form("daily_form_v33"):
+                st.markdown("##### 📅 Select Date Range for Visiontech Reports")
+                cd1, cd2, c_btn = st.columns([1.5, 1.5, 1])
+                with cd1: start_range = st.date_input("From Date", value=datetime.now().date(), key="daily_from")
+                with cd2: end_range = st.date_input("To Date", value=datetime.now().date(), key="daily_to")
+                btn_gen = st.form_submit_button("🚀 GENERATE RANGE TABLES")
 
-            if btn_daily:
+            if btn_gen:
                 st.balloons()
-                fmt_target = target_date.strftime('%d-%b-%Y')
-                with st.spinner(f'{fmt_target} चा डेटा लोड होत आहे...'):
+                # डेट लिस्ट तयार करणे (DD-Mon-YYYY)
+                delta = end_range - start_range
+                date_list = [(start_range + timedelta(days=i)).strftime('%d-%b-%Y') for i in range(delta.days + 1)]
+                
+                with st.spinner('डेटा लोड होत आहे...'):
                     try:
-                        # '"Dispatch Date"' (Double Quotes) चा वापर करून API एरर फिक्स ठेवली आहे
-                        res_data = fetch_complete_data(supabase.table("BOQ Report").select("*").eq('"Dispatch Date"', fmt_target))
+                        # रेंज मधील डेटा फेच करणे
+                        query = supabase.table("BOQ Report").select("*").in_('"Dispatch Date"', date_list)
+                        data = fetch_complete_data(query)
                         
-                        if res_data:
-                            df_proc = process_boq_data(res_data)
+                        if data:
+                            df_proc = process_boq_data(data)
+                            disp_range = f"{start_range.strftime('%d-%b')} to {end_range.strftime('%d-%b-%Y')}"
                             
-                            # १. TRANSPORTER (Strictly Visiontech)
+                            # १. TRANSPORTER (Strict Visiontech)
                             df_trans = df_proc[df_proc['Transporter'].astype(str).str.contains('Visiontech', case=False, na=False)]
-                            st.markdown(f"<div class='table-header'>📦 Dispatch on {fmt_target} from Transporter (Visiontech Only)</div>", unsafe_allow_html=True)
+                            st.markdown(f"<div class='table-header'>📦 Transporter Dispatch: {disp_range}</div>", unsafe_allow_html=True)
                             if not df_trans.empty:
                                 buffer1 = io.BytesIO()
                                 with pd.ExcelWriter(buffer1, engine='xlsxwriter') as writer:
                                     df_trans[[c for c in mera_sequence if c in df_trans.columns]].to_excel(writer, index=False)
-                                st.download_button("📥 Download Excel", buffer1.getvalue(), f"Transporter_{fmt_target}.xlsx", key="dl_t1_f")
+                                st.download_button("📥 Download Excel", buffer1.getvalue(), f"Transporter_Range.xlsx", key="dl_t1_v33")
                                 st.dataframe(df_trans[[c for c in mera_sequence if c in df_trans.columns]], use_container_width=True, hide_index=True)
 
-                            # २. TSP PARTNER (Strictly Visiontech)
+                            # २. TSP PARTNER (Strict Visiontech)
                             df_tsp = df_proc[df_proc['TSP Partner Name'].astype(str).str.contains('Visiontech', case=False, na=False)]
-                            st.markdown(f"<div class='table-header'>🏗️ Dispatch on {fmt_target} from TSP Partner Name (Visiontech Only)</div>", unsafe_allow_html=True)
+                            st.markdown(f"<div class='table-header'>🏗️ TSP Partner Dispatch: {disp_range}</div>", unsafe_allow_html=True)
                             if not df_tsp.empty:
                                 buffer2 = io.BytesIO()
                                 with pd.ExcelWriter(buffer2, engine='xlsxwriter') as writer:
                                     df_tsp[[c for c in mera_sequence if c in df_tsp.columns]].to_excel(writer, index=False)
-                                st.download_button("📥 Download Excel", buffer2.getvalue(), f"TSP_{fmt_target}.xlsx", key="dl_t2_f")
+                                st.download_button("📥 Download Excel", buffer2.getvalue(), f"TSP_Range.xlsx", key="dl_t2_v33")
                                 st.dataframe(df_tsp[[c for c in mera_sequence if c in df_tsp.columns]], use_container_width=True, hide_index=True)
-                        else: st.error(f"{fmt_target} ला डेटा उपलब्ध नाही.")
+                        else: st.error("या कालावधीत कोणताही डेटा सापडला नाही.")
                     except Exception as e: st.error(f"Error: {e}")
     # =====================================================================
     # 🧾 TAB 2: PO REPORT
