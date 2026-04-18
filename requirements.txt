@@ -3,3 +3,8 @@ supabase
 pandas
 xlsxwriter
 geopy
+openpyxl
+pandas
+supabase
+xlsxwriter
+streamlit
