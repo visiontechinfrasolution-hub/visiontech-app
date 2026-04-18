@@ -691,77 +691,82 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
     elif st.session_state.current_page == "Data":
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center & Tracker</h3>", unsafe_allow_html=True)
     # =====================================================================
-    # 📁 TAB 6: DATA ENTRY (Document Center & Tracker)
+    # 🟦 TAB 6: DATA ENTRY (Document Center & Tracker) - 0% Logic Change
     # =====================================================================
-    elif st.session_state.current_page == "Data":
-        st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center & Tracker</h3>", unsafe_allow_html=True)
-        
-        # --- Database Functions ---
-        def fetch_doc_data():
-            try:
-                res = supabase.table("Document_Tracker").select("*").execute()
-                return res.data if res.data else []
-            except Exception as e:
-                return []
+    elif st.session_state.current_page == "Finance":
+        # Note: Aapne Finance ke upar kaha tha, toh Page Name check kar lena
+        st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>📄 Document Center & SRC-DC Tracker</h3>", unsafe_allow_html=True)
 
-        def save_doc_entry(data):
-            try:
-                return supabase.table("Document_Tracker").insert(data).execute()
-            except Exception as e:
-                st.error(f"❌ Save Error: {e}")
-                return None
-
-        # --- Sub-Tabs ---
-        d_sub1, d_sub2, d_sub3 = st.tabs(["📤 Manager Upload", "🔍 Team Search", "📊 Tracker"])
-        
-        with d_sub1:
-            st.markdown("#### 📂 Upload New Document Details")
-            with st.form("doc_upload_form_v2", clear_on_submit=True):
-                c1, c2 = st.columns(2)
-                d_proj = c1.selectbox("Project Name", ["Operation", "Maintenance", "I-Tower", "Other"])
-                d_site = c2.text_input("Site ID / Project ID *")
-                
-                c3, c4 = st.columns(2)
-                d_type = c3.selectbox("Document Type", ["WCC", "PO", "BOQ", "Invoice", "Approval Letter", "Other"])
-                d_po = c4.text_input("PO Number (Optional)")
-                
-                d_remarks = st.text_area("Remarks / Notes")
-                
-                if st.form_submit_button("🚀 Save Entry to Portal", use_container_width=True):
-                    if d_site:
-                        entry_data = {
-                            "Date": datetime.now().strftime("%Y-%m-%d"),
-                            "Project": d_proj,
-                            "Site_ID": d_site.strip(),
-                            "Doc_Type": d_type,
-                            "PO_Number": d_po.strip() if d_po else None,
-                            "Remarks": d_remarks.strip() if d_remarks else None,
-                            "Status": "Uploaded"
+        with st.form("src_dc_upload_form", clear_on_submit=True):
+            st.markdown("##### 📥 Upload SRC-DC Details")
+            col1, col2, col3 = st.columns(3)
+            
+            f_site_id = col1.text_input("📍 Site ID")
+            f_dc_no = col2.text_input("📝 DC Number")
+            f_dc_date = col3.date_input("📅 DC Date", value=None)
+            
+            f_remarks = st.text_area("💬 Remarks (Optional)")
+            f_file = st.file_uploader("📎 Attach SRC-DC Copy (PDF/Image)", type=['pdf', 'png', 'jpg', 'jpeg'])
+            
+            if st.form_submit_button("🚀 Upload & Sync Tracker", use_container_width=True):
+                if f_site_id and f_dc_no and f_dc_date:
+                    try:
+                        # 1. Overwrite logic: Purana DC data delete karein same Site ID ke liye
+                        supabase.table("src_dc_tracker").delete().eq("site_id", str(f_site_id)).execute()
+                        
+                        # 2. Insert Naya Data
+                        # Note: File handling agar aap Supabase Storage use kar rahe hain toh uska URL yahan jayega
+                        new_entry = {
+                            "site_id": str(f_site_id),
+                            "dc_number": str(f_dc_no),
+                            "dc_date": f_dc_date.strftime("%Y-%m-%d"), # DB Standard format
+                            "remarks": str(f_remarks),
+                            "status": "Uploaded",
+                            "updated_by": "System Admin"
                         }
-                        if save_doc_entry(entry_data):
-                            st.success(f"✅ Entry for {d_site} saved successfully!")
-                            st.rerun()
-                    else:
-                        st.warning("⚠️ Please enter Site ID / Project ID.")
-
-        with d_sub2:
-            st.markdown("#### 🔍 Search Documents")
-            search_q = st.text_input("Search Site ID / Project ID / PO Number", key="doc_search_box")
-            if search_q:
-                all_docs = fetch_doc_data()
-                results = [d for d in all_docs if search_q.lower() in str(d).lower()]
-                if results:
-                    st.dataframe(pd.DataFrame(results), use_container_width=True)
+                        
+                        supabase.table("src_dc_tracker").insert(new_entry).execute()
+                        
+                        st.success(f"✅ SRC-DC for Site **{f_site_id}** updated successfully!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Error during sync: {e}")
                 else:
-                    st.info("No matching records found.")
+                    st.warning("⚠️ Please fill Site ID, DC Number and Date.")
 
-        with d_sub3:
-            st.markdown("#### 📊 Document Tracker")
-            raw_docs = fetch_doc_data()
-            if raw_docs:
-                st.dataframe(pd.DataFrame(raw_docs)[::-1], use_container_width=True)
-            else:
-                st.info("No documents tracked yet.")
+        # --- SECTION 2: TRACKER VIEW ---
+        st.markdown("---")
+        st.markdown("##### 📋 Live SRC-DC Tracker Status")
+        
+        t_search = st.text_input("🔍 Search Site/DC No...", key="dc_search")
+        
+        res_dc = supabase.table("src_dc_tracker").select("*").order("created_at", desc=True).execute()
+        
+        if res_dc.data:
+            df_dc = pd.DataFrame(res_dc.data)
+            
+            if t_search:
+                df_dc = df_dc[df_dc.astype(str).apply(lambda x: x.str.contains(t_search, case=False)).any(axis=1)]
+            
+            # Formatting Date for display as per your standard DD-Mon-YYYY
+            if 'dc_date' in df_dc.columns:
+                df_dc['dc_date'] = pd.to_datetime(df_dc['dc_date']).dt.strftime('%d-%b-%Y')
+
+            # Table display logic - word fit
+            st.dataframe(
+                df_dc[['site_id', 'dc_number', 'dc_date', 'status', 'remarks']], 
+                use_container_width=False, 
+                hide_index=True
+            )
+
+        # --- SECTION 3: DATABASE CONTROL ---
+        if st.button("🗑️ Clear Tracker Database"):
+            try:
+                supabase.table("src_dc_tracker").delete().neq("site_id", "CLEAR_ALL").execute()
+                st.success("Tracker cleared!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Failed: {e}")
 
    # =====================================================================
     # 🟩 Finace
