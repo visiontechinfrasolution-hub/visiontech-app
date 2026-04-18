@@ -691,15 +691,15 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
     elif st.session_state.current_page == "Data":
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center & Tracker</h3>", unsafe_allow_html=True)
     # =====================================================================
-    # 🏗️ TAB 6: DATA ENTRY (Document Center & Tracker) - FORCED RENDER
+    # 🏗️ TAB 6: DATA ENTRY (Document Center & Tracker) - STRICT LOGIC
     # =====================================================================
-    # Humne 'elif' ki jagah simple check lagaya hai jo spelling ko ignore karega
-    elif any(word in str(st.session_state.current_page) for word in ["Data", "Entry", "Document"]):
+    elif st.session_state.current_page == "Data Entry":
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center & Tracker</h3>", unsafe_allow_html=True)
         
-        # Wahi 3-Tab Logic jo aapne bheja tha
+        # 3 Dedicated Sub-Tabs
         doc_sub1, doc_sub2, doc_sub3 = st.tabs(["📤 Manager Upload", "🔍 Team Search", "📊 Tracker"])
         
+        # --- TAB 1: MANAGER UPLOAD ---
         with doc_sub1:
             with st.form("doc_upload_final_v1", clear_on_submit=True):
                 col_u1, col_u2 = st.columns(2)
@@ -723,10 +723,10 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                                     file_options={"x-upsert": "true"}
                                 )
                                 
-                                # Use your defined URL variable
+                                # URL Construction (Ensure URL variable is defined)
                                 p_url = f"{URL}/storage/v1/object/public/site_documents/{fname}"
                                 
-                                # Database Master Upsert
+                                # Master Table Upsert
                                 supabase.table("site_documents_master").upsert({
                                     "project_number": u_proj, 
                                     "indus_id": u_indus, 
@@ -739,10 +739,11 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                             st.success("✅ Files Uploaded & Master Updated!")
                             st.rerun()
                         except Exception as e:
-                            st.error(f"❌ Error: {e}")
+                            st.error(f"❌ Upload Error: {e}")
                     else:
                         st.warning("⚠️ Files aur Project Number dalna zaroori hai!")
 
+        # --- TAB 2: SEARCH DOCUMENTS ---
         with doc_sub2:
             q_s = st.text_input("🔍 Search Documents (Project, Indus, Site)")
             if q_s:
@@ -757,7 +758,10 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                         c2.info(row['doc_type'])
                         c3.markdown(f'[📥 View]({row["file_url"]})')
                         st.divider()
+                else:
+                    st.info("No documents found.")
 
+        # --- TAB 3: TRACKER (Emoji Status) ---
         with doc_sub3:
             try:
                 res_t = supabase.table("site_documents_master").select("*").execute()
@@ -777,9 +781,11 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                             "Report": "✅" if "REPORT" in types else "❌", 
                             "Photo": "✅" if "PHOTO" in types else "❌"
                         })
+                    
+                    # Word-fit table display
                     st.dataframe(pd.DataFrame(summary), use_container_width=True, hide_index=True)
-            except:
-                st.info("Tracker data loading...")
+            except Exception as e:
+                st.error(f"Tracker Load Error: {e}")
     # =====================================================================
     # 💰 TAB 1: FINANCE ENTRY (Baaki code same rahega)
     # =====================================================================
