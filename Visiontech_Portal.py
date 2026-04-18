@@ -243,7 +243,6 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                 res = query.execute()
                 if res.data:
                     df = pd.DataFrame(res.data)
-                    # डिस्प्लेसाठी तारीख फॉरमॅट सेट करणे
                     for col in ['Dispatch Date', 'BOQ Date']:
                         if col in df.columns:
                             df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime('%d-%b-%Y')
@@ -251,29 +250,27 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                     st.dataframe(df[mera_sequence], use_container_width=True, hide_index=True)
                 else: st.warning("कोणतीही माहिती सापडली नाही.")
 
-        # --- ४. LOGIC: DAILY DOUBLE TABLES (Date Format Fix Included) ---
+        # --- ४. LOGIC: DAILY DOUBLE TABLES (Strict Fix) ---
         if btn_generate:
             st.balloons()
-            # निवडलेल्या तारखेचे दोन फॉरमॅट तयार करणे
+            # निवडलेली तारीख DD-Mon-YYYY फॉरमॅटमध्ये रूपांतरित करणे 
             fmt_dash = target_date.strftime('%d-%b-%Y') # उदा. 16-Apr-2026
             
             with st.spinner(f'{fmt_dash} चा डेटा लोड होत आहे...'):
-                # संपूर्ण डेटाबेस ऐवजी फक्त 'visiontech' असलेले रेकॉर्ड्स ओढणे (स्पीडसाठी)
                 res = supabase.table("BOQ Report").select("*").execute()
                 
                 if res.data:
                     df_all = pd.DataFrame(res.data)
                     
-                    # 🗓️ तारीख मॅचिंग लॉजिक: दोन्ही बाजूंना 'DD-Mon-YYYY' मध्ये रूपांतरित करून मॅच करणे
-                    df_all['temp_date'] = pd.to_datetime(df_all['Dispatch Date'], errors='coerce').dt.strftime('%d-%b-%Y')
-                    df_filtered = df_all[df_all['temp_date'] == fmt_dash].copy()
+                    # 🗓️ तारीख मॅचिंग: डेटाबेसमधील तारखेला सुद्धा DD-Mon-YYYY मध्ये बदलून मॅच करणे 
+                    df_all['temp_match_date'] = pd.to_datetime(df_all['Dispatch Date'], errors='coerce').dt.strftime('%d-%b-%Y')
+                    df_filtered = df_all[df_all['temp_match_date'] == fmt_dash].copy()
 
                     if not df_filtered.empty:
-                        # आकडे नीट करणे
                         for q in ['Qty A', 'Qty B', 'Qty C']:
-                            df_filtered[q] = pd.to_numeric(df_filtered[q], errors='coerce').fillna(0).astype(int)
+                            if q in df_filtered.columns:
+                                df_filtered[q] = pd.to_numeric(df_filtered[q], errors='coerce').fillna(0).astype(int)
                         
-                        # डिस्प्ले फॉरमॅट
                         df_filtered['Dispatch Date'] = fmt_dash
 
                         # --- Table 1: Transporter (Visiontech) ---
@@ -292,7 +289,7 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                     else:
                         st.error(f"☹️ {fmt_dash} या तारखेचा कोणताही डेटा सापडला नाही.")
                 else:
-                    st.error("डेटाबेस कनेक्ट होऊ शकला नाही किंवा डेटा रिकामा आहे.")
+                    st.error("डेटाबेस कनेक्ट होऊ शकला नाही.")
     # =====================================================================
     # 🧾 TAB 2: PO REPORT
     # =====================================================================
