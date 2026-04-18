@@ -691,9 +691,10 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
     elif st.session_state.current_page == "Data":
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center & Tracker</h3>", unsafe_allow_html=True)
 # =====================================================================
-    # 🟦 TAB 6: DATA ENTRY (Document Center & Tracker) - 0% Logic Change
+    # 🟦 TAB 6: DATA ENTRY (Document Center & Tracker) - STRICT FIX
     # =====================================================================
-    elif st.session_state.current_page == "Data Entry":
+    # 'in' keyword use kiya hai taaki agar sidebar mein emoji ya space ho toh bhi load ho jaye
+    elif "Data Entry" in st.session_state.current_page or "Entry" in st.session_state.current_page:
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center & Tracker</h3>", unsafe_allow_html=True)
 
         with st.form("src_dc_upload_form", clear_on_submit=True):
@@ -710,10 +711,9 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
             if st.form_submit_button("🚀 Upload & Sync Tracker", use_container_width=True):
                 if f_site_id and f_dc_no and f_dc_date:
                     try:
-                        # Overwrite Logic: Same Site ID ka purana data delete
+                        # Overwrite Logic
                         supabase.table("src_dc_tracker").delete().eq("site_id", str(f_site_id)).execute()
                         
-                        # Naya Data Insert
                         new_entry = {
                             "site_id": str(f_site_id),
                             "dc_number": str(f_dc_no),
@@ -722,7 +722,7 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                             "status": "Uploaded"
                         }
                         supabase.table("src_dc_tracker").insert(new_entry).execute()
-                        st.success(f"✅ Site {f_site_id} updated successfully!")
+                        st.success(f"✅ Site {f_site_id} updated!")
                         st.rerun()
                     except Exception as e:
                         st.error(f"Error: {e}")
@@ -733,22 +733,23 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
         st.markdown("---")
         t_search = st.text_input("🔍 Search Tracker...", key="dc_search_unique")
         
-        res_dc = supabase.table("src_dc_tracker").select("*").order("created_at", desc=True).execute()
-        if res_dc.data:
-            df_dc = pd.DataFrame(res_dc.data)
-            if t_search:
-                df_dc = df_dc[df_dc.astype(str).apply(lambda x: x.str.contains(t_search, case=False)).any(axis=1)]
-            
-            # Date format as per your standard DD-Mon-YYYY
-            if 'dc_date' in df_dc.columns:
-                df_dc['dc_date'] = pd.to_datetime(df_dc['dc_date']).dt.strftime('%d-%b-%Y')
+        try:
+            res_dc = supabase.table("src_dc_tracker").select("*").order("created_at", desc=True).execute()
+            if res_dc.data:
+                df_dc = pd.DataFrame(res_dc.data)
+                if t_search:
+                    df_dc = df_dc[df_dc.astype(str).apply(lambda x: x.str.contains(t_search, case=False)).any(axis=1)]
+                
+                if 'dc_date' in df_dc.columns:
+                    df_dc['dc_date'] = pd.to_datetime(df_dc['dc_date']).dt.strftime('%d-%b-%Y')
 
-            # Chota table jo screen pe fit ho
-            st.dataframe(
-                df_dc[['site_id', 'dc_number', 'dc_date', 'status', 'remarks']], 
-                use_container_width=False, 
-                hide_index=True
-            )
+                st.dataframe(
+                    df_dc[['site_id', 'dc_number', 'dc_date', 'status', 'remarks']], 
+                    use_container_width=False, 
+                    hide_index=True
+                )
+        except:
+            st.info("Tracker data fetch error or table empty.")
 
         if st.button("🗑️ Clear Tracker Database", use_container_width=True):
             supabase.table("src_dc_tracker").delete().neq("site_id", "STRICT_EMPTY").execute()
