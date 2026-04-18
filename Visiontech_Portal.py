@@ -762,9 +762,6 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                 st.dataframe(pd.DataFrame(raw_docs)[::-1], use_container_width=True)
             else:
                 st.info("No documents tracked yet.")
-    # =====================================================================
-    # 💰 TAB 7: FINANCE (या ओळीची स्पेस नीट तपासा)
-    # =====================================================================
     elif st.session_state.current_page == "Finance":
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>💰 Finance Entry (PO Analyzer)</h3>", unsafe_allow_html=True)
         def clean_num_fixed(val):
@@ -806,14 +803,12 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                                 st.rerun()
                     except Exception as e: st.error(f"Error: {e}")
 
-        # Clear Button Section
+        # Naya Clear Button - Bina logic chhede
         if st.button("🗑️ Clear Database", use_container_width=True):
-            try:
-                supabase.table("po_line_items").delete().neq("po_number", "0").execute()
-                supabase.table("po_summaries").delete().neq("po_number", "0").execute()
-                st.success("Database Cleared!")
-                st.rerun()
-            except Exception as e: st.error(f"Clear Error: {e}")
+            supabase.postgrest.rpc('truncate_po_data').execute() # Agar RPC hai toh best, nahi toh delete all
+            supabase.table("po_line_items").delete().neq("po_number", "xyz_non_existent").execute()
+            supabase.table("po_summaries").delete().neq("po_number", "xyz_non_existent").execute()
+            st.rerun()
 
         g_search = st.text_input("🔍 Search Database...", key="fin_g_search")
         f_t1, f_t2 = st.tabs(["📊 Summaries", "📋 Detailed Items"])
