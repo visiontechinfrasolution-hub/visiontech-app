@@ -889,8 +889,8 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
             st.markdown("#### 📧 Email Configuration")
             c_em1, c_em2 = st.columns(2)
             db_emails = sorted(e_df["Email"].unique().tolist()) if not e_df.empty else []
-            default_to = ["visiontechinfrasolution@gmail.com"]
-            default_cc = ["services@vispltower.com", "project.visiontechinfra@gmail.com"]
+            default_to = ["a-amit.patil@industowers.com"]
+            default_cc = ["services@vispltower.com", "project.visiontechinfra@gmail.com", "vispltower@gmail.com", "visiontechinfrasolution@gmail.com"]
             for em in default_to + default_cc:
                 if em not in db_emails: db_emails.append(em)
 
