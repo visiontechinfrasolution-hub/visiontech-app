@@ -690,11 +690,10 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
 
     elif st.session_state.current_page == "Data":
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center & Tracker</h3>", unsafe_allow_html=True)
-    # =====================================================================
+# =====================================================================
     # 🟦 TAB 6: DATA ENTRY (Document Center & Tracker) - 0% Logic Change
     # =====================================================================
-    elif st.session_state.current_page == "Finance":
-        # Note: Aapne Finance ke upar kaha tha, toh Page Name check kar lena
+    elif st.session_state.current_page == "Data Entry":
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>📄 Document Center & SRC-DC Tracker</h3>", unsafe_allow_html=True)
 
         with st.form("src_dc_upload_form", clear_on_submit=True):
@@ -711,15 +710,14 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
             if st.form_submit_button("🚀 Upload & Sync Tracker", use_container_width=True):
                 if f_site_id and f_dc_no and f_dc_date:
                     try:
-                        # 1. Overwrite logic: Purana DC data delete karein same Site ID ke liye
+                        # 1. Overwrite logic: Same Site ID ka purana data delete karein
                         supabase.table("src_dc_tracker").delete().eq("site_id", str(f_site_id)).execute()
                         
                         # 2. Insert Naya Data
-                        # Note: File handling agar aap Supabase Storage use kar rahe hain toh uska URL yahan jayega
                         new_entry = {
                             "site_id": str(f_site_id),
                             "dc_number": str(f_dc_no),
-                            "dc_date": f_dc_date.strftime("%Y-%m-%d"), # DB Standard format
+                            "dc_date": f_dc_date.strftime("%Y-%m-%d"),
                             "remarks": str(f_remarks),
                             "status": "Uploaded",
                             "updated_by": "System Admin"
@@ -734,7 +732,7 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                 else:
                     st.warning("⚠️ Please fill Site ID, DC Number and Date.")
 
-        # --- SECTION 2: TRACKER VIEW ---
+        # --- SECTION: LIVE TRACKER VIEW ---
         st.markdown("---")
         st.markdown("##### 📋 Live SRC-DC Tracker Status")
         
@@ -748,25 +746,26 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
             if t_search:
                 df_dc = df_dc[df_dc.astype(str).apply(lambda x: x.str.contains(t_search, case=False)).any(axis=1)]
             
-            # Formatting Date for display as per your standard DD-Mon-YYYY
+            # Formatting Date as per your standard DD-Mon-YYYY
             if 'dc_date' in df_dc.columns:
                 df_dc['dc_date'] = pd.to_datetime(df_dc['dc_date']).dt.strftime('%d-%b-%Y')
 
-            # Table display logic - word fit
+            # Table display - Screen fit (chota table)
             st.dataframe(
                 df_dc[['site_id', 'dc_number', 'dc_date', 'status', 'remarks']], 
                 use_container_width=False, 
                 hide_index=True
             )
 
-        # --- SECTION 3: DATABASE CONTROL ---
-        if st.button("🗑️ Clear Tracker Database"):
+        # --- SECTION: DATABASE CONTROL ---
+        st.write("")
+        if st.button("🗑️ Clear Tracker Database", use_container_width=True):
             try:
-                supabase.table("src_dc_tracker").delete().neq("site_id", "CLEAR_ALL").execute()
-                st.success("Tracker cleared!")
+                supabase.table("src_dc_tracker").delete().neq("site_id", "EMPTY_STRICT").execute()
+                st.success("Tracker data cleared!")
                 st.rerun()
             except Exception as e:
-                st.error(f"Failed: {e}")
+                st.error(f"Failed to clear: {e}")
 
    # =====================================================================
     # 🟩 Finace
