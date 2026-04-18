@@ -181,11 +181,12 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
     st.divider()
 
 # =====================================================================
-    # 🟩 TAB 1: BOQ REPORT (Project-wise Merging & Batch Fetch)
+    # 🟩 TAB 1: BOQ REPORT (3 Dedicated Sections - 0% Logic Change)
     # =====================================================================
     if st.session_state.current_page == "BOQ":
         import io
         import random
+        from datetime import datetime, timedelta
 
         st.markdown("""
             <style>
@@ -193,6 +194,7 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                 div.stButton > button:first-child {
                     height: 60px !important; font-size: 20px !important; font-weight: bold !important;
                     background-color: #1E3A8A !important; color: white !important; border-radius: 12px !important;
+                    width: 100% !important;
                 }
                 .table-header { 
                     background-color: #1E3A8A; color: white; padding: 10px; border-radius: 8px; 
@@ -205,50 +207,24 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
         
         mera_sequence = ['Sr. No.', 'Site ID', 'Product', 'Transaction Type', 'Issue From', 'Project Number', 'BOQ', 'Item Code', 'Item Description', 'Qty A', 'Qty B', 'Qty C', 'Dispatch Date', 'Parent/Child', 'Line Status', 'Transporter', 'TSP Partner Name', 'LR Number', 'Vehicle Number', 'Challan Number', 'BOQ Date', 'Department', 'Item Category', 'Source Of Fulfilment']
 
-        # --- १. SEARCH FORM ---
-        with st.form("search_form_v27", clear_on_submit=False):
-            st.markdown("#### 🔎 Single Site / Project Search")
-            c1, c2, c3 = st.columns(3)
-            with c1: project_query = st.text_input("📁 Project Number", key="boq_p_v27")
-            with c2: site_query = st.text_input("📍 Site ID", key="boq_s_v27")
-            with c3: boq_query = st.text_input("📄 BOQ Number", key="boq_b_v27")
-            submit_search = st.form_submit_button("🔍 SEARCH SINGLE DATA")
-
-        # --- २. DATE RANGE FILTER FORM ---
-        st.markdown("---")
-        with st.form("date_range_filter_v27"):
-            st.markdown("#### 📅 Date Range Dispatch Reports")
-            c_from, c_to, c_btn = st.columns([1.5, 1.5, 1])
-            with c_from: start_date = st.date_input("From Date", value=datetime.now().date())
-            with c_to: end_date = st.date_input("To Date", value=datetime.now().date())
-            with c_btn: btn_range_gen = st.form_submit_button("🚀 GENERATE DATA")
-
-        # --- ३. सुधारित डेटा प्रोसेसिंग फंक्शन (Project ID + Item Code Logic) ---
+        # --- ०. तुमचे मूळ फंक्शन्स (०% बदल) ---
         def process_boq_data(raw_data):
             if not raw_data: return pd.DataFrame()
             df_res = pd.DataFrame(raw_data)
             df_res.columns = [str(c).strip() for c in df_res.columns]
-            
             qty_cols = ['Qty A', 'Qty B', 'Qty C']
             for col in qty_cols:
                 if col in df_res.columns:
                     df_res[col] = pd.to_numeric(df_res[col], errors='coerce').fillna(0).astype(int)
-            
-            # Project Number आणि Item Code नुसार ग्रुपिंग 
             if 'Item Code' in df_res.columns and 'Project Number' in df_res.columns:
                 df_res['TempKey'] = df_res.apply(lambda x: x.get('Sr. No.', random.random()) if str(x.get('Item Code','')).strip() == '' else x['Item Code'], axis=1)
-                
-                # अ‍ॅग्रीगेशन: फक्त एकाच प्रोजेक्टमधील सारखे आयटम मर्ज होतील 
                 agg_dict = {col: 'sum' if col in qty_cols else 'first' for col in df_res.columns if col not in ['Project Number', 'TempKey']}
                 df_res = df_res.groupby(['Project Number', 'TempKey'], as_index=False).agg(agg_dict)
-            
             for col in ['Dispatch Date', 'BOQ Date']:
                 if col in df_res.columns:
                     df_res[col] = pd.to_datetime(df_res[col], errors='coerce').dt.strftime('%d-%b-%Y')
-            
             return df_res.fillna('').astype(str).replace(['None', 'nan', 'NULL', 'NaT'], '')
 
-        # --- ४. BATCH FETCH (Timeout एरर फिक्स करण्यासाठी) ---
         def fetch_complete_data(query_builder):
             all_records = []
             page_size = 1000 
@@ -262,117 +238,113 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                 offset += page_size
             return all_records
 
-        # --- ५. EXECUTION ---
-        if submit_search:
-            st.balloons()
-            with st.spinner('शोधत आहे...'):
-                query = supabase.table("BOQ Report").select("*")
-                if project_query: query = query.ilike("Project Number", f"%{project_query.strip()}%")
-                if site_query: query = query.ilike("Site ID", f"%{site_query.strip()}%")
-                if boq_query: query = query.ilike("BOQ", f"%{boq_query.strip()}%")
-                
-                data = fetch_complete_data(query)
-                df_final = process_boq_data(data)
-                if not df_final.empty:
-                    st.success(f"✅ {len(df_final)} Records Found!")
-                    st.dataframe(df_final[[c for c in mera_sequence if c in df_final.columns]], use_container_width=True, hide_index=True)
+        # --- १. तुमच्या मागणीनुसार ३ मुख्य पेजेस (Tabs) ---
+        t1, t2, t3 = st.tabs([
+            "🔎 Single Site Search", 
+            "📅 Date Range Reports", 
+            "📤 Bulk Project Upload"
+        ])
 
-        if btn_range_gen:
-            st.balloons()
-            delta = end_date - start_date
-            date_list = [(start_date + timedelta(days=i)).strftime('%d-%b-%Y') for i in range(delta.days + 1)]
-            
-            with st.spinner('संपूर्ण डेटा फेच होत आहे...'):
-                try:
-                    query = supabase.table("BOQ Report").select("*").in_('"Dispatch Date"', date_list)
+        # --- PAGE 1: Single Site / Project Search ---
+        with t1:
+            with st.form("search_form_v27", clear_on_submit=False):
+                st.markdown("#### 🔎 Single Site / Project Search")
+                c1, c2, c3 = st.columns(3)
+                with c1: project_query = st.text_input("📁 Project Number", key="boq_p_v27")
+                with c2: site_query = st.text_input("📍 Site ID", key="boq_s_v27")
+                with c3: boq_query = st.text_input("📄 BOQ Number", key="boq_b_v27")
+                submit_search = st.form_submit_button("🔍 SEARCH SINGLE DATA")
+
+            if submit_search:
+                st.balloons()
+                with st.spinner('शोधत आहे...'):
+                    query = supabase.table("BOQ Report").select("*")
+                    if project_query: query = query.ilike("Project Number", f"%{project_query.strip()}%")
+                    if site_query: query = query.ilike("Site ID", f"%{site_query.strip()}%")
+                    if boq_query: query = query.ilike("BOQ", f"%{boq_query.strip()}%")
                     data = fetch_complete_data(query)
-                    
-                    if data:
-                        df_processed = process_boq_data(data)
-                        
-                        # --- Table 1: Transporter (Flexible Search) ---
-                        df_trans = df_processed[df_processed['Transporter'].astype(str).str.contains('Visiotech|Visiontech', case=False, na=False)]
-                        st.markdown(f"<div class='table-header'>📦 Transporter Dispatch Report ({start_date.strftime('%d-%b')} to {end_date.strftime('%d-%b')})</div>", unsafe_allow_html=True)
-                        if not df_trans.empty:
-                            buffer1 = io.BytesIO()
-                            with pd.ExcelWriter(buffer1, engine='xlsxwriter') as writer:
-                                df_trans[[c for c in mera_sequence if c in df_trans.columns]].to_excel(writer, index=False, sheet_name='Transporter')
-                            st.download_button(label="📥 Download Transporter Excel", data=buffer1.getvalue(), file_name=f"Transporter_{start_date}_to_{end_date}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="dl_f27_t1")
-                            st.dataframe(df_trans[[c for c in mera_sequence if c in df_trans.columns]], use_container_width=True, hide_index=True)
+                    df_final = process_boq_data(data)
+                    if not df_final.empty:
+                        st.success(f"✅ {len(df_final)} Records Found!")
+                        st.dataframe(df_final[[c for c in mera_sequence if c in df_final.columns]], use_container_width=True, hide_index=True)
+                    else: st.warning("कोणतीही माहिती सापडली नाही.")
 
-                        # --- Table 2: TSP Partner (Flexible Search) ---
-                        df_tsp = df_processed[df_processed['TSP Partner Name'].astype(str).str.contains('Visiotech|Visiontech', case=False, na=False)]
-                        st.markdown(f"<div class='table-header'>🏗️ TSP Partner Dispatch Report ({start_date.strftime('%d-%b')} to {end_date.strftime('%d-%b')})</div>", unsafe_allow_html=True)
-                        if not df_tsp.empty:
-                            buffer2 = io.BytesIO()
-                            with pd.ExcelWriter(buffer2, engine='xlsxwriter') as writer:
-                                df_tsp[[c for c in mera_sequence if c in df_tsp.columns]].to_excel(writer, index=False, sheet_name='TSP_Partner')
-                            st.download_button(label="📥 Download TSP Partner Excel", data=buffer2.getvalue(), file_name=f"TSP_{start_date}_to_{end_date}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="dl_f27_t2")
-                            st.dataframe(df_tsp[[c for c in mera_sequence if c in df_tsp.columns]], use_container_width=True, hide_index=True)
-                    else:
-                        st.error(f"☹️ निवडलेल्या कालावधीत कोणताही डेटा सापडला नाही.")
-                except Exception as e:
-                    st.error(f"Error: {e}")
-                    # --- १. BULK PROJECT ID UPLOAD (फक्त हा नवीन विभाग तुमच्या कोडमध्ये जोडा) ---
-        with st.expander("📤 Bulk Project ID Upload (Excel/CSV)", expanded=False):
+        # --- PAGE 2: Date Range Dispatch Reports ---
+        with t2:
+            with st.form("date_range_filter_v27"):
+                st.markdown("#### 📅 Date Range Dispatch Reports")
+                c_from, c_to, c_btn = st.columns([1.5, 1.5, 1])
+                with c_from: start_date = st.date_input("From Date", value=datetime.now().date(), key="d_from_v27")
+                with c_to: end_date = st.date_input("To Date", value=datetime.now().date(), key="d_to_v27")
+                with c_btn: btn_range_gen = st.form_submit_button("🚀 GENERATE DATA")
+
+            if btn_range_gen:
+                st.balloons()
+                delta = end_date - start_date
+                date_list = [(start_date + timedelta(days=i)).strftime('%d-%b-%Y') for i in range(delta.days + 1)]
+                with st.spinner('डेटा फेच होत आहे...'):
+                    try:
+                        query = supabase.table("BOQ Report").select("*").in_('"Dispatch Date"', date_list)
+                        data = fetch_complete_data(query)
+                        if data:
+                            df_processed = process_boq_data(data)
+                            
+                            # Table 1: Transporter
+                            df_trans = df_processed[df_processed['Transporter'].astype(str).str.contains('Visiotech|Visiontech', case=False, na=False)]
+                            st.markdown(f"<div class='table-header'>📦 Transporter Report</div>", unsafe_allow_html=True)
+                            if not df_trans.empty:
+                                buffer1 = io.BytesIO()
+                                with pd.ExcelWriter(buffer1, engine='xlsxwriter') as writer:
+                                    df_trans[[c for c in mera_sequence if c in df_trans.columns]].to_excel(writer, index=False)
+                                st.download_button("📥 Download Transporter Excel", buffer1.getvalue(), f"Transporter_{start_date}_to_{end_date}.xlsx", key="dl_t1_p2")
+                                st.dataframe(df_trans[[c for c in mera_sequence if c in df_trans.columns]], use_container_width=True, hide_index=True)
+
+                            # Table 2: TSP Partner
+                            df_tsp = df_processed[df_processed['TSP Partner Name'].astype(str).str.contains('Visiotech|Visiontech', case=False, na=False)]
+                            st.markdown(f"<div class='table-header'>🏗️ TSP Partner Report</div>", unsafe_allow_html=True)
+                            if not df_tsp.empty:
+                                buffer2 = io.BytesIO()
+                                with pd.ExcelWriter(buffer2, engine='xlsxwriter') as writer:
+                                    df_tsp[[c for c in mera_sequence if c in df_tsp.columns]].to_excel(writer, index=False)
+                                st.download_button("📥 Download TSP Excel", buffer2.getvalue(), f"TSP_{start_date}_to_{end_date}.xlsx", key="dl_t2_p2")
+                                st.dataframe(df_tsp[[c for c in mera_sequence if c in df_tsp.columns]], use_container_width=True, hide_index=True)
+                        else: st.error("डेटा सापडला नाही.")
+                    except Exception as e: st.error(f"Error: {e}")
+
+        # --- PAGE 3: Bulk Project ID Upload ---
+        with t3:
+            st.markdown("#### 📤 Bulk Project ID Upload (Excel/CSV)")
             st.info("'Project Number' नावाचा कॉलम असलेली फाईल अपलोड करा.")
             up_file = st.file_uploader("Upload File", type=['xlsx', 'csv'], key="bulk_up_v28")
             
             if up_file:
                 try:
-                    # फाईल रीड करणे
-                    # टीप: एक्ससेलसाठी 'openpyxl' लायब्ररी आवश्यक आहे
                     bulk_df = pd.read_excel(up_file, engine='openpyxl') if up_file.name.endswith('.xlsx') else pd.read_csv(up_file)
                     bulk_df.columns = [str(c).strip() for c in bulk_df.columns]
-                    
                     if 'Project Number' in bulk_df.columns:
-                        # प्रोजेक्ट लिस्ट काढणे
                         p_list = bulk_df['Project Number'].astype(str).str.strip().unique().tolist()
                         
-                        btn_bulk_col1, btn_bulk_col2 = st.columns(2)
-                        with btn_bulk_col1:
-                            submit_bulk = st.button("🚀 SUBMIT & PROCESS", use_container_width=True, key="bulk_submit_btn")
-                        with btn_bulk_col2:
-                            clear_bulk = st.button("🧹 CLEAR SEARCH", use_container_width=True, key="bulk_clear_btn")
+                        bc1, bc2 = st.columns(2)
+                        with bc1: submit_bulk = st.button("🚀 SUBMIT & PROCESS", use_container_width=True, key="bulk_submit_p3")
+                        with bc2: clear_bulk = st.button("🧹 CLEAR", use_container_width=True, key="bulk_clear_p3")
 
-                        if clear_bulk:
-                            st.rerun()
+                        if clear_bulk: st.rerun()
 
                         if submit_bulk:
                             st.balloons()
-                            with st.spinner(f'{len(p_list)} प्रोजेक्ट्सचा डेटा फेच होत आहे...'):
-                                # तुमच्या मूळ सुपॅबेस लॉजिकचा वापर (०% बदल)
+                            with st.spinner(f'{len(p_list)} प्रोजेक्ट्स शोधत आहे...'):
                                 query = supabase.table("BOQ Report").select("*").in_("Project Number", p_list)
-                                
-                                # तुमचा मूळ fetch_complete_data फंक्शन वापरणे
                                 data = fetch_complete_data(query) 
-                                
-                                # तुमचा मूळ process_boq_data फंक्शन वापरणे
                                 df_final = process_boq_data(data)
-                                
                                 if not df_final.empty:
-                                    st.success(f"✅ {len(df_final)} रेकॉर्ड्स सापडले!")
-                                    
-                                    # Excel Download Option (तुमच्या मागणीनुसार)
                                     output = io.BytesIO()
                                     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                                        df_final[[c for c in mera_sequence if c in df_final.columns]].to_excel(writer, index=False, sheet_name='Bulk_Report')
-                                    
-                                    st.download_button(
-                                        label="📥 Download Full Bulk Excel",
-                                        data=output.getvalue(),
-                                        file_name=f"Bulk_BOQ_Report_{datetime.now().strftime('%H%M%S')}.xlsx",
-                                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                                    )
-                                    
-                                    # टेबल डिस्प्ले (तुमच्या मूळ सिक्वेन्समध्ये)
+                                        df_final[[c for c in mera_sequence if c in df_final.columns]].to_excel(writer, index=False)
+                                    st.download_button("📥 Download Bulk Excel", output.getvalue(), "Bulk_Report.xlsx")
                                     st.dataframe(df_final[[c for c in mera_sequence if c in df_final.columns]], use_container_width=True, hide_index=True)
-                                else:
-                                    st.warning("कोणतीही माहिती सापडली नाही.")
-                    else:
-                        st.error("फाईलमध्ये 'Project Number' नावाचा कॉलम सापडला नाही.")
-                except Exception as e:
-                    st.error(f"Error: {e}. 'pip install openpyxl' केले असल्याची खात्री करा.")
+                                else: st.warning("डेटा सापडला नाही.")
+                    else: st.error("Project Number कॉलम सापडला नाही.")
+                except Exception as e: st.error(f"Error: {e}. Check openpyxl.")
     # =====================================================================
     # 🧾 TAB 2: PO REPORT
     # =====================================================================
