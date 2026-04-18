@@ -691,10 +691,9 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
     elif st.session_state.current_page == "Data":
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center & Tracker</h3>", unsafe_allow_html=True)
 # =====================================================================
-    # 🟦 TAB 6: DATA ENTRY (Document Center & Tracker) - AUTO-LOAD FIX
+    # 🟦 TAB 6: DATA ENTRY (Document Center & Tracker) - DEBUG MODE
     # =====================================================================
-    # 'in' use karne se agar sidebar mein emoji ya space hoga toh bhi load ho jayega
-    elif "Data Entry" in st.session_state.current_page or "Entry" in st.session_state.current_page:
+    elif st.session_state.current_page == "Data Entry":
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center & Tracker</h3>", unsafe_allow_html=True)
 
         with st.form("src_dc_upload_form", clear_on_submit=True):
@@ -711,9 +710,7 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
             if st.form_submit_button("🚀 Upload & Sync Tracker", use_container_width=True):
                 if f_site_id and f_dc_no and f_dc_date:
                     try:
-                        # Overwrite Logic
                         supabase.table("src_dc_tracker").delete().eq("site_id", str(f_site_id)).execute()
-                        
                         new_entry = {
                             "site_id": str(f_site_id),
                             "dc_number": str(f_dc_no),
@@ -731,29 +728,24 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
 
         # --- Tracker Table ---
         st.markdown("---")
-        t_search = st.text_input("🔍 Search Tracker...", key="dc_search_unique")
-        
         try:
             res_dc = supabase.table("src_dc_tracker").select("*").order("created_at", desc=True).execute()
             if res_dc.data:
                 df_dc = pd.DataFrame(res_dc.data)
-                if t_search:
-                    df_dc = df_dc[df_dc.astype(str).apply(lambda x: x.str.contains(t_search, case=False)).any(axis=1)]
-                
                 if 'dc_date' in df_dc.columns:
                     df_dc['dc_date'] = pd.to_datetime(df_dc['dc_date']).dt.strftime('%d-%b-%Y')
-
-                st.dataframe(
-                    df_dc[['site_id', 'dc_number', 'dc_date', 'status', 'remarks']], 
-                    use_container_width=False, 
-                    hide_index=True
-                )
+                st.dataframe(df_dc[['site_id', 'dc_number', 'dc_date', 'status', 'remarks']], use_container_width=False, hide_index=True)
         except:
-            st.info("💡 Tracker empty or Table 'src_dc_tracker' not found in DB.")
+            st.info("Tracker Database Empty.")
 
-        if st.button("🗑️ Clear Tracker Database", use_container_width=True):
-            supabase.table("src_dc_tracker").delete().neq("site_id", "STRICT_EMPTY").execute()
-            st.rerun()
+    # =====================================================================
+    # 🔍 DEBUGGER: JAR BLANK DISAT ASEL TAR HE CHECK KARA
+    # =====================================================================
+    else:
+        st.error(f"⚠️ Page Match Error!")
+        st.write(f"Sidebar madhun select kelaya: **'{st.session_state.current_page}'**")
+        st.write("Lekin code madhe tumhi **'Data Entry'** as shodhat ahat.")
+        st.info("Sidebar options madhe check kara 'Data Entry' chi spelling same ahe ka.")
     # =====================================================================
     # 💰 TAB 1: FINANCE ENTRY (Baaki code same rahega)
     # =====================================================================
