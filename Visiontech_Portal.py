@@ -764,7 +764,7 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                 st.info("No documents tracked yet.")
 
    # =====================================================================
-    # 🟩 TAB Finance
+    # 🟩 Finace
     # =====================================================================
     elif st.session_state.current_page == "Finance":
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>💰 Finance Entry (PO Analyzer)</h3>", unsafe_allow_html=True)
@@ -798,7 +798,6 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                             
                             df_cln = df_r[df_r['qty_tmp'] > 0].copy()
                             if not df_cln.empty:
-                                # Overwrite existing PO data
                                 supabase.table("po_line_items").delete().eq("po_number", str(u_po)).execute()
                                 supabase.table("po_summaries").delete().eq("po_number", str(u_po)).execute()
                                 
@@ -819,7 +818,6 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                                     })
                                 supabase.table("po_line_items").insert(items).execute()
                                 
-                                # Logic: If Project Name is blank, use Site ID for grouping
                                 df_cln['group_col'] = df_cln['Project Name'].replace('', None).fillna(df_cln['Site ID'])
                                 sums = df_cln.groupby(['group_col', 'Site ID'])['amt_tmp'].sum().reset_index()
                                 
@@ -838,7 +836,6 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                     except Exception as e: 
                         st.error(f"Error: {e}")
 
-        # Clear All Database Data
         if st.button("🗑️ Clear All Data", use_container_width=True):
             supabase.table("po_line_items").delete().neq("po_number", "CLEARED").execute()
             supabase.table("po_summaries").delete().neq("po_number", "CLEARED").execute()
@@ -854,12 +851,13 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                 if g_search: 
                     df_s = df_s[df_s.astype(str).apply(lambda x: x.str.contains(g_search, case=False)).any(axis=1)]
                 
-                # Dynamic columns display based on availability
-                cols_to_show = ['po_number', 'project_name', 'total_amount']
-                if 'site_id' in df_s.columns:
-                    cols_to_show.insert(1, 'site_id')
+                cols_to_show = ['po_number', 'project_name', 'site_id', 'total_amount']
+                actual_cols = [c for c in cols_to_show if c in df_s.columns]
                 
-                st.dataframe(df_s[cols_to_show], use_container_width=True, hide_index=True)
+                # Table centering and auto-fit logic
+                col_left, col_mid, col_right = st.columns([0.05, 0.9, 0.05])
+                with col_mid:
+                    st.dataframe(df_s[actual_cols], use_container_width=False, hide_index=True)
         
         with f_t2:
             res_d = supabase.table("po_line_items").select("*").order("created_at", desc=True).limit(1000).execute()
@@ -867,7 +865,9 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                 df_d = pd.DataFrame(res_d.data)
                 if g_search: 
                     df_d = df_d[df_d.astype(str).apply(lambda x: x.str.contains(g_search, case=False)).any(axis=1)]
-                st.dataframe(df_d[['po_number', 'line_no', 'item_number', 'qty', 'amount', 'project_name', 'site_id']], use_container_width=True, hide_index=True)
+                
+                # Auto-fit for detailed items too
+                st.dataframe(df_d[['po_number', 'line_no', 'item_number', 'qty', 'amount', 'project_name', 'site_id']], use_container_width=False, hide_index=True)
     # =====================================================================
     # 📝 TAB 8: AUDIT MANAGEMENT PORTAL
     # =====================================================================
