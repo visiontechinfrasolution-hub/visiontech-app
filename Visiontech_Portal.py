@@ -693,7 +693,7 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
 # =====================================================================
     # 🟦 TAB 6: DATA ENTRY (Document Center & Tracker) - STRICT FIX
     # =====================================================================
-   if st.session_state.current_page == "Data Entry":
+   eif st.session_state.current_page == "Data Entry":
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>📄 Document Center & SRC-DC Tracker</h3>", unsafe_allow_html=True)
 
         with st.form("src_dc_upload_form", clear_on_submit=True):
