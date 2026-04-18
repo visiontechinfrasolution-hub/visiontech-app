@@ -691,81 +691,86 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
     elif st.session_state.current_page == "Data":
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center & Tracker</h3>", unsafe_allow_html=True)
 # =====================================================================
-    # 🟦 TAB 6: DATA ENTRY (Document Center & Tracker) - 0% Logic Change
-    # =====================================================================
-    elif st.session_state.current_page == "Data Entry":
-        st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>📄 Document Center & SRC-DC Tracker</h3>", unsafe_allow_html=True)
+# 🟦 TAB 6: DATA ENTRY (Document Center & Tracker) - 0% Logic Change
+# =====================================================================
+st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center & Tracker</h3>", unsafe_allow_html=True)
 
-        with st.form("src_dc_upload_form", clear_on_submit=True):
-            st.markdown("##### 📥 Upload SRC-DC Details")
-            col1, col2, col3 = st.columns(3)
-            
-            f_site_id = col1.text_input("📍 Site ID")
-            f_dc_no = col2.text_input("📝 DC Number")
-            f_dc_date = col3.date_input("📅 DC Date", value=None)
-            
-            f_remarks = st.text_area("💬 Remarks (Optional)")
-            f_file = st.file_uploader("📎 Attach SRC-DC Copy (PDF/Image)", type=['pdf', 'png', 'jpg', 'jpeg'])
-            
-            if st.form_submit_button("🚀 Upload & Sync Tracker", use_container_width=True):
-                if f_site_id and f_dc_no and f_dc_date:
-                    try:
-                        # 1. Overwrite logic: Same Site ID ka purana data delete karein
-                        supabase.table("src_dc_tracker").delete().eq("site_id", str(f_site_id)).execute()
-                        
-                        # 2. Insert Naya Data
-                        new_entry = {
-                            "site_id": str(f_site_id),
-                            "dc_number": str(f_dc_no),
-                            "dc_date": f_dc_date.strftime("%Y-%m-%d"),
-                            "remarks": str(f_remarks),
-                            "status": "Uploaded",
-                            "updated_by": "System Admin"
-                        }
-                        
-                        supabase.table("src_dc_tracker").insert(new_entry).execute()
-                        
-                        st.success(f"✅ SRC-DC for Site **{f_site_id}** updated successfully!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"❌ Error during sync: {e}")
-                else:
-                    st.warning("⚠️ Please fill Site ID, DC Number and Date.")
-
-        # --- SECTION: LIVE TRACKER VIEW ---
-        st.markdown("---")
-        st.markdown("##### 📋 Live SRC-DC Tracker Status")
-        
-        t_search = st.text_input("🔍 Search Site/DC No...", key="dc_search")
-        
-        res_dc = supabase.table("src_dc_tracker").select("*").order("created_at", desc=True).execute()
-        
-        if res_dc.data:
-            df_dc = pd.DataFrame(res_dc.data)
-            
-            if t_search:
-                df_dc = df_dc[df_dc.astype(str).apply(lambda x: x.str.contains(t_search, case=False)).any(axis=1)]
-            
-            # Formatting Date as per your standard DD-Mon-YYYY
-            if 'dc_date' in df_dc.columns:
-                df_dc['dc_date'] = pd.to_datetime(df_dc['dc_date']).dt.strftime('%d-%b-%Y')
-
-            # Table display - Screen fit (chota table)
-            st.dataframe(
-                df_dc[['site_id', 'dc_number', 'dc_date', 'status', 'remarks']], 
-                use_container_width=False, 
-                hide_index=True
-            )
-
-        # --- SECTION: DATABASE CONTROL ---
-        st.write("")
-        if st.button("🗑️ Clear Tracker Database", use_container_width=True):
+# --- SECTION 1: UPLOAD FORM ---
+with st.form("src_dc_upload_form", clear_on_submit=True):
+    st.markdown("##### 📥 Upload SRC-DC Details")
+    col1, col2, col3 = st.columns(3)
+    
+    f_site_id = col1.text_input("📍 Site ID")
+    f_dc_no = col2.text_input("📝 DC Number")
+    f_dc_date = col3.date_input("📅 DC Date", value=None)
+    
+    f_remarks = st.text_area("💬 Remarks (Optional)")
+    f_file = st.file_uploader("📎 Attach SRC-DC Copy (PDF/Image)", type=['pdf', 'png', 'jpg', 'jpeg'])
+    
+    if st.form_submit_button("🚀 Upload & Sync Tracker", use_container_width=True):
+        if f_site_id and f_dc_no and f_dc_date:
             try:
-                supabase.table("src_dc_tracker").delete().neq("site_id", "EMPTY_STRICT").execute()
-                st.success("Tracker data cleared!")
+                # 1. Overwrite logic: Same Site ID ka purana data delete
+                supabase.table("src_dc_tracker").delete().eq("site_id", str(f_site_id)).execute()
+                
+                # 2. Insert Naya Data
+                new_entry = {
+                    "site_id": str(f_site_id),
+                    "dc_number": str(f_dc_no),
+                    "dc_date": f_dc_date.strftime("%Y-%m-%d"),
+                    "remarks": str(f_remarks),
+                    "status": "Uploaded",
+                    "updated_by": "System Admin"
+                }
+                supabase.table("src_dc_tracker").insert(new_entry).execute()
+                
+                st.success(f"✅ SRC-DC for Site **{f_site_id}** updated successfully!")
                 st.rerun()
             except Exception as e:
-                st.error(f"Failed to clear: {e}")
+                st.error(f"❌ Error during sync: {e}")
+        else:
+            st.warning("⚠️ Please fill Site ID, DC Number and Date.")
+
+# --- SECTION 2: LIVE TRACKER VIEW ---
+st.markdown("---")
+st.markdown("##### 📋 Live SRC-DC Tracker Status")
+
+t_search = st.text_input("🔍 Search Site/DC No...", key="dc_search")
+
+# Fetch data from Supabase
+res_dc = supabase.table("src_dc_tracker").select("*").order("created_at", desc=True).execute()
+
+if res_dc.data:
+    df_dc = pd.DataFrame(res_dc.data)
+    
+    # Filter if search text exists
+    if t_search:
+        df_dc = df_dc[df_dc.astype(str).apply(lambda x: x.str.contains(t_search, case=False)).any(axis=1)]
+    
+    # Date formatting as per DD-Mon-YYYY
+    if 'dc_date' in df_dc.columns:
+        df_dc['dc_date'] = pd.to_datetime(df_dc['dc_date']).dt.strftime('%d-%b-%Y')
+
+    # Display Table - Fit to words
+    col_l, col_m, col_r = st.columns([0.02, 0.96, 0.02])
+    with col_m:
+        st.dataframe(
+            df_dc[['site_id', 'dc_number', 'dc_date', 'status', 'remarks']], 
+            use_container_width=False, 
+            hide_index=True
+        )
+else:
+    st.info("ℹ️ Tracker database is currently empty.")
+
+# --- SECTION 3: DATABASE CONTROL ---
+st.write("")
+if st.button("🗑️ Clear Tracker Database", use_container_width=True):
+    try:
+        supabase.table("src_dc_tracker").delete().neq("site_id", "STRICT_EMPTY").execute()
+        st.success("Tracker data cleared successfully!")
+        st.rerun()
+    except Exception as e:
+        st.error(f"Failed to clear: {e}")
 
    # =====================================================================
     # 🟩 Finace
