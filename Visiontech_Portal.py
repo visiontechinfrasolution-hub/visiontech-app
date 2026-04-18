@@ -690,9 +690,6 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
 
     elif st.session_state.current_page == "Data":
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center & Tracker</h3>", unsafe_allow_html=True)
-# =====================================================================
-    # 🟦 TAB 6: DATA ENTRY (Document Center & Tracker) - STRICT FIX
-    # =====================================================================
     # =====================================================================
     # 🏗️ TAB 6: DATA ENTRY (Document Center & Tracker) - YOUR ORIGINAL CODE
     # =====================================================================
