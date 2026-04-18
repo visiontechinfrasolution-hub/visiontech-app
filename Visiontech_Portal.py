@@ -819,12 +819,6 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
             st.rerun()
 
     # =====================================================================
-    # 💰 TAB 1: FINANCE ENTRY (PO Analyzer) - 0% Logic Change
-    # =====================================================================
-    elif st.session_state.current_page == "Finance":
-        st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>💰 Finance Entry (PO Analyzer)</h3>", unsafe_allow_html=True)
-        # ... baaki finance ka code yahan se continue hoga ...
-    # =====================================================================
     # 📝 TAB 8: AUDIT MANAGEMENT PORTAL
     # =====================================================================
     elif st.session_state.current_page == "Audit":
