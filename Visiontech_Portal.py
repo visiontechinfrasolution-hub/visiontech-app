@@ -763,8 +763,7 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
             else:
                 st.info("No documents tracked yet.")
 
-    Finace :- 
-    
+    Finace
     elif st.session_state.current_page == "Finance":
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>💰 Finance Entry (PO Analyzer)</h3>", unsafe_allow_html=True)
         def clean_num_fixed(val):
