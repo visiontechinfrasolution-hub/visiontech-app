@@ -2,23 +2,25 @@ name: Kishor AI Agent
 
 on:
   schedule:
-    - cron: '*/10 * * * *' # दर १० मिनिटांनी किशोर स्वतःहून जागे होईल
-  workflow_dispatch:      # मॅन्युअली चालू करण्यासाठी बटण
+    - cron: '*/10 * * * *' 
+  workflow_dispatch:      
 
 jobs:
   run-kishor:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4 # v3 च्या जागी v4 केले
 
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5 # v4 च्या जागी v5 केले
         with:
-          python-version: '3.9'
+          python-version: '3.10'
 
       - name: Install Dependencies
-        run: pip install requests pandas google-generativeai supabase
+        run: |
+          pip install --upgrade pip
+          pip install requests pandas supabase google-genai
 
       - name: Execute Kishor Brain
         env:
