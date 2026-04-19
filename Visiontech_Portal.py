@@ -1060,12 +1060,13 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
             st.write("### Pending Billing List")
             st.dataframe(st.session_state.billing_df[['SITE ID', 'SITE NAME', 'RFAI STATUS', 'WCC NO.']], use_container_width=True, hide_index=True)
 # =====================================================================
-    # 🚨 TAB 7: STN MANAGER - MARATHI TEMPLATE VERSION (7 VARIABLES)
+    # 🚨 TAB 7: STN MANAGER - WHATSAPP ERROR FIXED (NO NEWLINES)
     # =====================================================================
     elif st.session_state.current_page == "STN Manager":
         import requests
         import pandas as pd
         import io
+        import re # Regex for cleaning spaces
         from datetime import datetime
 
         # --- 1. CONFIG ---
@@ -1074,29 +1075,30 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
 
         st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>🚀 Visiontech STN Control Center</h2>", unsafe_allow_html=True)
 
-        # --- 2. NOTIFICATION HELPERS ---
-        def send_manager_direct(text_msg):
-            """Manager la Direct Text Message (Session-based)"""
-            url = "https://api.interakt.ai/v1/public/message/"
-            headers = {"Authorization": f"Basic {INTERAKT_API_KEY}", "Content-Type": "application/json"}
-            payload = {"countryCode": "+91", "phoneNumber": MANAGER_PHONE[-10:], "type": "Text", "message": text_msg}
-            try: return requests.post(url, headers=headers, json=payload, timeout=10)
-            except: return None
+        # --- 2. CLEANING FUNCTION (IMPORTANT) ---
+        def clean_for_whatsapp(text):
+            """Remove newlines, tabs, and extra spaces for Interakt Compliance"""
+            if not text: return "N/A"
+            # Replace newlines and tabs with a simple space
+            text = text.replace("\n", " | ").replace("\t", " ")
+            # Replace 2 or more spaces with a single space
+            text = re.sub(r'\s+', ' ', text)
+            return text.strip()
 
+        # --- 3. NOTIFICATION HELPERS ---
         def send_team_stn_template(phone, row, custom_msg):
-            """Team la 'stnpending' Marathi Template pathvne (7 Variables)"""
             url = "https://api.interakt.ai/v1/public/message/"
             headers = {"Authorization": f"Basic {INTERAKT_API_KEY}", "Content-Type": "application/json"}
             
-            # 🚨 STRICT 7 VARIABLES MATCHING YOUR MARATHI TEMPLATE
+            # 🚨 CLEANING ALL VARIABLES BEFORE SENDING
             body_values = [
-                str(row['project_id']),   # {{1}} Project ID
-                str(row['site_id']),      # {{2}} Site ID
-                str(row['site_name']),    # {{3}} Site Name
-                str(row['cluster']),      # {{4}} Cluster
-                str(row['item_details']),  # {{5}} Item Details
-                str(row['total_qty_b']),   # {{6}} Total Qty
-                str(custom_msg)           # {{7}} Message (Follow-up wording)
+                clean_for_whatsapp(str(row['project_id'])),   # {{1}}
+                clean_for_whatsapp(str(row['site_id'])),      # {{2}}
+                clean_for_whatsapp(str(row['site_name'])),    # {{3}}
+                clean_for_whatsapp(str(row['cluster'])),      # {{4}}
+                clean_for_whatsapp(str(row['item_details'])),  # {{5}}
+                clean_for_whatsapp(str(row['total_qty_b'])),   # {{6}}
+                clean_for_whatsapp(str(custom_msg))           # {{7}}
             ]
             
             payload = {
@@ -1115,26 +1117,13 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
             except Exception as e:
                 return f"Connection Error: {str(e)}"
 
-        # --- 3. FETCH & SYNC LOGIC ---
-        def fetch_all_boq():
-            all_records = []
-            page_size, offset = 1000, 0
-            while True:
-                response = supabase.table("BOQ Report").select("*").ilike("Transporter", "Visi%").range(offset, offset + page_size - 1).execute()
-                batch = response.data
-                if not batch: break
-                all_records.extend(batch)
-                if len(batch) < page_size: break
-                offset += page_size
-            return pd.DataFrame(all_records)
-
-        if st.button("🔄 Sync Fresh Data & Notify Manager", use_container_width=True):
-            with st.spinner("Processing Warehouse Scan..."):
-                df_boq = fetch_all_boq()
+        # --- 4. SYNC LOGIC ---
+        if st.button("🔄 Sync Fresh Data", use_container_width=True):
+            with st.spinner("Processing..."):
+                df_boq = fetch_all_boq() # fetch_all_boq function tumchya code madhe asave
                 if not df_boq.empty:
                     for col in ['Qty B', 'Qty C']: df_boq[col] = pd.to_numeric(df_boq[col], errors='coerce').fillna(0)
                     
-                    # Logic: Warehouse + Parent + Pending
                     mask = (df_boq['Issue From'].astype(str).str.contains('Warehouse', case=False, na=False)) & \
                            (df_boq['Qty B'] > df_boq['Qty C']) & \
                            (df_boq['Parent/Child'].astype(str).str.contains('Parent', case=False, na=False))
@@ -1149,8 +1138,10 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                         for pid, project_gp in df_filtered.groupby('Project Number'):
                             s_id = str(project_gp.iloc[0]['Site ID'])
                             site_info = df_indus[df_indus['Site ID'] == s_id]
+                            
                             gp_items = project_gp.groupby(['Item Code', 'Item Description'], as_index=False).agg({'Qty B':'sum', 'Qty C':'sum'})
-                            items_text = "\n".join([f"• {r['Item Description']} (Pending: {int(r['Qty B'] - r['Qty C'])})" for _, r in gp_items.iterrows()])
+                            # \n nako, tyachya jaagi Comma (,) vapruya
+                            items_text = ", ".join([f"{r['Item Description']} (Pnd: {int(r['Qty B'] - r['Qty C'])})" for _, r in gp_items.iterrows()])
                             
                             batch.append({
                                 "project_id": str(pid), "site_id": s_id, 
@@ -1161,15 +1152,13 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                             })
                         
                         supabase.table("stn_pending_analysis").delete().eq("status", "Open").execute()
-                        if batch:
-                            supabase.table("stn_pending_analysis").upsert(batch, on_conflict="project_id").execute()
-                            send_manager_direct("Hello Manager, STN data updated! Please assign teams in portal.")
+                        if batch: supabase.table("stn_pending_analysis").upsert(batch, on_conflict="project_id").execute()
                         st.success("✅ Sync Done!")
                         st.rerun()
 
         st.divider()
 
-        # --- 4. DISPLAY & SAVE ACTION ---
+        # --- 5. ACTION CARDS ---
         res_display = supabase.table("stn_pending_analysis").select("*").execute()
         df_display = pd.DataFrame(res_display.data)
 
@@ -1179,37 +1168,24 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
 
             for i, row in df_display.iterrows():
                 with st.container(border=True):
-                    c1, c2, c3, c4 = st.columns([1.5, 2, 1.5, 0.8])
-                    with c1: st.write(f"**Project:** {row['project_id']}"); st.caption(f"📍 {row['cluster']}")
-                    with c2: st.markdown(f"**Site:** {row['site_name']} ({row['site_id']})\n\n**Pending:**\n{row['item_details']}")
-                    with c3:
+                    col1, col2, col3, col4 = st.columns([1.5, 2, 1.5, 0.8])
+                    # Dashboard var \n dakhvu shakto, pan WhatsApp sathi clean karu
+                    with col1: st.write(f"**Project:** {row['project_id']}")
+                    with col2: st.write(f"**Site:** {row['site_name']}"); st.caption(f"📦 {row['item_details']}")
+                    with col3:
                         t_list = ["Select Team"] + df_teams['name'].tolist()
                         cur_team = row.get('assigned_team') or "Select Team"
                         sel_team = st.selectbox("Assign Team", t_list, index=t_list.index(cur_team) if cur_team in t_list else 0, key=f"t_{i}")
-                        v_list = ["Pending", "Not Required", "Closed"]
-                        cur_v = row.get('v_status') or "Pending"
-                        sel_v = st.selectbox("Status", v_list, index=v_list.index(cur_v) if cur_v in v_list else 0, key=f"v_{i}")
-                    with c4:
+                    with col4:
                         st.write(" ")
                         if st.button("💾 Save", key=f"s_{i}"):
                             t_phone = df_teams[df_teams['name'] == sel_team]['phone_number'].values[0] if sel_team != "Select Team" else None
-                            
-                            # Update DB
-                            supabase.table("stn_pending_analysis").update({
-                                "assigned_team": sel_team, "team_number": t_phone, "v_status": sel_v,
-                                "last_followup": datetime.now().isoformat()
-                            }).eq("project_id", row['project_id']).execute()
+                            supabase.table("stn_pending_analysis").update({"assigned_team": sel_team, "team_number": t_phone, "last_followup": datetime.now().isoformat()}).eq("project_id", row['project_id']).execute()
                             
                             if sel_team != "Select Team":
-                                with st.spinner("Notifying Team..."):
-                                    # Follow-up message wording
-                                    custom_msg = "तात्काळ माहिती द्या आणि STN क्लोज करा. सायरा मॅडमशी संपर्क साधा."
-                                    resp = send_team_stn_template(t_phone, row, custom_msg)
-                                    
+                                with st.spinner("WhatsApp pathvat aahe..."):
+                                    resp = send_team_stn_template(t_phone, row, "तात्काळ क्लोज करा.")
                                     if hasattr(resp, 'status_code') and resp.status_code in [200, 201, 202]:
-                                        st.success(f"✅ Saved & Sent to {sel_team}!")
+                                        st.success(f"✅ Notified {sel_team}!")
                                     else:
-                                        err = resp.text if hasattr(resp, 'text') else str(resp)
-                                        st.error(f"❌ Saved, but WhatsApp failed: {err}")
-                            else:
-                                st.success("✅ Saved!")
+                                        st.error(f"❌ WhatsApp Fail: Variable Error Clean kela aahe tari fail zala. Response: {resp.text if hasattr(resp, 'text') else str(resp)}")
