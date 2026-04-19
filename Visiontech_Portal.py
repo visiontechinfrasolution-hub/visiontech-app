@@ -1060,7 +1060,7 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
             st.write("### Pending Billing List")
             st.dataframe(st.session_state.billing_df[['SITE ID', 'SITE NAME', 'RFAI STATUS', 'WCC NO.']], use_container_width=True, hide_index=True)
 # =====================================================================
-    # 🚨 TAB 7: STN MANAGER - FINAL AUTOMATION (GEMINI + INTERAKT)
+    # 🚨 TAB 7: STN MANAGER - FINAL AUTOMATION (WITH HEADER MAPPING)
     # =====================================================================
     elif st.session_state.current_page == "STN Manager":
         import google.generativeai as genai
@@ -1073,14 +1073,14 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
 
         st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>🚨 STN Pending Management (AI Powered)</h2>", unsafe_allow_html=True)
 
-        # --- 2. FUNCTION: GEMINI AI STRICT INSTRUCTION (Variable {{7}}) ---
+        # --- 2. FUNCTION: GEMINI AI STRICT INSTRUCTION ---
         def get_ai_strict_instruction(team_name, project_id):
             model = genai.GenerativeModel('gemini-pro')
             prompt = f"""
             Write a 1-2 sentence strict instruction in Marathi-Hindi mix for {team_name} regarding Project {project_id}.
             Context: STN is pending, Indus pressure is high, new material is blocked.
             Mention: Talk to Sayra Madam immediately if there's any issue. 
-            Style: Very urgent, professional but aggressive boss tone. No greetings.
+            Style: Very urgent, professional boss tone. No greetings.
             """
             try:
                 response = model.generate_content(prompt)
@@ -1088,13 +1088,10 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
             except:
                 return "STN तातडीने क्लोज करा, इंडसकडून खूप प्रेशर आहे. काही अडचण असल्यास सायरा मॅडमशी बोला!"
 
-        # --- 3. FUNCTION: INTERAKT AUTOMATED WHATSAPP (7 Variables) ---
+        # --- 3. FUNCTION: INTERAKT WHATSAPP SENDER (7 Variables) ---
         def send_stn_whatsapp_automated(row, ai_comment):
             url = "https://api.interakt.ai/v1/public/message/"
-            headers = {
-                "Authorization": f"Basic {INTERAKT_API_KEY}",
-                "Content-Type": "application/json"
-            }
+            headers = {"Authorization": f"Basic {INTERAKT_API_KEY}", "Content-Type": "application/json"}
             
             payload = {
                 "countryCode": "+91",
@@ -1102,15 +1099,15 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                 "type": "Template",
                 "template": {
                     "name": "stnpending",
-                    "languageCode": "mr", # Jar template Marathi madhe asel tar 'mr' theva
+                    "languageCode": "mr", 
                     "bodyValues": [
-                        str(row['project_id']),    # {{1}} Project Number
-                        str(row['site_id']),       # {{2}} Site ID
-                        str(row['site_name']),     # {{3}} Site Name
-                        str(row['cluster']),       # {{4}} District
-                        str(row['item_details']),  # {{5}} Item Description
-                        str(row['total_qty_b']),   # {{6}} Qty B
-                        str(ai_comment)            # {{7}} Gemini Comment
+                        str(row['project_id']),    # {{1}} (From Project Number)
+                        str(row['site_id']),       # {{2}} (From Site ID)
+                        str(row['site_name']),     # {{3}} (From Site Name)
+                        str(row['cluster']),       # {{4}} (From District)
+                        str(row['item_details']),  # {{5}} (From Item Description)
+                        str(row['total_qty_b']),   # {{6}} (From Qty B)
+                        str(ai_comment)            # {{7}} (Gemini Comment)
                     ]
                 }
             }
@@ -1119,18 +1116,18 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
             except:
                 return None
 
-        # --- 4. SYNC LOGIC: BOQ + INDUS MAPPING ---
+        # --- 4. SYNC LOGIC (HEADER MAPPING INTEGRATED) ---
         if st.button("🔄 Sync Fresh Pending Sites", use_container_width=True):
-            with st.spinner("BOQ Report aani Indus Data scan hot aahe..."):
-                # Fetch Visiontech BOQ Data
-                res_boq = supabase.table("BOQ Report").select("*").eq("Transporter", "Visiontech").execute()
+            with st.spinner("BOQ aani Indus Data scan hot aahe..."):
+                # ilike vaprun Visiontech filter kela (Capital/Small cha tension nahi)
+                res_boq = supabase.table("BOQ Report").select("*").ilike("Transporter", "Visiontech").execute()
                 df_boq = pd.DataFrame(res_boq.data)
 
                 if not df_boq.empty:
                     df_boq['Qty B'] = pd.to_numeric(df_boq['Qty B'], errors='coerce').fillna(0)
                     df_boq['Qty C'] = pd.to_numeric(df_boq['Qty C'], errors='coerce').fillna(0)
                     
-                    # Mapping Logic: Capex + Parent + Pending Qty
+                    # STN Logic: Capex + Parent + Pending
                     mask = (df_boq['Product'].str.contains('Capex', case=False, na=False)) & \
                            (df_boq['Parent/Child'].str.contains('Parent', case=False, na=False)) & \
                            (df_boq['Qty B'] > df_boq['Qty C'])
@@ -1140,30 +1137,32 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                         s_ids = df_p_raw['Site ID'].unique().tolist()
                         res_indus = supabase.table("Indus Data").select("Site ID", "Site Name", "District").in_("Site ID", s_ids).execute()
                         df_indus = pd.DataFrame(res_indus.data)
-                        
                         df_merged = pd.merge(df_p_raw, df_indus, on="Site ID", how="left")
                         
                         batch = []
+                        # Grouping by 'Project Number' (BOQ Header)
                         for pid, gp in df_merged.groupby('Project Number'):
                             items_text = "\n".join([f"• {r['Item Description']} (Qty: {r['Qty B']})" for _, r in gp.iterrows()])
+                            
+                            # mapping: DF Header -> Database Small Case Header
                             batch.append({
-                                "project_id": str(pid),                       # Project Number -> project_id
-                                "site_id": str(gp.iloc[0]['Site ID']),        # Site ID -> site_id
+                                "project_id": str(pid),                       
+                                "site_id": str(gp.iloc[0]['Site ID']),        
                                 "site_name": str(gp.iloc[0].get('Site Name', 'N/A')),
-                                "cluster": str(gp.iloc[0].get('District', 'N/A')), # District -> cluster
-                                "item_details": items_text,                   # Item Description -> item_details
-                                "total_qty_b": int(gp['Qty B'].sum()),        # Qty B -> total_qty_b
+                                "cluster": str(gp.iloc[0].get('District', 'N/A')), 
+                                "item_details": items_text,                   
+                                "total_qty_b": int(gp['Qty B'].sum()),        
                                 "status": "Open"
                             })
                         
-                        # Database Upsert
-                        supabase.table("STN_Pending_Analysis").upsert(batch, on_conflict="project_id").execute()
+                        # Database Upsert (Small Case Table Name)
+                        supabase.table("stn_pending_analysis").upsert(batch, on_conflict="project_id").execute()
                         st.success(f"✅ {len(batch)} Sites Synced Successfully!")
                         st.rerun()
                     else:
                         st.info("Kontihi Pending Site sapatli nahi.")
                 else:
-                    st.warning("BOQ Report madhe Visiontech cha data nahiye.")
+                    st.warning("BOQ Report madhe Visiontech cha data sapat nahiye.")
 
         st.divider()
 
@@ -1171,7 +1170,8 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
         res_teams = supabase.table("allowed_users").select("name, phone_number").execute()
         df_teams = pd.DataFrame(res_teams.data) if res_teams.data else pd.DataFrame()
         
-        res_p = supabase.table("STN_Pending_Analysis").select("*").eq("status", "Open").execute()
+        # Small case table name check
+        res_p = supabase.table("stn_pending_analysis").select("*").eq("status", "Open").execute()
         df_p = pd.DataFrame(res_p.data)
 
         if not df_p.empty:
@@ -1179,40 +1179,35 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                 with st.container(border=True):
                     c1, c2, c3 = st.columns([1.5, 2, 1.2])
                     with c1:
-                        st.markdown(f"**Project ID:**\n`{row['project_id']}`")
-                        st.markdown(f"**Cluster:**\n{row['cluster']}")
+                        st.markdown(f"**Project:** `{row['project_id']}`\n\n**Cluster:** {row['cluster']}")
                     with c2:
-                        st.markdown(f"**Site:** {row['site_name']} ({row['site_id']})")
-                        st.markdown(f"**Pending Items:**\n{row['item_details']}")
+                        st.markdown(f"**Site:** {row['site_name']} ({row['site_id']})\n\n**Items:**\n{row['item_details']}")
                     with c3:
                         if not df_teams.empty:
-                            team_names = ["Select Team"] + df_teams['name'].tolist()
-                            sel_team = st.selectbox("Assign Team", team_names, key=f"sel_{row['project_id']}_{i}")
+                            team_list = ["Select Team"] + df_teams['name'].tolist()
+                            sel_team = st.selectbox("Assign Team", team_list, key=f"sel_{row['project_id']}_{i}")
                             
                             if st.button("🚀 Assign & Notify", key=f"btn_{row['project_id']}_{i}"):
                                 if sel_team != "Select Team":
                                     t_phone = df_teams[df_teams['name'] == sel_team]['phone_number'].values[0]
                                     
                                     # Update Database
-                                    supabase.table("STN_Pending_Analysis").update({
+                                    supabase.table("stn_pending_analysis").update({
                                         "assigned_team": sel_team, 
                                         "team_number": t_phone
                                     }).eq("project_id", row['project_id']).execute()
                                     
-                                    # AI instruction generation & WhatsApp trigger
                                     with st.spinner("AI Instruction तयार होत आहे..."):
                                         ai_msg = get_ai_strict_instruction(sel_team, row['project_id'])
-                                        # Manually updating phone in row for API call
                                         row['team_number'] = t_phone 
                                         response = send_stn_whatsapp_automated(row, ai_msg)
                                     
-                                    if response and (response.status_code == 200 or response.status_code == 201):
-                                        st.success(f"✅ मेसेज {sel_team} ला यशस्वीरित्या पाठवला!")
-                                        st.info(f"🤖 **AI Instruction:** {ai_msg}")
+                                    if response and (response.status_code in [200, 201]):
+                                        st.success(f"✅ {sel_team} ला मेसेज पाठवला!")
                                     else:
-                                        st.error("❌ WhatsApp पाठवता आले नाही. Interakt balance किंवा Template नाव तपासा.")
+                                        st.error("❌ WhatsApp fail. Interakt balance/template check kara.")
                                 else:
-                                    st.warning("कृपया टीम सिलेक्ट करा!")
+                                    st.warning("Please select a team!")
         else:
-            st.info("सध्या असाइनमेंटसाठी कोणतेही पेंडिंग STN नाहीत.")
+            st.info("No pending STN for assignment.")
 
