@@ -257,47 +257,65 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
             if submit_search:
                 st.balloons()
                 with st.spinner('शोधत आहे...'):
+                    # Error Fix: Query building ko simple rakha hai
                     query = supabase.table("BOQ Report").select("*")
                     if project_query: query = query.ilike("Project Number", f"%{project_query.strip()}%")
                     if site_query: query = query.ilike("Site ID", f"%{site_query.strip()}%")
                     if boq_query: query = query.ilike("BOQ", f"%{boq_query.strip()}%")
-                    data = fetch_complete_data(query)
-                    df_final = process_boq_data(data)
+                    
+                    try:
+                        data = fetch_complete_data(query)
+                        df_final = process_boq_data(data)
+                    except Exception as e:
+                        st.error(f"Supabase Fetch Error: {e}")
+                        data = []
                     
                     if not df_final.empty:
                         st.success(f"✅ {len(df_final)} Records Found!")
 
-                        # --- NEW LOGIC: STN STATUS (ONLY FOR CAPEX) ---
+                        # --- UPDATED LOGIC: STN STATUS (CAPEX + PARENT ONLY) ---
                         try:
-                            # 1. Filter only Capex rows for calculation
-                            df_capex = df_final[df_final['Product'].astype(str).str.contains('Capex', case=False, na=False)].copy()
+                            # Step 1: Filter Capex AND Parent items only
+                            # 'Product' column mein Capex aur 'Parent/Child' column mein Parent hona chahiye
+                            mask = (
+                                df_final['Product'].astype(str).str.contains('Capex', case=False, na=False) & 
+                                df_final['Parent/Child'].astype(str).str.contains('Parent', case=False, na=False)
+                            )
+                            df_status_check = df_final[mask].copy()
 
-                            if not df_capex.empty:
-                                df_capex['Qty A'] = pd.to_numeric(df_capex['Qty A'], errors='coerce').fillna(0)
-                                df_capex['Qty B'] = pd.to_numeric(df_capex['Qty B'], errors='coerce').fillna(0)
-                                df_capex['Qty C'] = pd.to_numeric(df_capex['Qty C'], errors='coerce').fillna(0)
+                            if not df_status_check.empty:
+                                # Qty numeric conversion
+                                df_status_check['Qty A'] = pd.to_numeric(df_status_check['Qty A'], errors='coerce').fillna(0)
+                                df_status_check['Qty B'] = pd.to_numeric(df_status_check['Qty B'], errors='coerce').fillna(0)
+                                df_status_check['Qty C'] = pd.to_numeric(df_status_check['Qty C'], errors='coerce').fillna(0)
 
-                                # Condition: Qty A > 0 AND A == B == C for all Capex items
-                                is_stn_done = all((df_capex['Qty A'] > 0) & (df_capex['Qty A'] == df_capex['Qty B']) & (df_capex['Qty A'] == df_capex['Qty C']))
+                                # Condition: Sabhi filtered items ke liye A > 0 aur A=B=C
+                                is_stn_done = all(
+                                    (df_status_check['Qty A'] > 0) & 
+                                    (df_status_check['Qty A'] == df_status_check['Qty B']) & 
+                                    (df_status_check['Qty A'] == df_status_check['Qty C'])
+                                )
 
                                 if is_stn_done:
                                     st.markdown("""
                                         <div style='background-color: #DCFCE7; padding: 20px; border-radius: 12px; border: 2px solid #166534; text-align: center;'>
                                             <h1 style='color: #166534; margin: 0;'>✅ STN Done</h1>
+                                            <p style='color: #166534; margin: 0;'>Sirf Capex & Parent items match hain.</p>
                                         </div>
                                     """, unsafe_allow_html=True)
                                 else:
                                     st.markdown("""
                                         <div style='background-color: #FEE2E2; padding: 20px; border-radius: 12px; border: 2px solid #991B1B; text-align: center;'>
                                             <h1 style='color: #991B1B; margin: 0;'>❌ STN Pending</h1>
+                                            <p style='color: #991B1B; margin: 0;'>Capex Parent items mismatch hain.</p>
                                         </div>
                                     """, unsafe_allow_html=True)
                             else:
-                                st.info("ℹ️ Is Project mein koi Capex item nahi mila.")
+                                st.info("ℹ️ Is Search mein koi Capex-Parent item nahi mila.")
                             st.write("") 
                         except Exception as e:
-                            pass 
-                        # --- END OF NEW LOGIC ---
+                            st.error(f"Logic Error: {e}")
+                        # --- END OF UPDATED LOGIC ---
 
                         st.dataframe(df_final[[c for c in mera_sequence if c in df_final.columns]], use_container_width=True, hide_index=True)
                     else: 
