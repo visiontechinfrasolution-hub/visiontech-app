@@ -254,6 +254,7 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                 with c2: site_query = st.text_input("📍 Site ID", key="boq_s_v27")
                 with c3: boq_query = st.text_input("📄 BOQ Number", key="boq_b_v27")
                 submit_search = st.form_submit_button("🔍 SEARCH SINGLE DATA")
+
             if submit_search:
                 st.balloons()
                 with st.spinner('शोधत आहे...'):
@@ -268,15 +269,14 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                         df_final = process_boq_data(data)
                     except Exception as e:
                         st.error(f"Supabase Fetch Error: {e}")
-                        data = []
+                        df_final = pd.DataFrame()
                     
                     if not df_final.empty:
                         st.success(f"✅ {len(df_final)} Records Found!")
 
-                        # --- UPDATED LOGIC: STN STATUS (CAPEX + PARENT ONLY) ---
+                        # --- UPDATED LOGIC: STN STATUS (Qty B > 0 Only) ---
                         try:
                             # Step 1: Filter Capex AND Parent items only
-                            # 'Product' column mein Capex aur 'Parent/Child' column mein Parent hona chahiye
                             mask = (
                                 df_final['Product'].astype(str).str.contains('Capex', case=False, na=False) & 
                                 df_final['Parent/Child'].astype(str).str.contains('Parent', case=False, na=False)
@@ -289,27 +289,30 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                                 df_status_check['Qty B'] = pd.to_numeric(df_status_check['Qty B'], errors='coerce').fillna(0)
                                 df_status_check['Qty C'] = pd.to_numeric(df_status_check['Qty C'], errors='coerce').fillna(0)
 
-                                # Condition: Sabhi filtered items ke liye A > 0 aur A=B=C
-                                is_stn_done = all(
-                                    (df_status_check['Qty A'] > 0) & 
-                                    (df_status_check['Qty A'] == df_status_check['Qty B']) & 
-                                    (df_status_check['Qty A'] == df_status_check['Qty C'])
-                                )
+                                # logic: Sirf wahi rows consider karo jahan Qty B > 0 hai (Material liya gaya hai)
+                                # Isse wo rows ignore ho jayengi jisme process shuru hi nahi hua
+                                df_dispatched = df_status_check[df_status_check['Qty B'] > 0]
 
-                                if is_stn_done:
-                                    st.markdown("""
-                                        <div style='background-color: #DCFCE7; padding: 20px; border-radius: 12px; border: 2px solid #166534; text-align: center;'>
-                                            <h1 style='color: #166534; margin: 0;'>✅ STN Done</h1>
-                                            <p style='color: #166534; margin: 0;'>Sirf Capex & Parent items match hain.</p>
-                                        </div>
-                                    """, unsafe_allow_html=True)
+                                if not df_dispatched.empty:
+                                    # Condition: Jitna liya (Qty B) utna hi mila (Qty C) hona chahiye
+                                    is_stn_done = all(df_dispatched['Qty B'] == df_dispatched['Qty C'])
+
+                                    if is_stn_done:
+                                        st.markdown("""
+                                            <div style='background-color: #DCFCE7; padding: 20px; border-radius: 12px; border: 2px solid #166534; text-align: center;'>
+                                                <h1 style='color: #166534; margin: 0;'>✅ STN Done</h1>
+                                                <p style='color: #166534; margin: 0; font-weight: bold;'>Jitna material liya (Qty B), utna mil gaya (Qty C)!</p>
+                                            </div>
+                                        """, unsafe_allow_html=True)
+                                    else:
+                                        st.markdown("""
+                                            <div style='background-color: #FEE2E2; padding: 20px; border-radius: 12px; border: 2px solid #991B1B; text-align: center;'>
+                                                <h1 style='color: #991B1B; margin: 0;'>❌ STN Pending</h1>
+                                                <p style='color: #991B1B; margin: 0; font-weight: bold;'>Liya hua material (Qty B) aur mila hua material (Qty C) match nahi hai.</p>
+                                            </div>
+                                        """, unsafe_allow_html=True)
                                 else:
-                                    st.markdown("""
-                                        <div style='background-color: #FEE2E2; padding: 20px; border-radius: 12px; border: 2px solid #991B1B; text-align: center;'>
-                                            <h1 style='color: #991B1B; margin: 0;'>❌ STN Pending</h1>
-                                            <p style='color: #991B1B; margin: 0;'>Capex Parent items mismatch hain.</p>
-                                        </div>
-                                    """, unsafe_allow_html=True)
+                                    st.info("ℹ️ Is Project mein abhi koi Capex-Parent material 'Liya' (Qty B > 0) nahi gaya hai.")
                             else:
                                 st.info("ℹ️ Is Search mein koi Capex-Parent item nahi mila.")
                             st.write("") 
