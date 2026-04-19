@@ -2,7 +2,7 @@ name: Kishor AI Agent
 
 on:
   schedule:
-    - cron: '*/10 * * * *' # दर १० मिनिटांनी किशोर स्वतःहून चेक करेल
+    - cron: '*/10 * * * *' # दर १० मिनिटांनी किशोर स्वतःहून जागे होईल
   workflow_dispatch:      # मॅन्युअली चॅट सुरू करण्यासाठी बटण
 
 jobs:
@@ -15,10 +15,12 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: '3.10' # लेटेस्ट आणि स्टेबल व्हर्जन
 
       - name: Install Dependencies
-        run: pip install requests pandas google-generativeai supabase
+        run: |
+          pip install --upgrade pip
+          pip install requests pandas supabase google-genai
 
       - name: Execute Kishor Brain
         env:
