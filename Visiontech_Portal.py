@@ -1060,7 +1060,7 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
             st.write("### Pending Billing List")
             st.dataframe(st.session_state.billing_df[['SITE ID', 'SITE NAME', 'RFAI STATUS', 'WCC NO.']], use_container_width=True, hide_index=True)
 # =====================================================================
-    # 🚨 TAB 7: STN MANAGER - CRASH PROOF + GEMINI AUTO FOLLOW-UP
+    # 🚨 TAB 7: STN MANAGER - TABLE RESTORED & LAVISH UI
     # =====================================================================
     elif st.session_state.current_page == "STN Manager":
         import requests
@@ -1075,32 +1075,19 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
         INTERAKT_API_KEY = "S2pFcE5ETjE2NDhiQ1VIMEFjMVA5a3ZwdHB6X0diYXpRM2I2SWRxbGJWYzo="
         MANAGER_PHONE = "919552273181"
 
-        st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>🚀 Visiontech AI STN Controller</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>🚀 Visiontech AI STN Control Center</h2>", unsafe_allow_html=True)
 
         # --- 2. HELPERS ---
         def clean_for_whatsapp(text):
-            """WhatsApp compliance: No newlines, items separated by bullets"""
+            """WhatsApp compliance: Newlines ki jagah Arrow (➤) use karein"""
             if not text: return "N/A"
-            # Replace newlines with a distinct separator
             text = text.replace("\n\n", "  ➤  ").replace("\n", "  ➤  ")
-            # Remove multiple spaces
             text = re.sub(r'\s+', ' ', text)
             return text.strip()
-
-        def get_gemini_warning(site_id, items):
-            """Gemini AI Kadak Follow-up Logic"""
-            model = genai.GenerativeModel('gemini-1.5-flash')
-            prompt = f"Site {site_id} pending items: {items}. Write a very short, strict warning in Marathi (max 15 words) for the field team to close it NOW."
-            try:
-                response = model.generate_content(prompt)
-                return response.text.strip()
-            except:
-                return "STN Pending ahe! तात्काळ क्लोज करा आणि रिपोर्ट द्या."
 
         def send_team_stn_template(phone, row, custom_msg):
             url = "https://api.interakt.ai/v1/public/message/"
             headers = {"Authorization": f"Basic {INTERAKT_API_KEY}", "Content-Type": "application/json"}
-            
             payload = {
                 "countryCode": "+91", "phoneNumber": str(phone)[-10:],
                 "type": "Template",
@@ -1120,49 +1107,62 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
             try: return requests.post(url, headers=headers, json=payload, timeout=15)
             except: return None
 
-        # --- 3. AI MONITORING ENGINE (CRASH-PROOF) ---
-        st.subheader("⏱️ AI Auto-Monitor (2 Min Cycle Active)")
-        
-        # Get pending assignments
-        res_p = supabase.table("stn_pending_analysis").select("*").eq("v_status", "Pending").execute()
-        df_p = pd.DataFrame(res_p.data)
+        # --- 3. FETCH BOQ FUNCTION (TABLE FIX) ---
+        def fetch_all_boq():
+            all_records = []
+            page_size, offset = 1000, 0
+            while True:
+                try:
+                    response = supabase.table("BOQ Report").select("*").ilike("Transporter", "Visi%").range(offset, offset + page_size - 1).execute()
+                    batch = response.data
+                    if not batch: break
+                    all_records.extend(batch)
+                    if len(batch) < page_size: break
+                    offset += page_size
+                except: break
+            return pd.DataFrame(all_records)
 
-        if not df_p.empty:
-            now = datetime.now()
-            for idx, row in df_p.iterrows():
-                if row.get('team_number'):
-                    try:
-                        # ERROR FIX: Check if last_followup is valid
-                        last_time_str = row.get('last_followup')
-                        if last_time_str:
-                            last_time = datetime.fromisoformat(last_time_str)
-                        else:
-                            last_time = now - timedelta(minutes=5)
+        # --- 4. SYSTEM MONITOR & SYNC ---
+        col_refresh, col_status = st.columns([1, 1])
+        with col_refresh:
+            if st.button("🔄 Sync All Sites", use_container_width=True):
+                with st.spinner("Database se data nikal raha hoon..."):
+                    df_boq = fetch_all_boq()
+                    if not df_boq.empty:
+                        for col in ['Qty B', 'Qty C']: df_boq[col] = pd.to_numeric(df_boq[col], errors='coerce').fillna(0)
+                        mask = (df_boq['Issue From'].astype(str).str.contains('Warehouse', case=False, na=False)) & \
+                               (df_boq['Qty B'] > df_boq['Qty C']) & \
+                               (df_boq['Parent/Child'].astype(str).str.contains('Parent', case=False, na=False))
+                        df_filtered = df_boq[mask].copy()
 
-                        # JAR 2 MINUTE ZALE ASTIL TAR
-                        if (now - last_time).total_seconds() >= 120:
-                            st.info(f"🤖 Gemini sending warning for Site: {row['site_id']}")
-                            ai_warn = get_gemini_warning(row['site_id'], row['item_details'])
-                            send_team_stn_template(row['team_number'], row, f"AI ALERT: {ai_warn}")
-                            # Update DB time
-                            supabase.table("stn_pending_analysis").update({"last_followup": now.isoformat()}).eq("project_id", row['project_id']).execute()
-                    except Exception as e:
-                        st.error(f"Monitor loop error: {e}")
+                        if not df_filtered.empty:
+                            s_ids = df_filtered['Site ID'].unique().tolist()
+                            res_indus = supabase.table("Indus Data").select("Site ID", "Site Name", "District").in_("Site ID", s_ids).execute()
+                            df_indus = pd.DataFrame(res_indus.data)
 
-        # --- 4. SYNC & MANUAL UI ---
-        if st.button("🔄 Full System Sync & Notify Manager", use_container_width=True):
-            with st.spinner("Processing..."):
-                # (Fetch BOQ logic yahan rahega)
-                # ...
-                # Items with Double Newline for Portal View
-                items_ui = "\n\n".join([f"• {r['Item Description']} (Qty: {int(r['Qty B'] - r['Qty C'])})" for _, r in gp_items.iterrows()])
-                # Sync logic continues...
-                st.success("Sync Done!")
-                st.rerun()
+                            batch = []
+                            for pid, project_gp in df_filtered.groupby('Project Number'):
+                                s_id = str(project_gp.iloc[0]['Site ID'])
+                                site_info = df_indus[df_indus['Site ID'] == s_id]
+                                gp_items = project_gp.groupby(['Item Code', 'Item Description'], as_index=False).agg({'Qty B':'sum', 'Qty C':'sum'})
+                                # UI ke liye double newline
+                                items_ui = "\n\n".join([f"• {r['Item Description']} (Pending: {int(r['Qty B'] - r['Qty C'])})" for _, r in gp_items.iterrows()])
+                                
+                                batch.append({
+                                    "project_id": str(pid), "site_id": s_id, 
+                                    "site_name": site_info.iloc[0]['Site Name'] if not site_info.empty else "N/A",
+                                    "cluster": site_info.iloc[0]['District'] if not site_info.empty else "N/A",
+                                    "item_details": items_ui, "total_qty_b": int(project_gp['Qty B'].sum()),
+                                    "status": "Open", "v_status": "Pending", "last_followup": datetime.now().isoformat()
+                                })
+                            supabase.table("stn_pending_analysis").delete().eq("status", "Open").execute()
+                            if batch: supabase.table("stn_pending_analysis").upsert(batch, on_conflict="project_id").execute()
+                            st.success("✅ Table Restored & Synced!")
+                            st.rerun()
 
         st.divider()
 
-        # --- 5. DISPLAY CARDS ---
+        # --- 5. ACTION CARDS (SITE LIST) ---
         res_display = supabase.table("stn_pending_analysis").select("*").execute()
         df_display = pd.DataFrame(res_display.data)
 
@@ -1172,21 +1172,29 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
 
             for i, row in df_display.iterrows():
                 with st.container(border=True):
-                    col1, col2, col3, col4 = st.columns([1.5, 2, 1.5, 0.8])
-                    with col1: st.write(f"**Project:** {row['project_id']}")
-                    with col2: st.info(row['item_details']) # Portal pe lavish spacing dikhegi
-                    with col3:
+                    c1, c2, c3, c4 = st.columns([1.5, 2.5, 1.5, 0.8])
+                    with c1: 
+                        st.markdown(f"**Project:** `{row['project_id']}`")
+                        st.caption(f"📍 {row['cluster']}")
+                    with c2: 
+                        st.markdown(f"**Site:** {row['site_name']} ({row['site_id']})")
+                        st.info(row['item_details']) # Yahan space dikhega
+                    with c3:
                         t_list = ["Select Team"] + df_teams['name'].tolist()
-                        sel_team = st.selectbox("Assign Team", t_list, index=t_list.index(row['assigned_team']) if row['assigned_team'] in t_list else 0, key=f"t_{i}")
+                        cur_t = row.get('assigned_team') or "Select Team"
+                        sel_team = st.selectbox("Assign Team", t_list, index=t_list.index(cur_t) if cur_t in t_list else 0, key=f"t_{i}")
                         v_list = ["Pending", "Closed"]
-                        sel_v = st.selectbox("Status", v_list, index=v_list.index(row['v_status']) if row['v_status'] in v_list else 0, key=f"v_{i}")
-                    with col4:
+                        cur_v = row.get('v_status') or "Pending"
+                        sel_v = st.selectbox("Status", v_list, index=v_list.index(cur_v) if cur_v in v_list else 0, key=f"v_{i}")
+                    with c4:
+                        st.write("")
                         if st.button("💾 Save", key=f"s_{i}"):
                             t_phone = df_teams[df_teams['name'] == sel_team]['phone_number'].values[0] if sel_team != "Select Team" else None
                             supabase.table("stn_pending_analysis").update({
-                                "assigned_team": sel_team, "team_number": t_phone, "v_status": sel_v,
-                                "last_followup": datetime.now().isoformat()
+                                "assigned_team": sel_team, "team_number": t_phone, "v_status": sel_v, "last_followup": datetime.now().isoformat()
                             }).eq("project_id", row['project_id']).execute()
                             if sel_team != "Select Team":
                                 send_team_stn_template(t_phone, row, "तात्काळ क्लोज करा.")
                             st.success("Saved!")
+        else:
+            st.info("Sync button dabayein sites dekhne ke liye.")
