@@ -1,7 +1,7 @@
 import os
 import requests
 import re
-from google import genai # नवीन पॅकेज
+from google import genai
 from supabase import create_client
 from datetime import datetime
 
@@ -24,7 +24,7 @@ GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
 INTERAKT_KEY = "S2pFcE5ETjE2NDhiQ1VIMEFjMVA5a3ZwdHB6X0diYXpRM2I2SWRxbGJWYzo="
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-client = genai.Client(api_key=GEMINI_KEY) # नवीन पद्धत
+client = genai.Client(api_key=GEMINI_KEY)
 
 def kishor_process(user_query):
     today = datetime.now().strftime("%d %B %Y")
@@ -39,7 +39,8 @@ def kishor_process(user_query):
             if res.data:
                 raw_info = str(res.data[0])
         except Exception as e:
-        return f"अहो सरकार, थोडी तांत्रिक अडचण आलीय: {str(e)}"
+            # इथे चूक होती, ती आता दुरुस्त केली आहे (Proper Indentation)
+            return f"अहो सरकार, सुपॅबेसमध्ये अडचण आलीय: {str(e)}"
 
     # ४. किशोरकडून रिस्पॉन्स
     full_prompt = f"{KISHOR_PROMPT}\nलक्षात ठेव, आजची तारीख {today} आहे.\n\n"
@@ -49,19 +50,17 @@ def kishor_process(user_query):
         full_prompt += f"युजरचा प्रश्न: '{user_query}'. यावर पूर्ण डिटेलमध्ये उत्तर दे."
 
     try:
-        # नवीन Gemini 2.0 API कॉल
         response = client.models.generate_content(
             model="gemini-2.0-flash", 
             contents=full_prompt
         )
         return response.text.strip()
     except Exception as e:
-        return f"अहो सरकार, थोडी तांत्रिक अडचण आलीय: {str(e)}"
+        return f"अहो सरकार, जेमिनी API मध्ये अडचण आलीय: {str(e)}"
 
 def send_wa_reply(phone, message):
     url = "https://api.interakt.ai/v1/public/message/"
     headers = {
-        # 'Basic' नंतर तुमची की आहे का ते बघा
         "Authorization": "Basic S2pFcE5ETjE2NDhiQ1VIMEFjMVA5a3ZwdHB6X0diYXpRM2I2SWRxbGJWYzo=",
         "Content-Type": "application/json"
     }
@@ -74,6 +73,8 @@ def send_wa_reply(phone, message):
     try:
         r = requests.post(url, headers=headers, json=payload, timeout=15)
         print(f"WhatsApp Status Code: {r.status_code}")
+        if r.status_code not in [200, 201, 202]:
+            print(f"Response Error: {r.text}")
     except Exception as e:
         print(f"WhatsApp Error: {e}")
 
