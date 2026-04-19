@@ -1,36 +1,35 @@
 import os
 import requests
 import re
-import google.generativeai as genai
+from google import genai # नवीन पॅकेज
 from supabase import create_client
 from datetime import datetime
 
-# --- १. किशोरची ओळख (Identity) ---
+# --- १. किशोरची अस्सल ओळख ---
 KISHOR_PROMPT = """
 तुझे नाव 'किशोर' आहे. तू 'Visiontech' चा सर्वात हुशार, विनोदी आणि अभ्यासू डिजिटल असिस्टंट आहेस. 
 तुझे बोलणे अस्सल गावरान मराठी ठसक्याचे, सविस्तर आणि माहितीपूर्ण असावे.
 
 [नियम]
-१. सुरुवात ठळक (Bold) आणि रंजक वाक्याने कर. 🔥
-२. माहिती मुद्द्यांनुसार (Bullet Points) सविस्तर मांड. 📚
-३. युजरला "ओ मालक", "ओ साहेब" किंवा "अहो सरकार" असे संबोध. 😎
-४. पूर्ण माहिती दे, विचारायचे मन खुश झाले पाहिजे. 🚩🦁
+- सुरुवात ठळक (Bold) आणि रंजक वाक्याने कर. 🔥
+- माहिती किमान ५-६ मुद्द्यांत सविस्तर मांड. 📚
+- युजरला "ओ मालक", "ओ साहेब" किंवा "अहो सरकार" असे संबोध. 😎
+- चालू घडामोडी विचारल्यास आजच्या तारखेनुसार माहिती दे. 🗞️📅
 """
 
 # --- २. कॉन्फिगरेशन ---
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
-INTERAKT_KEY = "S2pFcE5ETjE2NDhiQ1VIMEFjMVA5a3ZwdHB6X0diYXpRM2I2SWRxbGJWYzo=" # तुमची Interakt Key
+INTERAKT_KEY = "S2pFcE5ETjE2NDhiQ1VIMEFjMVA5a3ZwdHB6X0diYXpRM2I2SWRxbGJWYzo="
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-genai.configure(api_key=GEMINI_KEY)
+client = genai.Client(api_key=GEMINI_KEY) # नवीन पद्धत
 
 def kishor_process(user_query):
-    model = genai.GenerativeModel('gemini-1.5-flash')
     today = datetime.now().strftime("%d %B %Y")
     
-    # ३. डेटा सर्च (Site ID तपासणे)
+    # ३. डेटा सर्च
     site_id_match = re.search(r'\d{6,}', user_query)
     raw_info = "NOT_FOUND"
     
@@ -39,22 +38,28 @@ def kishor_process(user_query):
             res = supabase.table("Indus Data").select("*").eq("Site ID", site_id_match.group()).execute()
             if res.data:
                 raw_info = str(res.data[0])
-        except: pass
+        except Exception as e:
+            print(f"Supabase Error: {e}")
 
-    # ४. किशोरकडून रिस्पॉन्स तयार करणे
-    full_prompt = f"{KISHOR_PROMPT}\nलक्षात ठेव, आजची खरी तारीख {today} आहे.\n\n"
+    # ४. किशोरकडून रिस्पॉन्स
+    full_prompt = f"{KISHOR_PROMPT}\nलक्षात ठेव, आजची तारीख {today} आहे.\n\n"
     if raw_info != "NOT_FOUND":
-        full_prompt += f"ह्या साईटची माहिती सापडली आहे: {raw_info}. ती किशोरच्या स्टाईलमध्ये नीट मांड."
+        full_prompt += f"ह्या साईटची माहिती मिळाली आहे: {raw_info}. ती किशोरच्या स्टाईलमध्ये मांड."
     else:
-        full_prompt += f"युजरचा प्रश्न: '{user_query}'. यावर सविस्तर (Full Detail) माहिती दे."
+        full_prompt += f"युजरचा प्रश्न: '{user_query}'. यावर पूर्ण डिटेलमध्ये उत्तर दे."
 
     try:
-        response = model.generate_content(full_prompt)
+        # नवीन Gemini API कॉल
+        response = client.models.generate_content(
+            model="gemini-2.0-flash", 
+            contents=full_prompt
+        )
         return response.text.strip()
-    except:
-        return "अहो मालक, रेंजचा प्रॉब्लेम दिसतोय, किशोर पुन्हा ट्राय करेल!"
+    except Exception as e:
+        return f"अहो सरकार, थोडी तांत्रिक अडचण आलीय: {str(e)}"
 
 if __name__ == "__main__":
-    # टेस्टिंगसाठी सध्या फक्त प्रिंट करू, नंतर आपण Interakt सोबत कनेक्ट करू
-    test_query = "शिवाजी महाराज सविस्तर माहिती सांगा" 
-    print(kishor_process(test_query))
+    test_query = "छत्रपती शिवाजी महाराज पूर्ण माहिती सांगा" 
+    print(f"🤖 किशोर उत्तर तयार करत आहे...")
+    final_ans = kishor_process(test_query)
+    print(f"\n{final_ans}")
