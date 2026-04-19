@@ -162,6 +162,7 @@ if st.session_state.current_page == "Dashboard":
         if st.button("📦\nBOQ Report"): navigate_to("BOQ")
         if st.button("📊\nIndus Data"): navigate_to("Indus")
         if st.button("💰\nFinance"): navigate_to("Finance")
+        if st.button("🚨\nSTN Manager"): navigate_to("STN Manager")
     with c2:
         if st.button("🧾\nPO Report"): navigate_to("PO")
         if st.button("📡\nWCC Tracker"): navigate_to("WCC")
@@ -171,8 +172,7 @@ if st.session_state.current_page == "Dashboard":
         if st.button("📁\nData Entry"): navigate_to("Data")
         if st.button("📢\nRFAI Billing"): navigate_to("RFAI")
         if st.button("📄\nJMS Generator"): navigate_to("JMS")
-        if st.button("🚨\nSTN Manager"): navigate_to("STN Manager")
-
+       
 # --- PAGES LOGIC ---
 elif st.session_state.current_page != "Dashboard": # लाईन १७० वर 'else' काढून हे टाकले आहे
     st.markdown("<div class='back-btn'>", unsafe_allow_html=True)
