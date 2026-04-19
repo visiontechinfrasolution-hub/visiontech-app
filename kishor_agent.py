@@ -61,6 +61,7 @@ def kishor_process(user_query):
 def send_wa_reply(phone, message):
     url = "https://api.interakt.ai/v1/public/message/"
     headers = {
+        # 'Basic' नंतर तुमची की आहे का ते बघा
         "Authorization": "Basic S2pFcE5ETjE2NDhiQ1VIMEFjMVA5a3ZwdHB6X0diYXpRM2I2SWRxbGJWYzo=",
         "Content-Type": "application/json"
     }
