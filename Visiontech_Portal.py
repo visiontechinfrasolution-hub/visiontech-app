@@ -1060,23 +1060,25 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
             st.write("### Pending Billing List")
             st.dataframe(st.session_state.billing_df[['SITE ID', 'SITE NAME', 'RFAI STATUS', 'WCC NO.']], use_container_width=True, hide_index=True)
 # =====================================================================
-    # 🚨 TAB 7: STN MANAGER - FINAL (WITH MANAGER NOTIFICATION)
+    # 🚨 TAB 7: STN MANAGER - FULL FINAL VERSION (ALL FEATURES)
     # =====================================================================
     elif st.session_state.current_page == "STN Manager":
         import google.generativeai as genai
         import requests
         import pandas as pd
         import io
+        from datetime import datetime
 
-        # --- 1. CONFIG ---
+        # --- 1. CONFIGURATIONS ---
         genai.configure(api_key="AIzaSyDed-krPqnZXVCRcbIpV3yPPdXoxF3qEQk")
         INTERAKT_API_KEY = "S2pFcE5ETjE2NDhiQ1VIMEFjMVA5a3ZwdHB6X0diYXpRM2I2SWRxbGJWYzo="
-        MANAGER_PHONE = "919552273181" # Manager cha number set kela aahe
+        MANAGER_PHONE = "919552273181"
 
         st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>🚀 Visiontech STN Control Center</h2>", unsafe_allow_html=True)
 
-        # --- 2. HELPERS ---
+        # --- 2. HELPERS (API & DATA) ---
         def fetch_all_boq():
+            """Pagination logic to fetch all 50,000+ rows if needed"""
             all_records = []
             page_size = 1000
             offset = 0
@@ -1089,131 +1091,170 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                 offset += page_size
             return pd.DataFrame(all_records)
 
-        # Manager la sadha message pathvnyasathi Interakt template kinva API vapru shakto
-        # Sadhyasathi aapan Interakt template logic vapruya
         def notify_manager():
+            """Sends update notification to Manager via Interakt"""
             url = "https://api.interakt.ai/v1/public/message/"
             headers = {"Authorization": f"Basic {INTERAKT_API_KEY}", "Content-Type": "application/json"}
             payload = {
-                "countryCode": "+91", "phoneNumber": MANAGER_PHONE[-10:],
+                "countryCode": "+91",
+                "phoneNumber": MANAGER_PHONE[-10:],
                 "type": "Template",
                 "template": {
-                    "name": "manager_update", # Manager sathi banavlele template
-                    "languageCode": "en", 
-                    "bodyValues": [] # Template nusar body values
+                    "name": "manager_update", # Interakt madhe ha template approve pahije
+                    "languageCode": "en",
+                    "bodyValues": []
                 }
             }
-            # Jar tumchyakade template nasel tar direct message API vaprava lagel
-            # Ithe mi ek try-except block madhe API call dila aahe
             try: return requests.post(url, headers=headers, json=payload, timeout=10)
             except: return None
 
-        def send_stn_whatsapp(row, ai_comment):
+        def send_team_whatsapp(row, ai_comment):
+            """Sends STN Pending details to assigned team"""
             url = "https://api.interakt.ai/v1/public/message/"
             headers = {"Authorization": f"Basic {INTERAKT_API_KEY}", "Content-Type": "application/json"}
             payload = {
-                "countryCode": "+91", "phoneNumber": str(row['team_number'])[-10:],
+                "countryCode": "+91",
+                "phoneNumber": str(row['team_number'])[-10:],
                 "type": "Template",
                 "template": {
-                    "name": "stnpending", "languageCode": "mr", 
-                    "bodyValues": [str(row['project_id']), str(row['site_id']), str(row['site_name']), str(row['cluster']), str(row['item_details']), str(row['total_qty_b']), str(ai_comment)]
+                    "name": "stnpending",
+                    "languageCode": "mr",
+                    "bodyValues": [
+                        str(row['project_id']), str(row['site_id']), str(row['site_name']), 
+                        str(row['cluster']), str(row['item_details']), str(row['total_qty_b']), str(ai_comment)
+                    ]
                 }
             }
             return requests.post(url, headers=headers, json=payload, timeout=10)
 
         # --- 3. SYNC SECTION ---
-        if st.button("🔄 Sync All Fresh Data (Full Scan)", use_container_width=True):
+        if st.button("🔄 Sync All Fresh Data (Full Warehouse Scan)", use_container_width=True):
             with st.spinner("Scanning all records & Notifying Manager..."):
                 df_boq = fetch_all_boq()
+                
                 if not df_boq.empty:
-                    for col in ['Qty B', 'Qty C']: df_boq[col] = pd.to_numeric(df_boq[col], errors='coerce').fillna(0)
+                    # Numeric Conversion
+                    for col in ['Qty B', 'Qty C']:
+                        df_boq[col] = pd.to_numeric(df_boq[col], errors='coerce').fillna(0)
                     
-                    mask = (df_boq['Issue From'].astype(str).str.contains('Warehouse', case=False, na=False)) & \
-                           (df_boq['Qty B'] > df_boq['Qty C']) & \
-                           (df_boq['Product'].astype(str).str.contains('Capex', case=False, na=False))
+                    # Warehouse + Pending + Capex Logic
+                    mask = (
+                        (df_boq['Issue From'].astype(str).str.contains('Warehouse', case=False, na=False)) & 
+                        (df_boq['Qty B'] > df_boq['Qty C']) &
+                        (df_boq['Product'].astype(str).str.contains('Capex', case=False, na=False))
+                    )
                     df_filtered = df_boq[mask].copy()
 
                     if not df_filtered.empty:
+                        # Site Info Fetch
                         s_ids = df_filtered['Site ID'].unique().tolist()
                         res_indus = supabase.table("Indus Data").select("Site ID", "Site Name", "District").in_("Site ID", s_ids).execute()
                         df_indus = pd.DataFrame(res_indus.data)
 
                         batch = []
-                        for pid, gp in df_filtered.groupby('Project Number'):
-                            s_id = str(gp.iloc[0]['Site ID'])
+                        # Grouping by Project Number (Consolidating duplicates)
+                        for pid, project_gp in df_merged_pre := df_filtered.groupby('Project Number'):
+                            s_id = str(project_gp.iloc[0]['Site ID'])
                             site_row = df_indus[df_indus['Site ID'] == s_id] if not df_indus.empty else pd.DataFrame()
                             
-                            gp_items = gp.groupby(['Item Code', 'Item Description'], as_index=False).agg({'Qty B':'sum', 'Qty C':'sum'})
-                            items_text = "\n".join([f"• {r['Item Description']} (Pending: {int(r['Qty B'] - r['Qty C'])})" for _, r in gp_items.iterrows() if (r['Qty B'] - r['Qty C']) > 0])
+                            # Aggregate items within the same project
+                            gp_items = project_gp.groupby(['Item Code', 'Item Description'], as_index=False).agg({'Qty B':'sum', 'Qty C':'sum'})
+                            items_list = [f"• {r['Item Description']} (Pending: {int(r['Qty B'] - r['Qty C'])})" for _, r in gp_items.iterrows() if (r['Qty B'] - r['Qty C']) > 0]
                             
-                            if items_text:
+                            if items_list:
                                 batch.append({
-                                    "project_id": str(pid), "site_id": s_id,
+                                    "project_id": str(pid),
+                                    "site_id": s_id,
                                     "site_name": site_row.iloc[0]['Site Name'] if not site_row.empty else "N/A",
                                     "cluster": site_row.iloc[0]['District'] if not site_row.empty else "N/A",
-                                    "item_details": items_text, "total_qty_b": int(gp['Qty B'].sum()),
+                                    "item_details": "\n".join(items_list),
+                                    "total_qty_b": int(project_gp['Qty B'].sum()),
                                     "status": "Open"
                                 })
                         
+                        # Sync Database (Delete old open, insert fresh)
                         supabase.table("stn_pending_analysis").delete().eq("status", "Open").execute()
-                        if batch: supabase.table("stn_pending_analysis").upsert(batch, on_conflict="project_id").execute()
-                        
-                        # --- Manager Notification Trigger ---
-                        # Interakt madhe "manager_update" naava cha template banva 
-                        # Jyat ha message asel: "Hello, STN new data updated... Team Automation"
-                        notify_manager()
-                        
-                        st.success(f"✅ {len(batch)} Projects Synced & Manager Notified!"); st.rerun()
+                        if batch:
+                            supabase.table("stn_pending_analysis").upsert(batch, on_conflict="project_id").execute()
+                            # Trigger Manager Notification
+                            notify_manager()
+                            st.success(f"✅ {len(batch)} Verified Projects Synced & Manager Notified!")
+                        st.rerun()
+                    else:
+                        supabase.table("stn_pending_analysis").delete().eq("status", "Open").execute()
+                        st.info("No Pending Records found in Warehouse scan.")
+                else:
+                    st.warning("BOQ Data fetch failed.")
 
         st.divider()
 
-        # --- 4. SEARCH & EXCEL DOWNLOAD ---
+        # --- 4. SEARCH & EXCEL ---
         c_search, c_excel = st.columns([3, 1])
         with c_search:
-            search_query = st.text_input("🔎 Search Site / Project", placeholder="Enter ID...")
+            search_query = st.text_input("🔎 Search by Site ID or Project Number", placeholder="उदा. OM-RELIBB-3528423")
         
-        res_p = supabase.table("stn_pending_analysis").select("*").execute()
+        # Get data for display
+        res_p = supabase.table("stn_pending_analysis").select("*").order("project_id").execute()
         df_display = pd.DataFrame(res_p.data)
 
         if not df_display.empty:
             with c_excel:
+                # Excel Download
                 buffer = io.BytesIO()
                 df_display.to_excel(buffer, index=False)
-                st.download_button("📥 Excel", buffer.getvalue(), "STN_Report.xlsx", "application/vnd.ms-excel", use_container_width=True)
+                st.download_button("📥 Download Excel", buffer.getvalue(), "STN_Pending_Report.xlsx", "application/vnd.ms-excel", use_container_width=True)
 
+            # Apply Search Filter
             if search_query:
                 df_display = df_display[df_display.astype(str).apply(lambda x: x.str.contains(search_query, case=False)).any(axis=1)]
 
+            # Fetch Teams
             res_teams = supabase.table("allowed_users").select("name, phone_number").execute()
             df_teams = pd.DataFrame(res_teams.data)
 
+            # --- 5. ACTION CARDS ---
             for i, row in df_display.iterrows():
                 with st.container(border=True):
                     col1, col2, col3, col4 = st.columns([1.5, 2, 1.5, 0.8])
+                    
                     with col1:
                         st.markdown(f"**Project:** `{row['project_id']}`")
-                        st.caption(f"📍 {row['cluster']}")
+                        st.caption(f"📍 Cluster: {row['cluster']}")
+                    
                     with col2:
                         st.markdown(f"**Site:** {row['site_name']} ({row['site_id']})")
-                        st.caption(f"📦 {row['item_details']}")
+                        st.caption(f"📦 Items:\n{row['item_details']}")
+                    
                     with col3:
+                        # Assign Team
                         t_list = ["Select Team"] + df_teams['name'].tolist()
                         cur_team = row.get('assigned_team') or "Select Team"
                         t_idx = t_list.index(cur_team) if cur_team in t_list else 0
                         sel_team = st.selectbox("Assign Team", t_list, index=t_idx, key=f"team_{i}")
                         
+                        # Visiontech Status
                         v_list = ["Pending", "Not Required", "Follow-up Done"]
                         cur_v = row.get('v_status') or "Pending"
                         v_idx = v_list.index(cur_v) if cur_v in v_list else 0
-                        sel_v = st.selectbox("Status", v_list, index=v_idx, key=f"vstat_{i}")
+                        sel_v = st.selectbox("Visiontech Status", v_list, index=v_idx, key=f"vstat_{i}")
+
                     with col4:
-                        st.write(" ")
+                        st.write(" ") # Spacer
                         if st.button("💾 Save", key=f"save_{i}"):
+                            # Update DB
                             t_phone = df_teams[df_teams['name'] == sel_team]['phone_number'].values[0] if sel_team != "Select Team" else None
                             supabase.table("stn_pending_analysis").update({
-                                "assigned_team": sel_team, "team_number": t_phone, "v_status": sel_v
+                                "assigned_team": sel_team, 
+                                "team_number": t_phone,
+                                "v_status": sel_v
                             }).eq("project_id", row['project_id']).execute()
+                            
+                            # Trigger Team Notification
                             if sel_team != "Select Team":
-                                ai_msg = "STN Pending! Urgent follow-up needed. Contact Sayra Madam."
-                                send_stn_whatsapp(row, ai_msg)
-                            st.success("Updated!")
+                                ai_msg = "STN Pending! Urgent closing needed. Report to Sayra Madam for any issues."
+                                send_team_whatsapp(row, ai_msg)
+                                st.success("Saved & Notified!")
+                            else:
+                                st.success("Status Saved!")
+        else:
+            st.info("Kontihi pending assignments nahit. 'Sync' button duba.")
