@@ -1060,7 +1060,7 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
             st.write("### Pending Billing List")
             st.dataframe(st.session_state.billing_df[['SITE ID', 'SITE NAME', 'RFAI STATUS', 'WCC NO.']], use_container_width=True, hide_index=True)
 # =====================================================================
-    # 🚨 TAB 7: STN MANAGER - BULK NOTIFY + SMART AI CHATTING (FIXED)
+    # 🚨 TAB 7: STN MANAGER - NON-STOP MARATHI FOLLOW-UP
     # =====================================================================
     elif st.session_state.current_page == "STN Manager":
         import requests
@@ -1075,27 +1075,25 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
 
         st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>🤖 Visiontech Smart AI Assistant</h2>", unsafe_allow_html=True)
 
-        # --- 2. AI BRAIN (CONVERSATIONAL & FOLLOW-UP) ---
-        def get_ai_response(site_id, context="followup"):
+        # --- 2. AI MOTIVATOR BRAIN ---
+        def get_ai_followup(site_id, team_name):
             model = genai.GenerativeModel('gemini-1.5-flash')
-            if context == "followup":
-                prompt = (
-                    f"Site {site_id} pending ahe. Team la motivate karnyasathi ek witty Marathi message lihiva. "
-                    "Phrases: 'Dada kay jhala?', 'Malak STN purna kara', 'Dokyat ghya'. "
-                    "Data repeat karu naka, fakt chatting kara (GK/Politics mix kara). Max 20 words."
-                )
-            else:
-                prompt = (
-                    "Team member ne 'Ram Ram' kiwa reply dila ahe. Ek friendly Marathi assistant banun "
-                    "Politics, GK, ani Duniyadari var mast gappa mara. 100% Marathi."
-                )
+            # Yethun AI la kadak Marathi सूचना dilelya aahet
+            prompt = (
+                f"Team member '{team_name}' yaala Site {site_id} cha STN close karaycha reminder dya. "
+                "Tone ekdam natural Marathi pahije. 'Dada', 'Malak', 'Bhava' vapra. "
+                "Vichara ki 'Kay jhala?', 'Kiti vel lagnar?', 'Kam purna karunach thamba'. "
+                "Thodi duniyadari kiwa politics chi witty line add kara jyamule tyala chatting vatel. "
+                "Max 20 words. 100% Marathi."
+            )
             try:
-                return model.generate_content(prompt).text.strip()
+                response = model.generate_content(prompt)
+                return response.text.strip()
             except:
-                return "Ram Ram! Dada, STN kade pan jara laksh dya, kaam purna karu ya!"
+                return f"Dada {team_name}, Site {site_id} cha STN pending ahe, kay jhala? Lavkar purna kara malak!"
 
-        # --- 3. WHATSAPP HELPERS ---
-        def send_wa_text(phone, msg):
+        # --- 3. WHATSAPP ENGINE ---
+        def send_wa_chat(phone, msg):
             url = "https://api.interakt.ai/v1/public/message/"
             headers = {"Authorization": f"Basic {INTERAKT_API_KEY}", "Content-Type": "application/json"}
             payload = {"countryCode": "+91", "phoneNumber": str(phone)[-10:], "type": "Text", "message": msg}
@@ -1120,28 +1118,28 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
             try: requests.post(url, headers=headers, json=payload, timeout=15)
             except: pass
 
-        # --- 4. TOP BUTTONS (BULK NOTIFY RESTORED) ---
+        # --- 4. TOP BUTTONS ---
         res_display = supabase.table("stn_pending_analysis").select("*").execute()
         df_display = pd.DataFrame(res_display.data)
 
-        c_sync, c_bulk = st.columns([1, 1])
-        with c_sync:
+        col_a, col_b = st.columns([1, 1])
+        with col_a:
             if st.button("🔄 Sync Fresh Data", use_container_width=True):
-                # (Sync logic definition)
+                # (Assumed sync function exists)
                 st.rerun()
-
-        with c_bulk:
-            if st.button("📢 Send Bulk Message (Notify All)", use_container_width=True, type="primary"):
-                notified = 0
+        with col_b:
+            if st.button("📢 Bulk Message (Initial Notify)", use_container_width=True, type="primary"):
+                count = 0
                 for _, r in df_display.iterrows():
                     if r.get('team_number') and r.get('v_status') == "Pending":
                         send_wa_template(r['team_number'], r)
-                        notified += 1
-                st.success(f"✅ {notified} Teams la Full Site Data pathvla aahe!")
+                        count += 1
+                st.success(f"✅ {count} Teams na purna data pathvla!")
 
         st.divider()
 
-        # --- 5. AUTO-MONITOR (2 MIN CYCLE) ---
+        # --- 5. THE 2-MINUTE SMART MONITOR ---
+        st.subheader("⏱️ AI Live Follow-up Status")
         if not df_display.empty:
             now = datetime.now()
             for idx, row in df_display.iterrows():
@@ -1150,40 +1148,39 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                         l_time_str = row.get('last_followup')
                         l_time = datetime.fromisoformat(l_time_str) if l_time_str else now - timedelta(minutes=10)
                         
-                        if (now - l_time).total_seconds() >= 120:
-                            st.info(f"🤖 AI Follow-up for Site: {row['site_id']}...")
-                            ai_msg = get_ai_response(row['site_id'], context="followup")
-                            send_wa_text(row['team_number'], ai_msg)
+                        seconds_passed = (now - l_time).total_seconds()
+                        
+                        if seconds_passed >= 120:  # STRICT 2 MINUTES
+                            st.info(f"🤖 AI Chatting with {row['assigned_team']}...")
+                            # AI kadun natural Marathi message ghene
+                            msg = get_ai_followup(row['site_id'], row['assigned_team'])
+                            send_wa_chat(row['team_number'], msg)
+                            # Update time in Supabase
                             supabase.table("stn_pending_analysis").update({"last_followup": now.isoformat()}).eq("project_id", row['project_id']).execute()
                     except: continue
 
-        # --- 6. ACTION CARDS (TABLE) ---
+        # --- 6. ACTION TABLE ---
         if not df_display.empty:
             res_teams = supabase.table("allowed_users").select("name, phone_number").execute()
             df_teams = pd.DataFrame(res_teams.data)
-
             for i, row in df_display.iterrows():
                 with st.container(border=True):
-                    col1, col2, col3, col4 = st.columns([1.5, 2.5, 1.5, 1])
-                    with col1: 
-                        st.write(f"**Project:** {row['project_id']}")
-                        st.caption(f"📍 {row['cluster']}")
-                    with col2: 
-                        st.info(row['item_details'])
-                    with col3:
+                    c1, c2, c3, c4 = st.columns([1.5, 2.5, 1.5, 1])
+                    with c1: st.write(f"**Project:** {row['project_id']}"); st.caption(f"📍 {row['cluster']}")
+                    with c2: st.info(row['item_details'])
+                    with c3:
                         t_list = ["Select Team"] + df_teams['name'].tolist()
                         sel_t = st.selectbox("Assign Team", t_list, index=t_list.index(row['assigned_team']) if row['assigned_team'] in t_list else 0, key=f"t_{i}")
                         sel_v = st.selectbox("Status", ["Pending", "Closed"], index=0 if row['v_status'] == "Pending" else 1, key=f"v_{i}")
-                    with col4:
+                    with c4:
                         if st.button("💾 Save", key=f"s_{i}", use_container_width=True):
                             t_ph = df_teams[df_teams['name'] == sel_t]['phone_number'].values[0] if sel_t != "Select Team" else None
                             supabase.table("stn_pending_analysis").update({
                                 "assigned_team": sel_t, "team_number": t_ph, "v_status": sel_v, "last_followup": datetime.now().isoformat()
                             }).eq("project_id", row['project_id']).execute()
                             st.success("Saved!")
-                        
-                        # 🤖 NEW: CHAT MODE BUTTON (FOR RAM RAM REPLIES)
                         if st.button("💬 Chat", key=f"chat_{i}", use_container_width=True):
-                            reply_msg = get_ai_response(row['site_id'], context="general")
-                            send_wa_text(row['team_number'], reply_msg)
-                            st.toast(f"AI Sent: {reply_msg}")
+                            # Force chat
+                            m = get_ai_followup(row['site_id'], row['assigned_team'])
+                            send_wa_chat(row['team_number'], m)
+                            st.toast(f"AI: {m}")
