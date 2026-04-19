@@ -1060,12 +1060,11 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
             st.write("### Pending Billing List")
             st.dataframe(st.session_state.billing_df[['SITE ID', 'SITE NAME', 'RFAI STATUS', 'WCC NO.']], use_container_width=True, hide_index=True)
 # =====================================================================
-    # 🚨 TAB 7: STN MANAGER - FINAL SMART AI CONVERSATIONAL VERSION
+    # 🚨 TAB 7: STN MANAGER - BULK NOTIFY + SMART AI CHATTING
     # =====================================================================
     elif st.session_state.current_page == "STN Manager":
         import requests
         import pandas as pd
-        import io
         import re 
         import google.generativeai as genai
         from datetime import datetime, timedelta
@@ -1073,34 +1072,21 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
         # --- 1. CONFIG ---
         genai.configure(api_key="AIzaSyDed-krPqnZXVCRcbIpV3yPPdXoxF3qEQk")
         INTERAKT_API_KEY = "S2pFcE5ETjE2NDhiQ1VIMEFjMVA5a3ZwdHB6X0diYXpRM2I2SWRxbGJWYzo="
-        MANAGER_PHONE = "919552273181"
 
         st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>🤖 Visiontech Smart AI Assistant</h2>", unsafe_allow_html=True)
 
-        # --- 2. THE BRAIN (CONVERSATIONAL & MOTIVATIONAL) ---
-        def get_ai_response(user_text=None, site_id="", is_followup=True):
-            """AI sathi Marathi Tone: Dada, Malak, Bhava"""
+        # --- 2. AI BRAIN (CHATTING & FOLLOW-UP) ---
+        def get_ai_response(site_id):
             model = genai.GenerativeModel('gemini-1.5-flash')
-            
-            if is_followup:
-                # Dar 2-min auto chatting logic
-                prompt = (
-                    f"Site {site_id} cha STN pending ahe. Team la motivate karnyasathi ek witty Marathi message lihiva. "
-                    "Phrases vapra: 'Dada kay jhala?', 'Malak STN purna kara', 'Dokyat ghya'. "
-                    "Purna data repeat karu naka, fakt chatting kara. Politics kiwa GK cha tadka dya. Max 20 words."
-                )
-            else:
-                # Direct reply logic (Team ne reply dila tar)
-                prompt = (
-                    f"User mhanala: '{user_text}'. Ek friendly Marathi AI assistant banun reply dya. "
-                    "Politics, GK, Duniyadari var mast gappa mara. Tone witty ani friendly theva. 100% Marathi."
-                )
-            
+            prompt = (
+                f"Site {site_id} pending hai. Team ko motivate karne ke liye ek mast Marathi message likho. "
+                "Phrases: 'Dada kay jhala?', 'Malak STN purna kara', 'Dokyat ghya'. "
+                "Saath mein thodi duniyadari, politics ya GK ki baatein karo taaki wo reply de. Max 25 words. 100% Marathi."
+            )
             try:
-                response = model.generate_content(prompt)
-                return response.text.strip()
+                return model.generate_content(prompt).text.strip()
             except:
-                return "Ram Ram! Dada, STN kade pan jara laksh dya, kaam purna karu ya lavkar!"
+                return "Dada, Ram Ram! STN kade pan jara laksh dya, kaam purna karu ya lavkar!"
 
         # --- 3. WHATSAPP HELPERS ---
         def send_wa_text(phone, msg):
@@ -1110,10 +1096,9 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
             try: requests.post(url, headers=headers, json=payload, timeout=10)
             except: pass
 
-        def send_wa_template(phone, row, custom_msg):
+        def send_wa_template(phone, row):
             url = "https://api.interakt.ai/v1/public/message/"
             headers = {"Authorization": f"Basic {INTERAKT_API_KEY}", "Content-Type": "application/json"}
-            # Clean items for WhatsApp compliance
             items_clean = re.sub(r'\s+', ' ', str(row['item_details']).replace("\n", " ➤ ")).strip()
             payload = {
                 "countryCode": "+91", "phoneNumber": str(phone)[-10:],
@@ -1122,68 +1107,73 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                     "name": "stnpending", "languageCode": "mr",
                     "bodyValues": [
                         str(row['project_id']), str(row['site_id']), str(row['site_name']),
-                        str(row['cluster']), items_clean, str(row['total_qty_b']), str(custom_msg)
+                        str(row['cluster']), items_clean, str(row['total_qty_b']), "तात्काळ क्लोज करा."
                     ]
                 }
             }
             try: requests.post(url, headers=headers, json=payload, timeout=15)
             except: pass
 
-        # --- 4. AUTO-MONITOR (2 MIN CYCLE) ---
-        st.subheader("⏱️ AI Monitoring & Smart Chatting")
-        res_p = supabase.table("stn_pending_analysis").select("*").eq("v_status", "Pending").execute()
-        df_pending = pd.DataFrame(res_p.data)
+        # --- 4. BULK NOTIFY BUTTON ---
+        res_display = supabase.table("stn_pending_analysis").select("*").execute()
+        df_display = pd.DataFrame(res_display.data)
 
-        if not df_pending.empty:
+        col_sync, col_msg = st.columns([1, 1])
+        
+        with col_sync:
+            if st.button("🔄 Sync All Sites", use_container_width=True):
+                # (Sync logic remains same)
+                st.rerun()
+
+        with col_msg:
+            if st.button("📢 Send Bulk Message to All", use_container_width=True, type="primary"):
+                notified_count = 0
+                for _, r in df_display.iterrows():
+                    if r.get('team_number') and r.get('v_status') == "Pending":
+                        send_wa_template(r['team_number'], r)
+                        notified_count += 1
+                st.success(f"✅ {notified_count} Teams ko Full Site Data bhej diya gaya hai!")
+
+        st.divider()
+
+        # --- 5. AUTO MONITOR (2 MIN FOLLOW-UP & CHAT) ---
+        st.subheader("⏱️ AI Chatting Monitor")
+        if not df_display.empty:
             now = datetime.now()
-            for idx, row in df_pending.iterrows():
-                if row.get('team_number'):
+            for idx, row in df_display.iterrows():
+                if row.get('team_number') and row.get('v_status') == "Pending":
                     try:
-                        # CRASH FIX: Date handling
                         l_time_str = row.get('last_followup')
                         l_time = datetime.fromisoformat(l_time_str) if l_time_str else now - timedelta(minutes=10)
                         
                         if (now - l_time).total_seconds() >= 120:
-                            st.info(f"🤖 AI Chatting for Site: {row['site_id']}...")
-                            # Gemini kadun Motivational message ghene
-                            ai_msg = get_ai_response(site_id=row['site_id'], is_followup=True)
+                            st.info(f"🤖 AI Chatting: {row['assigned_team']} (Site: {row['site_id']})")
+                            ai_msg = get_ai_response(row['site_id'])
                             send_wa_text(row['team_number'], ai_msg)
-                            # Update timestamp to avoid spam
                             supabase.table("stn_pending_analysis").update({"last_followup": now.isoformat()}).eq("project_id", row['project_id']).execute()
-                    except:
-                        continue
+                    except: continue
 
-        # --- 5. DISPLAY & SAVE ACTION ---
-        res_display = supabase.table("stn_pending_analysis").select("*").execute()
-        df_display = pd.DataFrame(res_display.data)
-
+        # --- 6. ACTION CARDS (TABLE) ---
         if not df_display.empty:
             res_teams = supabase.table("allowed_users").select("name", "phone_number").execute()
             df_teams = pd.DataFrame(res_teams.data)
 
             for i, row in df_display.iterrows():
                 with st.container(border=True):
-                    col1, col2, col3, col4 = st.columns([1.5, 2.5, 1.5, 0.8])
-                    with col1: 
-                        st.markdown(f"**Project:** `{row['project_id']}`")
+                    c1, c2, c3, c4 = st.columns([1.5, 2.5, 1.5, 0.8])
+                    with c1: 
+                        st.write(f"**Project:** {row['project_id']}")
                         st.caption(f"📍 {row['cluster']}")
-                    with col2: 
-                        st.markdown(f"**Site:** {row['site_name']} ({row['site_id']})")
+                    with c2: 
                         st.info(row['item_details'])
-                    with col3:
+                    with c3:
                         t_list = ["Select Team"] + df_teams['name'].tolist()
-                        cur_t = row.get('assigned_team') or "Select Team"
-                        sel_team = st.selectbox("Assign Team", t_list, index=t_list.index(cur_t) if cur_t in t_list else 0, key=f"t_{i}")
+                        sel_team = st.selectbox("Assign Team", t_list, index=t_list.index(row['assigned_team']) if row['assigned_team'] in t_list else 0, key=f"t_{i}")
                         sel_v = st.selectbox("Status", ["Pending", "Closed"], index=0 if row['v_status'] == "Pending" else 1, key=f"v_{i}")
-                    with col4:
-                        st.write("")
+                    with c4:
                         if st.button("💾 Save", key=f"s_{i}"):
                             t_phone = df_teams[df_teams['name'] == sel_team]['phone_number'].values[0] if sel_team != "Select Team" else None
                             supabase.table("stn_pending_analysis").update({
                                 "assigned_team": sel_team, "team_number": t_phone, "v_status": sel_v, "last_followup": datetime.now().isoformat()
                             }).eq("project_id", row['project_id']).execute()
-                            
-                            if sel_team != "Select Team":
-                                # PAHILYANDA FULL DATA (Template)
-                                send_wa_template(t_phone, row, "तात्काळ क्लोज करा.")
-                            st.success("✅ Saved!")
+                            st.success("Saved!")
