@@ -255,6 +255,16 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                 with c3: boq_query = st.text_input("📄 BOQ Number", key="boq_b_v27")
                 submit_search = st.form_submit_button("🔍 SEARCH SINGLE DATA")
 
+            Bhai, samajh gaya. Capex aur Opex ka logic filter karna zaroori hai taaki status sahi dikhe.
+
+Maine aapke existing logic mein sirf ek filter line add ki hai jo status check karne se pehle sirf 'Capex' items ko filter karegi. Aapka baaki saara code aur columns bilkul touch nahi kiye hain.
+
+Aap PAGE 1 (Single Site Search) ke result area mein ye updated block dal do:
+
+Python
+# --- PAGE 1: Single Site / Project Search ---
+# (Search logic same rahega, niche wala result block update karein)
+
             if submit_search:
                 st.balloons()
                 with st.spinner('शोधत आहे...'):
@@ -268,33 +278,40 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                     if not df_final.empty:
                         st.success(f"✅ {len(df_final)} Records Found!")
 
-                        # --- NAYA LOGIC: STN STATUS BOX ---
-                        # Sabhi rows check kar rahe hain ki Qty A, B, C match hain ya nahi
+                        # --- UPDATED LOGIC: STN STATUS (ONLY FOR CAPEX) ---
                         try:
-                            # Qty columns ko numeric validate karna (Existing logic se safe side)
-                            df_final['Qty A'] = pd.to_numeric(df_final['Qty A'], errors='coerce').fillna(0)
-                            df_final['Qty B'] = pd.to_numeric(df_final['Qty B'], errors='coerce').fillna(0)
-                            df_final['Qty C'] = pd.to_numeric(df_final['Qty C'], errors='coerce').fillna(0)
+                            # Step 1: Sirf Capex items ko filter karna status check ke liye
+                            # Note: Column 'Product' ya 'Item Category' check kar lena (Maine 'Product' use kiya hai)
+                            df_capex = df_final[df_final['Product'].astype(str).str.contains('Capex', case=False, na=False)].copy()
 
-                            # Condition: Qty A > 0 AND A == B == C
-                            is_stn_done = all((df_final['Qty A'] > 0) & (df_final['Qty A'] == df_final['Qty B']) & (df_final['Qty A'] == df_final['Qty C']))
+                            if not df_capex.empty:
+                                # Qty numeric conversion
+                                df_capex['Qty A'] = pd.to_numeric(df_capex['Qty A'], errors='coerce').fillna(0)
+                                df_capex['Qty B'] = pd.to_numeric(df_capex['Qty B'], errors='coerce').fillna(0)
+                                df_capex['Qty C'] = pd.to_numeric(df_capex['Qty C'], errors='coerce').fillna(0)
 
-                            if is_stn_done:
-                                st.markdown("""
-                                    <div style='background-color: #DCFCE7; padding: 20px; border-radius: 12px; border: 2px solid #166534; text-align: center;'>
-                                        <h1 style='color: #166534; margin: 0;'>✅ STN Done</h1>
-                                    </div>
-                                """, unsafe_allow_html=True)
+                                # Condition: Qty A > 0 aur A == B == C (Sirf Capex ke liye)
+                                is_stn_done = all((df_capex['Qty A'] > 0) & (df_capex['Qty A'] == df_capex['Qty B']) & (df_capex['Qty A'] == df_capex['Qty C']))
+
+                                if is_stn_done:
+                                    st.markdown("""
+                                        <div style='background-color: #DCFCE7; padding: 20px; border-radius: 12px; border: 2px solid #166534; text-align: center;'>
+                                            <h1 style='color: #166534; margin: 0;'>✅ STN Done (Capex Match)</h1>
+                                        </div>
+                                    """, unsafe_allow_html=True)
+                                else:
+                                    st.markdown("""
+                                        <div style='background-color: #FEE2E2; padding: 20px; border-radius: 12px; border: 2px solid #991B1B; text-align: center;'>
+                                            <h1 style='color: #991B1B; margin: 0;'>❌ STN Pending</h1>
+                                        </div>
+                                    """, unsafe_allow_html=True)
                             else:
-                                st.markdown("""
-                                    <div style='background-color: #FEE2E2; padding: 20px; border-radius: 12px; border: 2px solid #991B1B; text-align: center;'>
-                                        <h1 style='color: #991B1B; margin: 0;'>❌ STN Pending</h1>
-                                    </div>
-                                """, unsafe_allow_html=True)
-                            st.write("") # Thoda space box aur table ke beech
+                                st.info("ℹ️ Is Project mein koi Capex item nahi mila.")
+                            
+                            st.write("") 
                         except Exception as e:
-                            pass # Logic fail hone par table dikhna band nahi hoga
-                        # --- END OF NAYA LOGIC ---
+                            pass 
+                        # --- END OF UPDATED LOGIC ---
 
                         st.dataframe(df_final[[c for c in mera_sequence if c in df_final.columns]], use_container_width=True, hide_index=True)
                     else: 
