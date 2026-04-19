@@ -1060,7 +1060,7 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
             st.write("### Pending Billing List")
             st.dataframe(st.session_state.billing_df[['SITE ID', 'SITE NAME', 'RFAI STATUS', 'WCC NO.']], use_container_width=True, hide_index=True)
 # =====================================================================
-    # 🚨 TAB 7: STN MANAGER - FINAL STABLE (SYNTAX ERROR FIXED)
+    # 🚨 TAB 7: STN MANAGER - FINAL REFINED (MANAGER NOTIFY FIX)
     # =====================================================================
     elif st.session_state.current_page == "STN Manager":
         import google.generativeai as genai
@@ -1091,15 +1091,30 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
             return pd.DataFrame(all_records)
 
         def notify_manager():
+            """Sends update notification to Manager via Interakt"""
             url = "https://api.interakt.ai/v1/public/message/"
             headers = {"Authorization": f"Basic {INTERAKT_API_KEY}", "Content-Type": "application/json"}
+            
+            # Note: Tumchya 'manager_update' template madhe body value nasel tar ithe '[]' barobar aahe.
+            # Jar template madhe {{1}} asel, tar khali values madhe 'STN' taka.
             payload = {
-                "countryCode": "+91", "phoneNumber": MANAGER_PHONE[-10:],
+                "countryCode": "+91",
+                "phoneNumber": MANAGER_PHONE[-10:],
                 "type": "Template",
-                "template": {"name": "manager_update", "languageCode": "en", "bodyValues": []}
+                "template": {
+                    "name": "manager_update",
+                    "languageCode": "en",
+                    "bodyValues": ["STN"] # Ek variable backup mhanun dila aahe
+                }
             }
-            try: return requests.post(url, headers=headers, json=payload, timeout=10)
-            except: return None
+            try:
+                resp = requests.post(url, headers=headers, json=payload, timeout=10)
+                if resp.status_code not in [200, 201]:
+                    st.error(f"Manager Notification Failed: {resp.text}")
+                return resp
+            except Exception as e:
+                st.error(f"WhatsApp API Error: {e}")
+                return None
 
         def send_team_whatsapp(row, ai_comment):
             url = "https://api.interakt.ai/v1/public/message/"
@@ -1114,19 +1129,23 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
             }
             return requests.post(url, headers=headers, json=payload, timeout=10)
 
-        # --- 3. SYNC SECTION ---
+        # --- 3. SYNC SECTION (With Parent Filter) ---
         if st.button("🔄 Sync All Fresh Data (Full Scan)", use_container_width=True):
-            with st.spinner("Processing Data..."):
+            with st.spinner("Analyzing Data..."):
                 df_boq = fetch_all_boq()
                 
                 if not df_boq.empty:
                     for col in ['Qty B', 'Qty C']:
                         df_boq[col] = pd.to_numeric(df_boq[col], errors='coerce').fillna(0)
                     
-                    # Warehouse + Pending + Capex
-                    mask = (df_boq['Issue From'].astype(str).str.contains('Warehouse', case=False, na=False)) & \
-                           (df_boq['Qty B'] > df_boq['Qty C']) & \
-                           (df_boq['Product'].astype(str).str.contains('Capex', case=False, na=False))
+                    # --- THE ORIGINAL POWERFUL LOGIC ---
+                    # 1. Warehouse + 2. Qty B > C + 3. Parent Only + 4. Capex
+                    mask = (
+                        (df_boq['Issue From'].astype(str).str.contains('Warehouse', case=False, na=False)) & 
+                        (df_boq['Qty B'] > df_boq['Qty C']) &
+                        (df_boq['Parent/Child'].astype(str).str.contains('Parent', case=False, na=False)) &
+                        (df_boq['Product'].astype(str).str.contains('Capex', case=False, na=False))
+                    )
                     df_filtered = df_boq[mask].copy()
 
                     if not df_filtered.empty:
@@ -1135,11 +1154,9 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                         df_indus = pd.DataFrame(res_indus.data)
 
                         batch = []
-                        # Fixed Syntax Error: Removed Walrus Operator (:=)
                         for pid, project_gp in df_filtered.groupby('Project Number'):
                             s_id = str(project_gp.iloc[0]['Site ID'])
                             
-                            # Site Mapping Fix
                             site_info = df_indus[df_indus['Site ID'] == s_id]
                             s_name = site_info.iloc[0]['Site Name'] if not site_info.empty else "N/A"
                             cluster = site_info.iloc[0]['District'] if not site_info.empty else "N/A"
@@ -1158,9 +1175,11 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                                     "status": "Open"
                                 })
                         
+                        # Database Ops
                         supabase.table("stn_pending_analysis").delete().eq("status", "Open").execute()
                         if batch:
                             supabase.table("stn_pending_analysis").upsert(batch, on_conflict="project_id").execute()
+                            # FIRE NOTIFICATION
                             notify_manager()
                             st.success(f"✅ {len(batch)} Sites Synced & Manager Notified!")
                         st.rerun()
@@ -1173,7 +1192,7 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
         # --- 4. SEARCH & EXCEL ---
         c_search, c_excel = st.columns([3, 1])
         with c_search:
-            search_query = st.text_input("🔎 Search Site / Project", placeholder="Enter ID...")
+            search_query = st.text_input("🔎 Search Site / Project", placeholder="ID taka...")
         
         res_p = supabase.table("stn_pending_analysis").select("*").execute()
         df_display = pd.DataFrame(res_p.data)
@@ -1190,7 +1209,7 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
             res_teams = supabase.table("allowed_users").select("name, phone_number").execute()
             df_teams = pd.DataFrame(res_teams.data)
 
-            # Display Action Cards
+            # --- DISPLAY ACTION CARDS ---
             for i, row in df_display.iterrows():
                 with st.container(border=True):
                     col1, col2, col3, col4 = st.columns([1.5, 2, 1.5, 0.8])
