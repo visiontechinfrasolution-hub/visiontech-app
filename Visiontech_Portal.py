@@ -1060,47 +1060,62 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
             st.write("### Pending Billing List")
             st.dataframe(st.session_state.billing_df[['SITE ID', 'SITE NAME', 'RFAI STATUS', 'WCC NO.']], use_container_width=True, hide_index=True)
 # =====================================================================
-    # 🚨 TAB 7: STN MANAGER - CRASH PROOF (API ERROR FIXED)
+    # 🚨 TAB 7: STN MANAGER - MARATHI TEMPLATE VERSION (7 VARIABLES)
     # =====================================================================
     elif st.session_state.current_page == "STN Manager":
         import requests
         import pandas as pd
         import io
-        from datetime import datetime, timedelta
+        from datetime import datetime
 
         # --- 1. CONFIG ---
         INTERAKT_API_KEY = "S2pFcE5ETjE2NDhiQ1VIMEFjMVA5a3ZwdHB6X0diYXpRM2I2SWRxbGJWYzo="
         MANAGER_PHONE = "919552273181"
 
-        st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>🚀 Visiontech STN Manager (Stable Mode)</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>🚀 Visiontech STN Control Center</h2>", unsafe_allow_html=True)
 
         # --- 2. NOTIFICATION HELPERS ---
         def send_manager_direct(text_msg):
+            """Manager la Direct Text Message (Session-based)"""
             url = "https://api.interakt.ai/v1/public/message/"
             headers = {"Authorization": f"Basic {INTERAKT_API_KEY}", "Content-Type": "application/json"}
             payload = {"countryCode": "+91", "phoneNumber": MANAGER_PHONE[-10:], "type": "Text", "message": text_msg}
             try: return requests.post(url, headers=headers, json=payload, timeout=10)
             except: return None
 
-        def send_team_template(phone, row, ai_comment):
+        def send_team_stn_template(phone, row, custom_msg):
+            """Team la 'stnpending' Marathi Template pathvne (7 Variables)"""
             url = "https://api.interakt.ai/v1/public/message/"
             headers = {"Authorization": f"Basic {INTERAKT_API_KEY}", "Content-Type": "application/json"}
+            
+            # 🚨 STRICT 7 VARIABLES MATCHING YOUR MARATHI TEMPLATE
+            body_values = [
+                str(row['project_id']),   # {{1}} Project ID
+                str(row['site_id']),      # {{2}} Site ID
+                str(row['site_name']),    # {{3}} Site Name
+                str(row['cluster']),      # {{4}} Cluster
+                str(row['item_details']),  # {{5}} Item Details
+                str(row['total_qty_b']),   # {{6}} Total Qty
+                str(custom_msg)           # {{7}} Message (Follow-up wording)
+            ]
+            
             payload = {
-                "countryCode": "+91", "phoneNumber": str(phone)[-10:],
+                "countryCode": "+91",
+                "phoneNumber": str(phone)[-10:],
                 "type": "Template",
                 "template": {
-                    "name": "stnpending", "languageCode": "mr",
-                    "bodyValues": [
-                        str(row['project_id']), str(row['site_id']), str(row['site_name']),
-                        str(row['cluster']), str(row['item_details']), str(row['total_qty_b']),
-                        str(ai_comment)
-                    ]
+                    "name": "stnpending",
+                    "languageCode": "mr",
+                    "bodyValues": body_values
                 }
             }
-            try: return requests.post(url, headers=headers, json=payload, timeout=10)
-            except: return None
+            try:
+                resp = requests.post(url, headers=headers, json=payload, timeout=15)
+                return resp
+            except Exception as e:
+                return f"Connection Error: {str(e)}"
 
-        # --- 3. FETCH & SYNC ---
+        # --- 3. FETCH & SYNC LOGIC ---
         def fetch_all_boq():
             all_records = []
             page_size, offset = 1000, 0
@@ -1114,10 +1129,12 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
             return pd.DataFrame(all_records)
 
         if st.button("🔄 Sync Fresh Data & Notify Manager", use_container_width=True):
-            with st.spinner("Syncing..."):
+            with st.spinner("Processing Warehouse Scan..."):
                 df_boq = fetch_all_boq()
                 if not df_boq.empty:
                     for col in ['Qty B', 'Qty C']: df_boq[col] = pd.to_numeric(df_boq[col], errors='coerce').fillna(0)
+                    
+                    # Logic: Warehouse + Parent + Pending
                     mask = (df_boq['Issue From'].astype(str).str.contains('Warehouse', case=False, na=False)) & \
                            (df_boq['Qty B'] > df_boq['Qty C']) & \
                            (df_boq['Parent/Child'].astype(str).str.contains('Parent', case=False, na=False))
@@ -1129,31 +1146,30 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                         df_indus = pd.DataFrame(res_indus.data)
 
                         batch = []
-                        now_str = datetime.now().isoformat()
                         for pid, project_gp in df_filtered.groupby('Project Number'):
                             s_id = str(project_gp.iloc[0]['Site ID'])
                             site_info = df_indus[df_indus['Site ID'] == s_id]
                             gp_items = project_gp.groupby(['Item Code', 'Item Description'], as_index=False).agg({'Qty B':'sum', 'Qty C':'sum'})
-                            items_list = [f"• {r['Item Description']} (Pending: {int(r['Qty B'] - r['Qty C'])})" for _, r in gp_items.iterrows()]
+                            items_text = "\n".join([f"• {r['Item Description']} (Pending: {int(r['Qty B'] - r['Qty C'])})" for _, r in gp_items.iterrows()])
                             
                             batch.append({
                                 "project_id": str(pid), "site_id": s_id, 
                                 "site_name": site_info.iloc[0]['Site Name'] if not site_info.empty else "N/A",
                                 "cluster": site_info.iloc[0]['District'] if not site_info.empty else "N/A",
-                                "item_details": "\n".join(items_list), "total_qty_b": int(project_gp['Qty B'].sum()),
-                                "status": "Open", "last_followup": now_str
+                                "item_details": items_text, "total_qty_b": int(project_gp['Qty B'].sum()),
+                                "status": "Open", "last_followup": datetime.now().isoformat()
                             })
                         
                         supabase.table("stn_pending_analysis").delete().eq("status", "Open").execute()
                         if batch:
                             supabase.table("stn_pending_analysis").upsert(batch, on_conflict="project_id").execute()
-                            send_manager_direct("Hello! STN list updated in portal. Kindly assign teams.")
-                        st.success("✅ Synced!")
+                            send_manager_direct("Hello Manager, STN data updated! Please assign teams in portal.")
+                        st.success("✅ Sync Done!")
                         st.rerun()
 
         st.divider()
 
-        # --- 4. DISPLAY & SAVE (With Error Handling) ---
+        # --- 4. DISPLAY & SAVE ACTION ---
         res_display = supabase.table("stn_pending_analysis").select("*").execute()
         df_display = pd.DataFrame(res_display.data)
 
@@ -1165,7 +1181,7 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                 with st.container(border=True):
                     c1, c2, c3, c4 = st.columns([1.5, 2, 1.5, 0.8])
                     with c1: st.write(f"**Project:** {row['project_id']}"); st.caption(f"📍 {row['cluster']}")
-                    with c2: st.write(f"**Site:** {row['site_name']}"); st.caption(f"📦 {row['item_details']}")
+                    with c2: st.markdown(f"**Site:** {row['site_name']} ({row['site_id']})\n\n**Pending:**\n{row['item_details']}")
                     with c3:
                         t_list = ["Select Team"] + df_teams['name'].tolist()
                         cur_team = row.get('assigned_team') or "Select Team"
@@ -1176,19 +1192,24 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                     with c4:
                         st.write(" ")
                         if st.button("💾 Save", key=f"s_{i}"):
-                            try:
-                                t_phone = df_teams[df_teams['name'] == sel_team]['phone_number'].values[0] if sel_team != "Select Team" else None
-                                # Database Update
-                                update_data = {
-                                    "assigned_team": sel_team, 
-                                    "team_number": t_phone, 
-                                    "v_status": sel_v,
-                                    "last_followup": datetime.now().isoformat()
-                                }
-                                supabase.table("stn_pending_analysis").update(update_data).eq("project_id", row['project_id']).execute()
-                                
-                                if sel_team != "Select Team":
-                                    send_team_template(t_phone, row, "STN Pending! Tadtadine check kara.")
-                                st.success("Saved!")
-                            except Exception as e:
-                                st.error(f"Save Failed: SQL Column 'last_followup' missing? Error: {e}")
+                            t_phone = df_teams[df_teams['name'] == sel_team]['phone_number'].values[0] if sel_team != "Select Team" else None
+                            
+                            # Update DB
+                            supabase.table("stn_pending_analysis").update({
+                                "assigned_team": sel_team, "team_number": t_phone, "v_status": sel_v,
+                                "last_followup": datetime.now().isoformat()
+                            }).eq("project_id", row['project_id']).execute()
+                            
+                            if sel_team != "Select Team":
+                                with st.spinner("Notifying Team..."):
+                                    # Follow-up message wording
+                                    custom_msg = "तात्काळ माहिती द्या आणि STN क्लोज करा. सायरा मॅडमशी संपर्क साधा."
+                                    resp = send_team_stn_template(t_phone, row, custom_msg)
+                                    
+                                    if hasattr(resp, 'status_code') and resp.status_code in [200, 201, 202]:
+                                        st.success(f"✅ Saved & Sent to {sel_team}!")
+                                    else:
+                                        err = resp.text if hasattr(resp, 'text') else str(resp)
+                                        st.error(f"❌ Saved, but WhatsApp failed: {err}")
+                            else:
+                                st.success("✅ Saved!")
