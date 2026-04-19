@@ -10,3 +10,4 @@ xlsxwriter
 streamlit
 google-generativeai
 requests
+google-genai
