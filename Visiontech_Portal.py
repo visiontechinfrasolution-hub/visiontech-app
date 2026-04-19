@@ -524,7 +524,7 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                 except Exception as e: st.error(f"Error: {e}")
 
    # =====================================================================
-    # 📡 TAB 5: WCC STATUS (WITH AUTO-WHATSAPP - 0% LOGIC CHANGE)
+    # 📡 TAB 5: WCC STATUS (AUTO-WHATSAPP WITH 8 VARIABLES - 0% LOGIC CHANGE)
     # =====================================================================
     elif st.session_state.current_page == "WCC":
         st.markdown("""
@@ -535,8 +535,8 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
             </style>
         """, unsafe_allow_html=True)
 
-        # --- AUTO WHATSAPP FUNCTION (NEW) ---
-        def send_interakt_whatsapp(project_id, site_id, site_name, po_no):
+        # --- UPDATED AUTO WHATSAPP FUNCTION (8 VARIABLES MATCHING TEMPLATE) ---
+        def send_interakt_whatsapp(row_data):
             import requests
             api_key = "S2pFcE5ETjE2NDhiQ1VIMEFjMVA5a3ZwdHB6X0diYXpRM2I2SWRxbGJWYzo="
             numbers = ["919960843473", "919552273181", "917498984373"]
@@ -545,6 +545,19 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                 "Authorization": f"Basic {api_key}",
                 "Content-Type": "application/json"
             }
+            
+            # Template variables matching {{1}} to {{8}}
+            body_values = [
+                str(row_data.get("Project", "")),        # {{1}}
+                str(row_data.get("Project ID", "")),     # {{2}}
+                str(row_data.get("Site ID", "")),        # {{3}}
+                str(row_data.get("Site Name", "")),      # {{4}}
+                str(row_data.get("PO Number", "")),      # {{5}}
+                str(row_data.get("Reqeust Date", "")),   # {{6}}
+                str(row_data.get("WCC Number", "")),     # {{7}}
+                str(row_data.get("WCC Status", ""))      # {{8}}
+            ]
+
             for num in numbers:
                 payload = {
                     "countryCode": "+91",
@@ -554,7 +567,7 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                     "template": {
                         "name": "wccrequest",
                         "languageCode": "en",
-                        "bodyValues": [str(project_id), str(site_id), str(site_name), str(po_no)]
+                        "bodyValues": body_values
                     }
                 }
                 try: requests.post(url, headers=headers, json=payload, timeout=5)
@@ -630,10 +643,10 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                             
                             response = update_wcc_record(payload)
                             if response:
-                                # --- AUTO TRIGGER WHATSAPP ---
+                                # --- AUTO TRIGGER WHATSAPP WITH FULL PAYLOAD ---
                                 if role == "requester":
-                                    send_interakt_whatsapp(v_pid, v_sid, v_snm, v_po)
-                                st.success("Data Saved & WhatsApp Sent!")
+                                    send_interakt_whatsapp(payload)
+                                st.success("Data Saved & WhatsApp Sent! ✅")
                                 st.rerun()
 
             data_list = fetch_wcc_data_simple()
