@@ -254,13 +254,6 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                 with c2: site_query = st.text_input("📍 Site ID", key="boq_s_v27")
                 with c3: boq_query = st.text_input("📄 BOQ Number", key="boq_b_v27")
                 submit_search = st.form_submit_button("🔍 SEARCH SINGLE DATA")
-
-            Bhai, samajh gaya. Capex aur Opex ka logic filter karna zaroori hai taaki status sahi dikhe.
-
-Maine aapke existing logic mein sirf ek filter line add ki hai jo status check karne se pehle sirf 'Capex' items ko filter karegi. Aapka baaki saara code aur columns bilkul touch nahi kiye hain.
-
-Aap PAGE 1 (Single Site Search) ke result area mein ye updated block dal do:
-
             if submit_search:
                 st.balloons()
                 with st.spinner('शोधत आहे...'):
