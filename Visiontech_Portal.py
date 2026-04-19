@@ -1060,7 +1060,7 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
             st.write("### Pending Billing List")
             st.dataframe(st.session_state.billing_df[['SITE ID', 'SITE NAME', 'RFAI STATUS', 'WCC NO.']], use_container_width=True, hide_index=True)
 # =====================================================================
-    # 🚨 TAB 7: STN MANAGER - FINAL STABLE (STATUS + WHATSAPP OK)
+    # 🚨 TAB 7: STN MANAGER - LAVISH UI + WHATSAPP COMPLIANCE
     # =====================================================================
     elif st.session_state.current_page == "STN Manager":
         import requests
@@ -1077,9 +1077,10 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
 
         # --- 2. HELPERS ---
         def clean_for_whatsapp(text):
-            """Interakt Compliance: No newlines, no extra spaces"""
+            """WhatsApp sathi sagle newlines ani extra spaces kadhun ek line karne"""
             if not text: return "N/A"
-            text = text.replace("\n", " | ").replace("\t", " ")
+            # Double newline la simple pipe (|) ne replace kara
+            text = text.replace("\n\n", " | ").replace("\n", " | ").replace("\t", " ")
             text = re.sub(r'\s+', ' ', text)
             return text.strip()
 
@@ -1087,14 +1088,15 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
             url = "https://api.interakt.ai/v1/public/message/"
             headers = {"Authorization": f"Basic {INTERAKT_API_KEY}", "Content-Type": "application/json"}
             
+            # WhatsApp sathi data ekdam clean pathvne
             body_values = [
-                clean_for_whatsapp(str(row['project_id'])),   # {{1}}
-                clean_for_whatsapp(str(row['site_id'])),      # {{2}}
-                clean_for_whatsapp(str(row['site_name'])),    # {{3}}
-                clean_for_whatsapp(str(row['cluster'])),      # {{4}}
-                clean_for_whatsapp(str(row['item_details'])),  # {{5}}
-                clean_for_whatsapp(str(row['total_qty_b'])),   # {{6}}
-                clean_for_whatsapp(str(custom_msg))           # {{7}}
+                clean_for_whatsapp(str(row['project_id'])),   
+                clean_for_whatsapp(str(row['site_id'])),      
+                clean_for_whatsapp(str(row['site_name'])),    
+                clean_for_whatsapp(str(row['cluster'])),      
+                clean_for_whatsapp(str(row['item_details'])), 
+                clean_for_whatsapp(str(row['total_qty_b'])),  
+                clean_for_whatsapp(str(custom_msg))           
             ]
             
             payload = {
@@ -1105,22 +1107,11 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
             try: return requests.post(url, headers=headers, json=payload, timeout=15)
             except: return None
 
-        # --- 3. FETCH & SYNC ---
-        def fetch_all_boq():
-            all_records = []
-            page_size, offset = 1000, 0
-            while True:
-                response = supabase.table("BOQ Report").select("*").ilike("Transporter", "Visi%").range(offset, offset + page_size - 1).execute()
-                batch = response.data
-                if not batch: break
-                all_records.extend(batch)
-                if len(batch) < page_size: break
-                offset += page_size
-            return pd.DataFrame(all_records)
-
+        # --- 3. SYNC LOGIC (With Double Spacing for UI) ---
         if st.button("🔄 Sync Fresh Data", use_container_width=True):
             with st.spinner("Processing..."):
-                df_boq = fetch_all_boq()
+                # (fetch_all_boq function tumchya main code madhun vapra)
+                df_boq = fetch_all_boq() 
                 if not df_boq.empty:
                     for col in ['Qty B', 'Qty C']: df_boq[col] = pd.to_numeric(df_boq[col], errors='coerce').fillna(0)
                     mask = (df_boq['Issue From'].astype(str).str.contains('Warehouse', case=False, na=False)) & \
@@ -1138,7 +1129,9 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                             s_id = str(project_gp.iloc[0]['Site ID'])
                             site_info = df_indus[df_indus['Site ID'] == s_id]
                             gp_items = project_gp.groupby(['Item Code', 'Item Description'], as_index=False).agg({'Qty B':'sum', 'Qty C':'sum'})
-                            items_text = ", ".join([f"{r['Item Description']} (Pnd: {int(r['Qty B'] - r['Qty C'])})" for _, r in gp_items.iterrows()])
+                            
+                            # 🚨 UI sathi ek line sodun (Double Newline \n\n)
+                            items_text = "\n\n".join([f"• {r['Item Description']} (Pending: {int(r['Qty B'] - r['Qty C'])})" for _, r in gp_items.iterrows()])
                             
                             batch.append({
                                 "project_id": str(pid), "site_id": s_id, 
@@ -1150,12 +1143,12 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                         
                         supabase.table("stn_pending_analysis").delete().eq("status", "Open").execute()
                         if batch: supabase.table("stn_pending_analysis").upsert(batch, on_conflict="project_id").execute()
-                        st.success("✅ Sync Done!")
+                        st.success("✅ Sync Done! Portal UI aata lavish disel.")
                         st.rerun()
 
         st.divider()
 
-        # --- 4. ACTION CARDS (STATUS DROPDOWN RESTORED) ---
+        # --- 4. ACTION CARDS ---
         res_display = supabase.table("stn_pending_analysis").select("*").execute()
         df_display = pd.DataFrame(res_display.data)
 
@@ -1171,14 +1164,12 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                         st.caption(f"📍 {row['cluster']}")
                     with col2: 
                         st.markdown(f"**Site:** {row['site_name']} ({row['site_id']})")
-                        st.caption(f"📦 {row['item_details']}")
+                        # 🚨 Markdown use kelya mule \n\n barobar line sodun dakhvel
+                        st.info(row['item_details']) 
                     with col3:
-                        # TEAM DROPDOWN
                         t_list = ["Select Team"] + df_teams['name'].tolist()
                         cur_team = row.get('assigned_team') or "Select Team"
                         sel_team = st.selectbox("Assign Team", t_list, index=t_list.index(cur_team) if cur_team in t_list else 0, key=f"t_{i}")
-                        
-                        # STATUS DROPDOWN (PARAT ADD KELA)
                         v_list = ["Pending", "Not Required", "Closed"]
                         cur_v = row.get('v_status') or "Pending"
                         sel_v = st.selectbox("Status", v_list, index=v_list.index(cur_v) if cur_v in v_list else 0, key=f"v_{i}")
@@ -1186,20 +1177,16 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                         st.write(" ")
                         if st.button("💾 Save", key=f"s_{i}"):
                             t_phone = df_teams[df_teams['name'] == sel_team]['phone_number'].values[0] if sel_team != "Select Team" else None
-                            # Update DB including v_status
                             supabase.table("stn_pending_analysis").update({
-                                "assigned_team": sel_team, 
-                                "team_number": t_phone, 
-                                "v_status": sel_v,
-                                "last_followup": datetime.now().isoformat()
+                                "assigned_team": sel_team, "team_number": t_phone, "v_status": sel_v, "last_followup": datetime.now().isoformat()
                             }).eq("project_id", row['project_id']).execute()
                             
                             if sel_team != "Select Team":
                                 with st.spinner("WhatsApp pathvat aahe..."):
                                     resp = send_team_stn_template(t_phone, row, "तात्काळ क्लोज करा.")
                                     if hasattr(resp, 'status_code') and resp.status_code in [200, 201, 202]:
-                                        st.success(f"✅ Notified {sel_team}!")
+                                        st.success(f"✅ Sent to {sel_team}!")
                                     else:
-                                        st.error("❌ WhatsApp Fail (Check Interakt)")
+                                        st.error("❌ WhatsApp Error (Newlines detected?)")
                             else:
                                 st.success("✅ Saved!")
