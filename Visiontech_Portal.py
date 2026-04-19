@@ -1060,7 +1060,7 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
             st.write("### Pending Billing List")
             st.dataframe(st.session_state.billing_df[['SITE ID', 'SITE NAME', 'RFAI STATUS', 'WCC NO.']], use_container_width=True, hide_index=True)
 # =====================================================================
-    # 🚨 TAB 7: STN MANAGER - FINAL RELIABLE VERSION (NO DATA SKIP)
+    # 🚨 TAB 7: STN MANAGER - FULL DATA SYNC VERSION (PAGINATION)
     # =====================================================================
     elif st.session_state.current_page == "STN Manager":
         import google.generativeai as genai
@@ -1072,27 +1072,36 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
         genai.configure(api_key="AIzaSyDed-krPqnZXVCRcbIpV3yPPdXoxF3qEQk")
         INTERAKT_API_KEY = "S2pFcE5ETjE2NDhiQ1VIMEFjMVA5a3ZwdHB6X0diYXpRM2I2SWRxbGJWYzo="
 
-        st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>🚀 Visiontech STN Manager (Visiotech Verified)</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>🚀 Visiontech STN Manager (Complete Data Sync)</h2>", unsafe_allow_html=True)
 
-        # --- 2. SYNC LOGIC (NO MORE DATA MISSING) ---
-        if st.button("🔄 Sync Fresh Pending Sites", use_container_width=True):
-            with st.spinner("BOQ scan hot aahe..."):
-                # A. Direct Fetch (No filter at DB level to avoid skip)
-                res_boq = supabase.table("BOQ Report").select("*").execute()
-                df_boq = pd.DataFrame(res_boq.data)
+        # --- 2. FUNCTION: FETCH ALL RECORDS (PAGINATION) ---
+        def fetch_all_boq():
+            all_records = []
+            page_size = 1000
+            offset = 0
+            while True:
+                # Transporter filter DB level la lavla aahe fast fetch sathi
+                response = supabase.table("BOQ Report").select("*").ilike("Transporter", "Visi%").range(offset, offset + page_size - 1).execute()
+                batch = response.data
+                if not batch: break
+                all_records.extend(batch)
+                if len(batch) < page_size: break
+                offset += page_size
+            return pd.DataFrame(all_records)
+
+        # --- 3. SYNC LOGIC ---
+        if st.button("🔄 Sync ALL Fresh Pending Sites", use_container_width=True):
+            with st.spinner("Sagle BOQ records scan hot aahet (Full Data)..."):
+                # A. Fetch EVERY Visiotech record from BOQ
+                df_boq = fetch_all_boq()
 
                 if not df_boq.empty:
                     # Qty numeric conversion
                     for col in ['Qty B', 'Qty C']:
                         df_boq[col] = pd.to_numeric(df_boq[col], errors='coerce').fillna(0)
                     
-                    # --- POWERFUL FILTERING ---
-                    # 1. Transporter contains 'Visi' (Case Insensitive)
-                    # 2. Issue From contains 'Warehouse'
-                    # 3. Product contains 'Capex'
-                    # 4. Qty B > Qty C
+                    # --- STRICT FILTERS ---
                     mask = (
-                        (df_boq['Transporter'].astype(str).str.contains('Visi', case=False, na=False)) &
                         (df_boq['Issue From'].astype(str).str.contains('Warehouse', case=False, na=False)) & 
                         (df_boq['Qty B'] > df_boq['Qty C']) &
                         (df_boq['Product'].astype(str).str.contains('Capex', case=False, na=False))
@@ -1100,9 +1109,10 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                     df_filtered = df_boq[mask].copy()
 
                     if not df_filtered.empty:
-                        # B. Indus Data Fetch (Site Name & Cluster)
+                        # B. Fetch Site Details
                         s_ids = df_filtered['Site ID'].unique().tolist()
                         df_indus = pd.DataFrame()
+                        # Indus data pan pagination ne fetch kela pahije jar site IDs jast astil tar
                         if s_ids:
                             try:
                                 res_indus = supabase.table("Indus Data").select("Site ID", "Site Name", "District").in_("Site ID", s_ids).execute()
@@ -1114,49 +1124,47 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                         for pid, gp in df_filtered.groupby('Project Number'):
                             s_id = str(gp.iloc[0]['Site ID'])
                             
-                            # Site Name & District mapping
+                            # Site & Cluster Mapping
                             site_row = df_indus[df_indus['Site ID'] == s_id] if not df_indus.empty else pd.DataFrame()
                             s_name = site_row.iloc[0]['Site Name'] if not site_row.empty else "N/A"
                             cluster = site_row.iloc[0]['District'] if not site_row.empty else "N/A"
 
-                            # Consolidated Item Details (Same Project, Same Item -> Sum)
+                            # Item Summation
                             gp_items = gp.groupby(['Item Code', 'Item Description'], as_index=False).agg({'Qty B':'sum', 'Qty C':'sum'})
                             items_text = "\n".join([f"• {r['Item Description']} (Pending: {int(r['Qty B'] - r['Qty C'])})" for _, r in gp_items.iterrows() if (r['Qty B'] - r['Qty C']) > 0])
                             
                             if items_text:
                                 batch.append({
-                                    "project_id": str(pid),
-                                    "site_id": s_id,
-                                    "site_name": s_name,
-                                    "cluster": cluster,
-                                    "item_details": items_text,
-                                    "total_qty_b": int(gp['Qty B'].sum()),
-                                    "status": "Open",
-                                    "v_status": "Pending"
+                                    "project_id": str(pid), "site_id": s_id,
+                                    "site_name": s_name, "cluster": cluster,
+                                    "item_details": items_text, "total_qty_b": int(gp['Qty B'].sum()),
+                                    "status": "Open", "v_status": "Pending"
                                 })
                         
-                        # Sync Database
+                        # Database Update
                         supabase.table("stn_pending_analysis").delete().eq("status", "Open").execute()
                         if batch:
                             supabase.table("stn_pending_analysis").upsert(batch, on_conflict="project_id").execute()
-                        st.success(f"✅ {len(batch)} Verified Projects Synced!"); st.rerun()
+                        st.success(f"✅ {len(batch)} Verified Projects Synced (Full Scan Done)!"); st.rerun()
                     else:
-                        st.info("Warehouse record madhe kontihi Visiotech chi Pending site sapat nahiye.")
+                        st.info("Warehouse madhe kontihi Pending site sapat nahiye.")
                 else:
-                    st.warning("BOQ data sapat nahiye.")
+                    st.warning("BOQ table madhe 'Visiotech' cha data nahiye.")
 
         st.divider()
 
-        # --- 3. DISPLAY & SEARCH ---
-        st.markdown("#### 🔎 Search Pending Project")
-        search = st.text_input("Project ID taka", key="stn_search")
-
+        # --- 4. SEARCH & DISPLAY ---
+        search = st.text_input("🔎 Search by Project ID / Site ID", key="stn_search_box")
+        
         res_p = supabase.table("stn_pending_analysis").select("*").execute()
         df_display = pd.DataFrame(res_p.data)
 
         if not df_display.empty:
             if search:
-                df_display = df_display[df_display['project_id'].str.contains(search, case=False, na=False)]
+                df_display = df_display[
+                    (df_display['project_id'].str.contains(search, case=False, na=False)) | 
+                    (df_display['site_id'].str.contains(search, case=False, na=False))
+                ]
 
             for i, row in df_display.iterrows():
                 with st.container(border=True):
@@ -1168,7 +1176,6 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                         st.markdown(f"**Site:** {row['site_name']} ({row['site_id']})")
                         st.write(f"📦 **Pending Items:**\n{row['item_details']}")
                     with c3:
-                        # Follow-up assignments logic yithe yeil
                         st.info(f"Status: {row['v_status']}")
         else:
-            st.info("No Assignments. Please Sync.")
+            st.info("Sync button duba, purna data uchella jail.")
