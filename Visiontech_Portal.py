@@ -1153,7 +1153,7 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
 
                         batch = []
                         # Grouping by Project Number (Consolidating duplicates)
-                        for pid, project_gp in df_merged_pre := df_filtered.groupby('Project Number'):
+                    for pid, project_gp in df_merged_pre := df_filtered.groupby('Project Number'):
                             s_id = str(project_gp.iloc[0]['Site ID'])
                             site_row = df_indus[df_indus['Site ID'] == s_id] if not df_indus.empty else pd.DataFrame()
                             
