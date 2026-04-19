@@ -8,3 +8,5 @@ pandas
 supabase
 xlsxwriter
 streamlit
+google-generativeai
+requests
