@@ -261,10 +261,6 @@ Maine aapke existing logic mein sirf ek filter line add ki hai jo status check k
 
 Aap PAGE 1 (Single Site Search) ke result area mein ye updated block dal do:
 
-Python
-# --- PAGE 1: Single Site / Project Search ---
-# (Search logic same rahega, niche wala result block update karein)
-
             if submit_search:
                 st.balloons()
                 with st.spinner('शोधत आहे...'):
