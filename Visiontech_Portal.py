@@ -278,25 +278,23 @@ Python
                     if not df_final.empty:
                         st.success(f"✅ {len(df_final)} Records Found!")
 
-                        # --- UPDATED LOGIC: STN STATUS (ONLY FOR CAPEX) ---
+                        # --- NEW LOGIC: STN STATUS (ONLY FOR CAPEX) ---
                         try:
-                            # Step 1: Sirf Capex items ko filter karna status check ke liye
-                            # Note: Column 'Product' ya 'Item Category' check kar lena (Maine 'Product' use kiya hai)
+                            # 1. Filter only Capex rows for calculation
                             df_capex = df_final[df_final['Product'].astype(str).str.contains('Capex', case=False, na=False)].copy()
 
                             if not df_capex.empty:
-                                # Qty numeric conversion
                                 df_capex['Qty A'] = pd.to_numeric(df_capex['Qty A'], errors='coerce').fillna(0)
                                 df_capex['Qty B'] = pd.to_numeric(df_capex['Qty B'], errors='coerce').fillna(0)
                                 df_capex['Qty C'] = pd.to_numeric(df_capex['Qty C'], errors='coerce').fillna(0)
 
-                                # Condition: Qty A > 0 aur A == B == C (Sirf Capex ke liye)
+                                # Condition: Qty A > 0 AND A == B == C for all Capex items
                                 is_stn_done = all((df_capex['Qty A'] > 0) & (df_capex['Qty A'] == df_capex['Qty B']) & (df_capex['Qty A'] == df_capex['Qty C']))
 
                                 if is_stn_done:
                                     st.markdown("""
                                         <div style='background-color: #DCFCE7; padding: 20px; border-radius: 12px; border: 2px solid #166534; text-align: center;'>
-                                            <h1 style='color: #166534; margin: 0;'>✅ STN Done (Capex Match)</h1>
+                                            <h1 style='color: #166534; margin: 0;'>✅ STN Done</h1>
                                         </div>
                                     """, unsafe_allow_html=True)
                                 else:
@@ -307,11 +305,10 @@ Python
                                     """, unsafe_allow_html=True)
                             else:
                                 st.info("ℹ️ Is Project mein koi Capex item nahi mila.")
-                            
                             st.write("") 
                         except Exception as e:
                             pass 
-                        # --- END OF UPDATED LOGIC ---
+                        # --- END OF NEW LOGIC ---
 
                         st.dataframe(df_final[[c for c in mera_sequence if c in df_final.columns]], use_container_width=True, hide_index=True)
                     else: 
