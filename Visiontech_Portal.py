@@ -1060,36 +1060,29 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
             st.write("### Pending Billing List")
             st.dataframe(st.session_state.billing_df[['SITE ID', 'SITE NAME', 'RFAI STATUS', 'WCC NO.']], use_container_width=True, hide_index=True)
 # =====================================================================
-    # 🚨 TAB 7: STN MANAGER - FINAL WITH 2-MIN AUTO FOLLOW-UP
+    # 🚨 TAB 7: STN MANAGER - CRASH PROOF (API ERROR FIXED)
     # =====================================================================
     elif st.session_state.current_page == "STN Manager":
         import requests
         import pandas as pd
         import io
-        import time
         from datetime import datetime, timedelta
 
         # --- 1. CONFIG ---
         INTERAKT_API_KEY = "S2pFcE5ETjE2NDhiQ1VIMEFjMVA5a3ZwdHB6X0diYXpRM2I2SWRxbGJWYzo="
         MANAGER_PHONE = "919552273181"
 
-        st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>🚀 Visiontech STN Manager (Auto Follow-up Mode)</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>🚀 Visiontech STN Manager (Stable Mode)</h2>", unsafe_allow_html=True)
 
         # --- 2. NOTIFICATION HELPERS ---
-        
         def send_manager_direct(text_msg):
-            """Manager la Direct Text Message (No Template)"""
             url = "https://api.interakt.ai/v1/public/message/"
             headers = {"Authorization": f"Basic {INTERAKT_API_KEY}", "Content-Type": "application/json"}
-            payload = {
-                "countryCode": "+91", "phoneNumber": MANAGER_PHONE[-10:],
-                "type": "Text", "message": text_msg
-            }
+            payload = {"countryCode": "+91", "phoneNumber": MANAGER_PHONE[-10:], "type": "Text", "message": text_msg}
             try: return requests.post(url, headers=headers, json=payload, timeout=10)
             except: return None
 
         def send_team_template(phone, row, ai_comment):
-            """Team la 'stnpending' Template message pathvne"""
             url = "https://api.interakt.ai/v1/public/message/"
             headers = {"Authorization": f"Basic {INTERAKT_API_KEY}", "Content-Type": "application/json"}
             payload = {
@@ -1107,7 +1100,7 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
             try: return requests.post(url, headers=headers, json=payload, timeout=10)
             except: return None
 
-        # --- 3. FETCH & SYNC LOGIC ---
+        # --- 3. FETCH & SYNC ---
         def fetch_all_boq():
             all_records = []
             page_size, offset = 1000, 0
@@ -1124,10 +1117,7 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
             with st.spinner("Syncing..."):
                 df_boq = fetch_all_boq()
                 if not df_boq.empty:
-                    for col in ['Qty B', 'Qty C']:
-                        df_boq[col] = pd.to_numeric(df_boq[col], errors='coerce').fillna(0)
-                    
-                    # Parent-Warehouse Pending Filter
+                    for col in ['Qty B', 'Qty C']: df_boq[col] = pd.to_numeric(df_boq[col], errors='coerce').fillna(0)
                     mask = (df_boq['Issue From'].astype(str).str.contains('Warehouse', case=False, na=False)) & \
                            (df_boq['Qty B'] > df_boq['Qty C']) & \
                            (df_boq['Parent/Child'].astype(str).str.contains('Parent', case=False, na=False))
@@ -1139,6 +1129,7 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                         df_indus = pd.DataFrame(res_indus.data)
 
                         batch = []
+                        now_str = datetime.now().isoformat()
                         for pid, project_gp in df_filtered.groupby('Project Number'):
                             s_id = str(project_gp.iloc[0]['Site ID'])
                             site_info = df_indus[df_indus['Site ID'] == s_id]
@@ -1150,40 +1141,19 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                                 "site_name": site_info.iloc[0]['Site Name'] if not site_info.empty else "N/A",
                                 "cluster": site_info.iloc[0]['District'] if not site_info.empty else "N/A",
                                 "item_details": "\n".join(items_list), "total_qty_b": int(project_gp['Qty B'].sum()),
-                                "status": "Open", "last_followup": datetime.now().isoformat()
+                                "status": "Open", "last_followup": now_str
                             })
                         
                         supabase.table("stn_pending_analysis").delete().eq("status", "Open").execute()
                         if batch:
                             supabase.table("stn_pending_analysis").upsert(batch, on_conflict="project_id").execute()
-                            # 🔥 Manager Direct Message
-                            send_manager_direct("Hello! STN Pending list updated. Please check the portal and assign teams.")
-                        st.success("✅ Synced! Manager Notified via Direct Message.")
+                            send_manager_direct("Hello! STN list updated in portal. Kindly assign teams.")
+                        st.success("✅ Synced!")
                         st.rerun()
 
         st.divider()
 
-        # --- 4. AUTO FOLLOW-UP ENGINE (2 MIN TESTING) ---
-        st.subheader("⏱️ Active Follow-up Monitor")
-        res_active = supabase.table("stn_pending_analysis").select("*").eq("v_status", "Pending").execute()
-        df_active = pd.DataFrame(res_active.data)
-
-        if not df_active.empty:
-            current_time = datetime.now()
-            for idx, row in df_active.iterrows():
-                if row.get('team_number'):
-                    # Last followup check
-                    last_time_str = row.get('last_followup')
-                    last_time = datetime.fromisoformat(last_time_str) if last_time_str else current_time - timedelta(minutes=5)
-                    
-                    # JAR 2 MINUTE ZALE ASTIL TAR (Testing Condition)
-                    if (current_time - last_time).total_seconds() >= 120: 
-                        st.info(f"🔄 Auto Follow-up Triggered for Site: {row['site_id']}")
-                        send_team_template(row['team_number'], row, "REMINDER: STN still pending after 2 mins. Update status!")
-                        # Update last followup time in DB
-                        supabase.table("stn_pending_analysis").update({"last_followup": current_time.isoformat()}).eq("project_id", row['project_id']).execute()
-
-        # --- 5. DISPLAY & MANUAL SAVE ---
+        # --- 4. DISPLAY & SAVE (With Error Handling) ---
         res_display = supabase.table("stn_pending_analysis").select("*").execute()
         df_display = pd.DataFrame(res_display.data)
 
@@ -1198,17 +1168,27 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                     with c2: st.write(f"**Site:** {row['site_name']}"); st.caption(f"📦 {row['item_details']}")
                     with c3:
                         t_list = ["Select Team"] + df_teams['name'].tolist()
-                        sel_team = st.selectbox("Assign Team", t_list, index=t_list.index(row['assigned_team']) if row['assigned_team'] in t_list else 0, key=f"t_{i}")
+                        cur_team = row.get('assigned_team') or "Select Team"
+                        sel_team = st.selectbox("Assign Team", t_list, index=t_list.index(cur_team) if cur_team in t_list else 0, key=f"t_{i}")
                         v_list = ["Pending", "Not Required", "Closed"]
-                        sel_v = st.selectbox("Status", v_list, index=v_list.index(row['v_status']) if row['v_status'] in v_list else 0, key=f"v_{i}")
+                        cur_v = row.get('v_status') or "Pending"
+                        sel_v = st.selectbox("Status", v_list, index=v_list.index(cur_v) if cur_v in v_list else 0, key=f"v_{i}")
                     with c4:
+                        st.write(" ")
                         if st.button("💾 Save", key=f"s_{i}"):
-                            t_phone = df_teams[df_teams['name'] == sel_team]['phone_number'].values[0] if sel_team != "Select Team" else None
-                            supabase.table("stn_pending_analysis").update({
-                                "assigned_team": sel_team, "team_number": t_phone, "v_status": sel_v,
-                                "last_followup": datetime.now().isoformat()
-                            }).eq("project_id", row['project_id']).execute()
-                            
-                            if sel_team != "Select Team":
-                                send_team_template(t_phone, row, "New STN assigned to you. Follow up with Warehouse!")
-                            st.success("Saved!")
+                            try:
+                                t_phone = df_teams[df_teams['name'] == sel_team]['phone_number'].values[0] if sel_team != "Select Team" else None
+                                # Database Update
+                                update_data = {
+                                    "assigned_team": sel_team, 
+                                    "team_number": t_phone, 
+                                    "v_status": sel_v,
+                                    "last_followup": datetime.now().isoformat()
+                                }
+                                supabase.table("stn_pending_analysis").update(update_data).eq("project_id", row['project_id']).execute()
+                                
+                                if sel_team != "Select Team":
+                                    send_team_template(t_phone, row, "STN Pending! Tadtadine check kara.")
+                                st.success("Saved!")
+                            except Exception as e:
+                                st.error(f"Save Failed: SQL Column 'last_followup' missing? Error: {e}")
