@@ -1060,7 +1060,7 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
             st.write("### Pending Billing List")
             st.dataframe(st.session_state.billing_df[['SITE ID', 'SITE NAME', 'RFAI STATUS', 'WCC NO.']], use_container_width=True, hide_index=True)
 # =====================================================================
-    # 🚨 TAB 7: STN MANAGER - FINAL STABLE VERSION (GEMINI + INTERAKT)
+    # 🚨 TAB 7: STN MANAGER - WAREHOUSE ONLY LOGIC
     # =====================================================================
     elif st.session_state.current_page == "STN Manager":
         import google.generativeai as genai
@@ -1072,7 +1072,7 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
         genai.configure(api_key="AIzaSyDed-krPqnZXVCRcbIpV3yPPdXoxF3qEQk")
         INTERAKT_API_KEY = "S2pFcE5ETjE2NDhiQ1VIMEFjMVA5a3ZwdHB6X0diYXpRM2I2SWRxbGJWYzo="
 
-        st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>🚨 STN Pending Management (Visiotech)</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>🚨 STN Pending Management (Warehouse Only)</h2>", unsafe_allow_html=True)
 
         # --- 2. FUNCTION: GEMINI AI ---
         def get_ai_strict_instruction(team_name, project_id):
@@ -1100,66 +1100,60 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                     "name": "stnpending",
                     "languageCode": "mr", 
                     "bodyValues": [
-                        str(row['project_id']),    # {{1}}
-                        str(row['site_id']),       # {{2}}
-                        str(row['site_name']),     # {{3}}
-                        str(row['cluster']),       # {{4}}
-                        str(row['item_details']),  # {{5}}
-                        str(row['total_qty_b']),   # {{6}}
-                        str(ai_comment)            # {{7}}
+                        str(row['project_id']), str(row['site_id']), str(row['site_name']), 
+                        str(row['cluster']), str(row['item_details']), str(row['total_qty_b']), str(ai_comment)
                     ]
                 }
             }
             try: return requests.post(url, headers=headers, json=payload, timeout=10)
             except: return None
 
-        # --- 4. SYNC LOGIC (BOQ + INDUS MAPPING) ---
+        # --- 4. SYNC LOGIC (With Issue From = Warehouse Filter) ---
         if st.button("🔄 Sync Fresh Pending Sites", use_container_width=True):
-            with st.spinner("BOQ aani Indus Data scan hot aahe..."):
-                # BOQ madhun 'Visi%' filter vaprun data fetch karne
+            with st.spinner("BOQ scan hot aahe (Warehouse only)..."):
+                # Visiotech + Warehouse search
                 res_boq = supabase.table("BOQ Report").select("*").ilike("Transporter", "Visi%").execute()
                 df_boq = pd.DataFrame(res_boq.data)
 
                 if not df_boq.empty:
-                    # Qty Conversion
+                    # Qty numeric conversion
+                    df_boq['Qty A'] = pd.to_numeric(df_boq['Qty A'], errors='coerce').fillna(0)
                     df_boq['Qty B'] = pd.to_numeric(df_boq['Qty B'], errors='coerce').fillna(0)
                     df_boq['Qty C'] = pd.to_numeric(df_boq['Qty C'], errors='coerce').fillna(0)
                     
-                    # STN Logic: Qty B (Liya) > Qty C (Mila)
-                    mask = (df_boq['Qty B'] > df_boq['Qty C'])
+                    # --- STRICT FILTERS ---
+                    # 1. Issue From madhe 'Warehouse' shabd pahije
+                    mask = (df_boq['Issue From'].str.contains('Warehouse', case=False, na=False))
                     
-                    # Optional: Capex + Parent filters
+                    # 2. Qty mismatch logic (A > C or B > C)
+                    mask = mask & ((df_boq['Qty A'] > df_boq['Qty C']) | (df_boq['Qty B'] > df_boq['Qty C']))
+                    
+                    # 3. Product Capex filter
                     if 'Product' in df_boq.columns:
                         mask = mask & (df_boq['Product'].str.contains('Capex', case=False, na=False))
-                    if 'Parent/Child' in df_boq.columns:
-                        mask = mask & (df_boq['Parent/Child'].str.contains('Parent', case=False, na=False))
-                        
+                    
                     df_p_raw = df_boq[mask].copy()
 
                     if not df_p_raw.empty:
                         s_ids = df_p_raw['Site ID'].unique().tolist()
                         
-                        # --- SAFE INDUS DATA FETCH ---
+                        # Indus Data Merge
                         df_indus = pd.DataFrame()
                         if s_ids:
                             try:
-                                # Site ID, Site Name, District columns fetch karat aahe
                                 res_indus = supabase.table("Indus Data").select("Site ID", "Site Name", "District").in_("Site ID", s_ids).execute()
                                 df_indus = pd.DataFrame(res_indus.data)
-                            except Exception as indus_err:
-                                st.warning(f"Indus Data fetch krtana error aala, N/A sobat kaam chalu aahe.")
+                            except: pass
 
-                        # Merge Logic (Data sapdla tar merge kara, nahitar N/A)
                         if not df_indus.empty:
                             df_merged = pd.merge(df_p_raw, df_indus, on="Site ID", how="left")
                         else:
                             df_merged = df_p_raw.copy()
-                            df_merged['Site Name'] = 'N/A'
-                            df_merged['District'] = 'N/A'
+                            df_merged['Site Name'] = 'N/A'; df_merged['District'] = 'N/A'
                         
                         batch = []
                         for pid, gp in df_merged.groupby('Project Number'):
-                            items_text = "\n".join([f"• {r['Item Description']} (Qty: {r['Qty B']})" for _, r in gp.iterrows()])
+                            items_text = "\n".join([f"• {r.get('Item Description','')} (A:{r['Qty A']}/B:{r['Qty B']}/C:{r['Qty C']})" for _, r in gp.iterrows()])
                             batch.append({
                                 "project_id": str(pid),                       
                                 "site_id": str(gp.iloc[0]['Site ID']),        
@@ -1170,59 +1164,42 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                                 "status": "Open"
                             })
                         
-                        # Database Upsert (Small case table name: stn_pending_analysis)
                         supabase.table("stn_pending_analysis").upsert(batch, on_conflict="project_id").execute()
-                        st.success(f"✅ {len(batch)} Sites Synced Successfully!")
-                        st.rerun()
+                        st.success(f"✅ {len(batch)} Warehouse Sites Synced!"); st.rerun()
                     else:
-                        st.info("सध्या कोणतीही Pending Site सापडली नाही.")
+                        st.info("Warehouse madhun nighaleli kontihi Pending Site sapatli nahi.")
                 else:
-                    st.warning("BOQ मध्ये 'Visi' ट्रान्सपोर्टरचा डेटा सापडला नाही.")
+                    st.warning("BOQ madhe data nahiye.")
 
         st.divider()
 
-        # --- 5. DISPLAY & TEAM ASSIGNMENT ---
-        res_teams = supabase.table("allowed_users").select("name, phone_number").execute()
-        df_teams = pd.DataFrame(res_teams.data) if res_teams.data else pd.DataFrame()
-        
-        # Open sites fetch karne (Small case table)
+        # --- 5. DISPLAY & ASSIGNMENT ---
         res_p = supabase.table("stn_pending_analysis").select("*").eq("status", "Open").execute()
         df_display = pd.DataFrame(res_p.data)
 
         if not df_display.empty:
+            res_teams = supabase.table("allowed_users").select("name, phone_number").execute()
+            df_teams = pd.DataFrame(res_teams.data) if res_teams.data else pd.DataFrame()
+            
             for i, row in df_display.iterrows():
                 with st.container(border=True):
                     c1, c2, c3 = st.columns([1.5, 2, 1.2])
                     with c1:
-                        st.markdown(f"**Project:**\n`{row['project_id']}`")
-                        st.markdown(f"**Cluster:**\n{row['cluster']}")
+                        st.markdown(f"**Project:** `{row['project_id']}`\n\n**Cluster:** {row['cluster']}")
                     with c2:
-                        st.markdown(f"**Site:** {row['site_name']} ({row['site_id']})")
-                        st.markdown(f"**Pending Items:**\n{row['item_details']}")
+                        st.markdown(f"**Site:** {row['site_name']} ({row['site_id']})\n\n**Items:**\n{row['item_details']}")
                     with c3:
                         if not df_teams.empty:
                             team_list = ["Select Team"] + df_teams['name'].tolist()
                             sel_team = st.selectbox("Assign Team", team_list, key=f"sel_{row['project_id']}_{i}")
-                            
-                            if st.button("🚀 Assign & Notify", key=f"btn_{row['project_id']}_{i}"):
+                            if st.button("🚀 Notify", key=f"btn_{row['project_id']}_{i}"):
                                 if sel_team != "Select Team":
                                     t_phone = df_teams[df_teams['name'] == sel_team]['phone_number'].values[0]
-                                    
-                                    # Update Database
-                                    supabase.table("stn_pending_analysis").update({
-                                        "assigned_team": sel_team, "team_number": t_phone
-                                    }).eq("project_id", row['project_id']).execute()
-                                    
-                                    with st.spinner("AI मेसेज तयार होत आहे..."):
+                                    supabase.table("stn_pending_analysis").update({"assigned_team": sel_team, "team_number": t_phone}).eq("project_id", row['project_id']).execute()
+                                    with st.spinner("Sending AI Notification..."):
                                         ai_msg = get_ai_strict_instruction(sel_team, row['project_id'])
                                         row['team_number'] = t_phone 
-                                        response = send_stn_whatsapp_automated(row, ai_msg)
-                                    
-                                    if response and response.status_code in [200, 201]:
-                                        st.success(f"✅ {sel_team} ला मेसेज पाठवला!")
-                                    else:
-                                        st.error("❌ WhatsApp फेल झाले. Interakt चेक करा.")
-                                else:
-                                    st.warning("कृपया टीम निवडा!")
+                                        send_stn_whatsapp_automated(row, ai_msg)
+                                        st.success(f"✅ Notified {sel_team}!")
         else:
-            st.info("असाइनमेंटसाठी कोणतेही पेंडिंग STN नाहीत.")
+            st.info("Assignment sathi data nahiye.")
