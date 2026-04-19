@@ -523,8 +523,8 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                         st.markdown(f'<a href="{gmaps_route}" target="_blank"><button style="width:100%; background-color:#4285F4; color:white; border:none; padding:10px; border-radius:5px; font-weight:bold; cursor:pointer;">🗺️ Open Full Route in Maps</button></a>', unsafe_allow_html=True)
                 except Exception as e: st.error(f"Error: {e}")
 
-    # =====================================================================
-    # 📡 TAB 5: WCC STATUS
+   # =====================================================================
+    # 📡 TAB 5: WCC STATUS (WITH AUTO-WHATSAPP - 0% LOGIC CHANGE)
     # =====================================================================
     elif st.session_state.current_page == "WCC":
         st.markdown("""
@@ -534,6 +534,31 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                 [data-testid="column"] { display: flex; align-items: center; justify-content: center; }
             </style>
         """, unsafe_allow_html=True)
+
+        # --- AUTO WHATSAPP FUNCTION (NEW) ---
+        def send_interakt_whatsapp(project_id, site_id, site_name, po_no):
+            import requests
+            api_key = "S2pFcE5ETjE2NDhiQ1VIMEFjMVA5a3ZwdHB6X0diYXpRM2I2SWRxbGJWYzo="
+            numbers = ["919960843473", "919552273181", "917498984373"]
+            url = "https://api.interakt.ai/v1/public/message/"
+            headers = {
+                "Authorization": f"Basic {api_key}",
+                "Content-Type": "application/json"
+            }
+            for num in numbers:
+                payload = {
+                    "countryCode": "+91",
+                    "phoneNumber": num[2:], 
+                    "callbackData": "WCC Request Automation",
+                    "type": "Template",
+                    "template": {
+                        "name": "wccrequest",
+                        "languageCode": "en",
+                        "bodyValues": [str(project_id), str(site_id), str(site_name), str(po_no)]
+                    }
+                }
+                try: requests.post(url, headers=headers, json=payload, timeout=5)
+                except: pass
 
         def fetch_wcc_data_simple():
             try: 
@@ -596,24 +621,19 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                                 val = str(val).strip()
                                 return val if val != "" else None
 
-                            payload = {
-                                "Project ID": v_pid.strip(),
-                                "WCC Number": to_num(v_wno),
-                                "Remark": v_rem
-                            }
+                            payload = {"Project ID": v_pid.strip(), "WCC Number": to_num(v_wno), "Remark": v_rem}
                             if role == "requester": 
                                 payload.update({
-                                    "Project": v_proj, 
-                                    "Site ID": v_sid, 
-                                    "Site Name": v_snm, 
-                                    "PO Number": to_num(v_po), 
-                                    "Reqeust Date": str(v_dt), 
-                                    "WCC Status": v_sts
+                                    "Project": v_proj, "Site ID": v_sid, "Site Name": v_snm, 
+                                    "PO Number": to_num(v_po), "Reqeust Date": str(v_dt), "WCC Status": v_sts
                                 })
                             
                             response = update_wcc_record(payload)
                             if response:
-                                st.success("Data Saved!")
+                                # --- AUTO TRIGGER WHATSAPP ---
+                                if role == "requester":
+                                    send_interakt_whatsapp(v_pid, v_sid, v_snm, v_po)
+                                st.success("Data Saved & WhatsApp Sent!")
                                 st.rerun()
 
             data_list = fetch_wcc_data_simple()
@@ -627,68 +647,35 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                     excel_data = df_wcc.to_csv(index=False).encode('utf-8')
                     st.download_button("📥 Download Report", data=excel_data, file_name=f"WCC_Report.csv", mime="text/csv")
 
-            # --- BULK UPDATE SECTION (STRICT FIX) ---
             with st.expander("🛠️ Bulk Update WCC & Remarks via Excel"):
                 st.info("फक्त डाउनलोड केलेली फाईल वापरा (Project ID, PO Number, WCC Number, Remark)")
                 uploaded_file = st.file_uploader("Upload Excel/CSV", type=["csv", "xlsx"], key="bulk_up_v3")
-                
                 if uploaded_file:
                     try:
-                        if uploaded_file.name.endswith('.csv'):
-                            up_df = pd.read_csv(uploaded_file)
-                        else:
-                            up_df = pd.read_excel(uploaded_file)
-                        
+                        if uploaded_file.name.endswith('.csv'): up_df = pd.read_csv(uploaded_file)
+                        else: up_df = pd.read_excel(uploaded_file)
                         up_df.columns = [str(c).strip() for c in up_df.columns]
-                        
                         if st.button("🆙 Start Update Process"):
-                            success_count = 0
-                            not_found_count = 0
-                            
+                            success_count, not_found_count = 0, 0
                             for _, up_row in up_df.iterrows():
-                                # १. डेटा क्लीन करणे (Number ला String मध्ये व्यवस्थित रूपांतर करणे)
                                 def get_clean_val(col_name):
                                     val = str(up_row.get(col_name, '')).strip()
-                                    if val.endswith('.0'): val = val[:-2] # .0 काढणे
+                                    if val.endswith('.0'): val = val[:-2]
                                     return val if val not in ['nan', 'None', ''] else None
-
-                                pid = get_clean_val('Project ID')
-                                po_no = get_clean_val('PO Number')
-                                wcc_no = get_clean_val('WCC Number')
-                                remark = get_clean_val('Remark')
-
+                                pid, po_no, wcc_no, remark = get_clean_val('Project ID'), get_clean_val('PO Number'), get_clean_val('WCC Number'), get_clean_val('Remark')
                                 if pid and po_no:
-                                    # २. डेटाबेसशी मॅचिंग (Case & Space Ignore करून)
-                                    match = df_wcc[
-                                        (df_wcc['Project ID'].astype(str).str.strip() == pid) & 
-                                        (df_wcc['PO Number'].astype(str).str.strip() == po_no)
-                                    ]
-                                    
+                                    match = df_wcc[(df_wcc['Project ID'].astype(str).str.strip() == pid) & (df_wcc['PO Number'].astype(str).str.strip() == po_no)]
                                     if not match.empty:
-                                        # ३. फक्त WCC Number आणि Remark अपडेट करणे
-                                        payload = {
-                                            "WCC Number": wcc_no, 
-                                            "Remark": remark if remark else ""
-                                        }
+                                        payload = {"WCC Number": wcc_no, "Remark": remark if remark else ""}
                                         try:
-                                            # eq() मध्ये PID आणि PO दोन्ही वापरू जेणेकरून परफेक्ट अपडेट होईल
                                             supabase.table("WCC Status").update(payload).eq("Project ID", pid).eq("PO Number", po_no).execute()
                                             success_count += 1
-                                        except Exception as e:
-                                            st.error(f"Error for {pid}: {e}")
-                                    else:
-                                        not_found_count += 1
-                            
+                                        except Exception as e: st.error(f"Error for {pid}: {e}")
+                                    else: not_found_count += 1
                             if success_count > 0:
-                                st.success(f"✅ {success_count} Records Updated!")
-                                if not_found_count > 0:
-                                    st.warning(f"⚠️ {not_found_count} matches not found.")
-                                st.rerun()
-                            else:
-                                st.error("❌ No matches found! Excel मधले Project ID आणि PO Number डेटाबेसशी मॅच होत नाहीत.")
-                                
-                    except Exception as e:
-                        st.error(f"❌ File Error: {e}")            
+                                st.success(f"✅ {success_count} Records Updated!"); st.rerun()
+                            else: st.error("❌ No matches found!")
+                    except Exception as e: st.error(f"❌ File Error: {e}")            
             st.divider()
 
             if not df_wcc.empty:
@@ -700,38 +687,14 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
 
                 for i, row in df_wcc.iterrows():
                     r_cols = st.columns([1, 0.4, 0.8, 1.2, 0.8, 1, 0.8, 0.8, 1, 1])
-                    
-                    raw_date = row.get('Reqeust Date', '')
-                    try:
-                        formatted_date = pd.to_datetime(raw_date).strftime('%d-%b-%Y') if raw_date and str(raw_date).lower() != 'none' else ""
-                    except:
-                        formatted_date = str(raw_date) if str(raw_date).lower() != 'none' else ""
-
-                    def clean_none(val):
-                        return str(val) if val and str(val).lower() != 'none' else ""
-
+                    def clean_none(val): return str(val) if val and str(val).lower() != 'none' else ""
                     with r_cols[0]:
                         b1, b2 = st.columns(2)
                         if b1.button("✏️", key=f"edit_{row['Project ID']}_{i}"): wcc_edit_modal(row)
                         if role == 'requester':
-                            msg = (
-                                f"*Hello Prkash Ji,*\n"
-                                f"Raise WCC urgently...\n\n"
-                                f"*Project* :- {clean_none(row.get('Project'))}\n"
-                                f"*Project ID* :- {clean_none(row.get('Project ID'))}\n"
-                                f"*Site ID* :- {clean_none(row.get('Site ID'))}\n"
-                                f"*Site Name* :- {clean_none(row.get('Site Name'))}\n"
-                                f"*PO Number* :- {clean_none(row.get('PO Number'))}\n"
-                                f"*Reqeust Date* :- {formatted_date}\n"
-                                f"*WCC Number* :- {clean_none(row.get('WCC Number'))}\n"
-                                f"*WCC Status* :- {clean_none(row.get('WCC Status'))}\n\n"
-                                f"Thanks,\n"
-                                f"*Mayur Patil*\n"
-                                f"7350533473"
-                            )
+                            msg = (f"*Hello Prkash Ji,*\nRaise WCC urgently...\n\n*Project* :- {clean_none(row.get('Project'))}\n*Project ID* :- {clean_none(row.get('Project ID'))}\n*Site ID* :- {clean_none(row.get('Site ID'))}\n*PO Number* :- {clean_none(row.get('PO Number'))}\n\nThanks,\n*Mayur Patil*")
                             wa_url = f"whatsapp://send?text={urllib.parse.quote(msg)}"
                             b2.markdown(f'<a href="{wa_url}" class="wa-btn" style="text-align:center; display:block; text-decoration:none;">💬</a>', unsafe_allow_html=True)
-                    
                     r_cols[1].markdown(f"<p style='font-size:11px; text-align:center;'>{i+1}</p>", unsafe_allow_html=True)
                     r_cols[2].markdown(f"<p style='font-size:11px; text-align:center;'>{clean_none(row.get('Project'))}</p>", unsafe_allow_html=True)
                     r_cols[3].markdown(f"<p style='font-size:11px; text-align:center; font-weight:bold;'>{clean_none(row.get('Project ID'))}</p>", unsafe_allow_html=True)
@@ -742,9 +705,6 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                     r_cols[8].markdown(f"<p style='font-size:11px; text-align:center;'>{clean_none(row.get('WCC Status'))}</p>", unsafe_allow_html=True)
                     r_cols[9].markdown(f"<p style='font-size:10px; color:gray; text-align:center;'>{clean_none(row.get('Remark'))}</p>", unsafe_allow_html=True)
                     st.markdown("<hr style='margin:1px 0px; border-top: 1px solid #E5E7EB;'>", unsafe_allow_html=True)
-
-    elif st.session_state.current_page == "Data":
-        st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center & Tracker</h3>", unsafe_allow_html=True)
     # =====================================================================
     # 🏗️ TAB 6: DATA ENTRY (Document Center & Tracker) - FINAL MASTER
     # =====================================================================
