@@ -264,10 +264,41 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                     if boq_query: query = query.ilike("BOQ", f"%{boq_query.strip()}%")
                     data = fetch_complete_data(query)
                     df_final = process_boq_data(data)
+                    
                     if not df_final.empty:
                         st.success(f"✅ {len(df_final)} Records Found!")
+
+                        # --- NAYA LOGIC: STN STATUS BOX ---
+                        # Sabhi rows check kar rahe hain ki Qty A, B, C match hain ya nahi
+                        try:
+                            # Qty columns ko numeric validate karna (Existing logic se safe side)
+                            df_final['Qty A'] = pd.to_numeric(df_final['Qty A'], errors='coerce').fillna(0)
+                            df_final['Qty B'] = pd.to_numeric(df_final['Qty B'], errors='coerce').fillna(0)
+                            df_final['Qty C'] = pd.to_numeric(df_final['Qty C'], errors='coerce').fillna(0)
+
+                            # Condition: Qty A > 0 AND A == B == C
+                            is_stn_done = all((df_final['Qty A'] > 0) & (df_final['Qty A'] == df_final['Qty B']) & (df_final['Qty A'] == df_final['Qty C']))
+
+                            if is_stn_done:
+                                st.markdown("""
+                                    <div style='background-color: #DCFCE7; padding: 20px; border-radius: 12px; border: 2px solid #166534; text-align: center;'>
+                                        <h1 style='color: #166534; margin: 0;'>✅ STN Done</h1>
+                                    </div>
+                                """, unsafe_allow_html=True)
+                            else:
+                                st.markdown("""
+                                    <div style='background-color: #FEE2E2; padding: 20px; border-radius: 12px; border: 2px solid #991B1B; text-align: center;'>
+                                        <h1 style='color: #991B1B; margin: 0;'>❌ STN Pending</h1>
+                                    </div>
+                                """, unsafe_allow_html=True)
+                            st.write("") # Thoda space box aur table ke beech
+                        except Exception as e:
+                            pass # Logic fail hone par table dikhna band nahi hoga
+                        # --- END OF NAYA LOGIC ---
+
                         st.dataframe(df_final[[c for c in mera_sequence if c in df_final.columns]], use_container_width=True, hide_index=True)
-                    else: st.warning("कोणतीही माहिती सापडली नाही.")
+                    else: 
+                        st.warning("कोणतीही माहिती सापडली नाही.")
 
         # --- PAGE 2: Date Range Dispatch Reports ---
         with t2:
