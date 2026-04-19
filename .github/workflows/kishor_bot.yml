@@ -10,12 +10,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4 # v3 ऐवजी v4 करा
 
       - name: Setup Python
-        uses: actions/setup-python@v5 # इथे v5 करा
+        uses: actions/setup-python@v5 # v4 ऐवजी v5 करा
         with:
-          python-version: '3.11' # इथे 3.11 करा, हे एकदम लेटेस्ट आहे
+          python-version: '3.11' # 3.9 ऐवजी 3.11 करा
           cache: 'pip'
 
       - name: Install Dependencies
