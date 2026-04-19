@@ -1060,7 +1060,7 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
             st.write("### Pending Billing List")
             st.dataframe(st.session_state.billing_df[['SITE ID', 'SITE NAME', 'RFAI STATUS', 'WCC NO.']], use_container_width=True, hide_index=True)
 # =====================================================================
-    # 🚨 TAB 7: STN MANAGER - FINAL REFINED LOGIC (STN DONE FIX)
+    # 🚨 TAB 7: STN MANAGER - FINAL CONSOLIDATED VERSION
     # =====================================================================
     elif st.session_state.current_page == "STN Manager":
         import google.generativeai as genai
@@ -1071,19 +1071,15 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
         genai.configure(api_key="AIzaSyDed-krPqnZXVCRcbIpV3yPPdXoxF3qEQk")
         INTERAKT_API_KEY = "S2pFcE5ETjE2NDhiQ1VIMEFjMVA5a3ZwdHB6X0diYXpRM2I2SWRxbGJWYzo="
 
-        st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>🚨 STN Pending Management (Final Refined)</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>🚨 STN Pending Management (Warehouse Only)</h2>", unsafe_allow_html=True)
 
-        # --- 2. FUNCTION: GEMINI AI ---
+        # --- 2. AI & WHATSAPP FUNCTIONS ---
         def get_ai_strict_instruction(team_name, project_id):
             model = genai.GenerativeModel('gemini-pro')
             prompt = f"Write a 1-2 sentence strict Marathi-Hindi instruction for {team_name} about Project {project_id}. STN pending, high pressure. Tell them to contact Sayra Madam for issues. Urgent boss tone."
-            try:
-                response = model.generate_content(prompt)
-                return response.text
-            except:
-                return "STN तातडीने क्लोज करा, इंडसकडून खूप प्रेशर आहे. काही अडचण असल्यास सायरा मॅडमशी बोला!"
+            try: return model.generate_content(prompt).text
+            except: return "STN तातडीने क्लोज करा, इंडसकडून खूप प्रेशर आहे. काही अडचण असल्यास सायरा मॅडमशी बोला!"
 
-        # --- 3. FUNCTION: INTERAKT WHATSAPP ---
         def send_stn_whatsapp_automated(row, ai_comment):
             url = "https://api.interakt.ai/v1/public/message/"
             headers = {"Authorization": f"Basic {INTERAKT_API_KEY}", "Content-Type": "application/json"}
@@ -1100,78 +1096,85 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                     ]
                 }
             }
-            try: return requests.post(url, headers=headers, json=payload, timeout=10)
-            except: return None
+            return requests.post(url, headers=headers, json=payload, timeout=10)
 
-        # --- 4. SYNC LOGIC (STRICT QTY B > QTY C) ---
+        # --- 3. SYNC LOGIC (STRICT PROJECT + ITEM GROUPING) ---
         if st.button("🔄 Sync Fresh Pending Sites", use_container_width=True):
-            with st.spinner("Refining BOQ Data..."):
+            with st.spinner("Analyzing Warehouse Data..."):
+                # Step 1: Visiotech cha data ghene
                 res_boq = supabase.table("BOQ Report").select("*").ilike("Transporter", "Visi%").execute()
                 df_boq = pd.DataFrame(res_boq.data)
 
                 if not df_boq.empty:
-                    # Numeric conversion
+                    # Qty numeric conversion
                     for col in ['Qty A', 'Qty B', 'Qty C']:
                         df_boq[col] = pd.to_numeric(df_boq[col], errors='coerce').fillna(0)
                     
-                    # --- REFINED FILTERS ---
-                    # 1. Issue From = Warehouse
-                    # 2. Material Dispatched (Qty B > 0)
-                    # 3. Material NOT fully received (Qty B > Qty C)
+                    # --- STRICT ROW FILTERS ---
+                    # 1. Fakt Warehouse filter
+                    # 2. Qty B (Dispatch) Received (C) pekshya jast pahije
                     mask = (
-                        (df_boq['Issue From'].str.contains('Warehouse', case=False, na=False)) & 
-                        (df_boq['Qty B'] > 0) & 
+                        (df_boq['Issue From'].astype(str).str.contains('Warehouse', case=False, na=False)) & 
                         (df_boq['Qty B'] > df_boq['Qty C'])
                     )
                     
-                    # Product Capex filter
+                    # 3. Optional Capex Filter
                     if 'Product' in df_boq.columns:
                         mask = mask & (df_boq['Product'].str.contains('Capex', case=False, na=False))
                     
-                    df_p_raw = df_boq[mask].copy()
+                    df_filtered = df_boq[mask].copy()
 
-                    if not df_p_raw.empty:
-                        s_ids = df_p_raw['Site ID'].unique().tolist()
+                    if not df_filtered.empty:
+                        # Step 2: Site details fetch karne
+                        s_ids = df_filtered['Site ID'].unique().tolist()
+                        res_indus = supabase.table("Indus Data").select("Site ID", "Site Name", "District").in_("Site ID", s_ids).execute()
+                        df_indus = pd.DataFrame(res_indus.data)
                         
-                        # Indus Data Fetch
-                        df_indus = pd.DataFrame()
-                        if s_ids:
-                            try:
-                                res_indus = supabase.table("Indus Data").select("Site ID", "Site Name", "District").in_("Site ID", s_ids).execute()
-                                df_indus = pd.DataFrame(res_indus.data)
-                            except: pass
-
-                        df_merged = pd.merge(df_p_raw, df_indus, on="Site ID", how="left") if not df_indus.empty else df_p_raw.copy()
-                        if 'Site Name' not in df_merged.columns: df_merged['Site Name'] = 'N/A'
-                        if 'District' not in df_merged.columns: df_merged['District'] = 'N/A'
+                        df_merged = pd.merge(df_filtered, df_indus, on="Site ID", how="left")
                         
                         batch = []
-                        for pid, gp in df_merged.groupby('Project Number'):
-                            items_text = "\n".join([f"• {r.get('Item Description','')} (B:{r['Qty B']}/C:{r['Qty C']})" for _, r in gp.iterrows()])
-                            batch.append({
-                                "project_id": str(pid),                       
-                                "site_id": str(gp.iloc[0]['Site ID']),        
-                                "site_name": str(gp.iloc[0].get('Site Name', 'N/A')),
-                                "cluster": str(gp.iloc[0].get('District', 'N/A')), 
-                                "item_details": items_text,                   
-                                "total_qty_b": int(gp['Qty B'].sum()),        
-                                "status": "Open"
+                        # --- STEP 3: CONSOLIDATED GROUPING (PROJECT WISE) ---
+                        for pid, project_gp in df_merged.groupby('Project Number'):
+                            
+                            # Same project madhle Duplicate Item Codes aggregate (sum) karne
+                            gp_items = project_gp.groupby(['Item Code', 'Item Description'], as_index=False).agg({
+                                'Qty B': 'sum',
+                                'Qty C': 'sum'
                             })
+                            
+                            items_list = []
+                            project_total_b = 0
+                            
+                            for _, r in gp_items.iterrows():
+                                p_qty = int(r['Qty B'] - r['Qty C'])
+                                if p_qty > 0:
+                                    items_list.append(f"• {r['Item Description']} (Pending: {p_qty})")
+                                    project_total_b += r['Qty B']
+                            
+                            if items_list:
+                                batch.append({
+                                    "project_id": str(pid),                       
+                                    "site_id": str(project_gp.iloc[0]['Site ID']),        
+                                    "site_name": str(project_gp.iloc[0].get('Site Name', 'N/A')),
+                                    "cluster": str(project_gp.iloc[0].get('District', 'N/A')), 
+                                    "item_details": "\n".join(items_list),                   
+                                    "total_qty_b": int(project_total_b),        
+                                    "status": "Open"
+                                })
                         
-                        # Clear old data before sync to remove already 'Done' sites
+                        # Database Clean Sync
                         supabase.table("stn_pending_analysis").delete().eq("status", "Open").execute()
                         supabase.table("stn_pending_analysis").upsert(batch, on_conflict="project_id").execute()
-                        st.success(f"✅ {len(batch)} Actual Pending Sites Synced!"); st.rerun()
+                        st.success(f"✅ {len(batch)} Verified Pending Projects Synced!"); st.rerun()
                     else:
-                        # Agar koi pending nahi mila toh existing open records clear karo
                         supabase.table("stn_pending_analysis").delete().eq("status", "Open").execute()
-                        st.info("Sabhi STN Done hain! Warehouse mein koi pending nahi mila.")
+                        st.info("No Pending STN entries found in Warehouse records.")
                 else:
-                    st.warning("BOQ data missing.")
+                    st.warning("BOQ Data missing.")
 
         st.divider()
 
-        # --- 5. DISPLAY (Same Logic) ---
+        # --- 4. DISPLAY & TEAM ASSIGNMENT ---
         res_p = supabase.table("stn_pending_analysis").select("*").eq("status", "Open").execute()
         df_display = pd.DataFrame(res_p.data)
 
@@ -1183,7 +1186,7 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                 with st.container(border=True):
                     c1, c2, c3 = st.columns([1.5, 2, 1.2])
                     with c1: st.markdown(f"**Project:** `{row['project_id']}`\n\n**Cluster:** {row['cluster']}")
-                    with c2: st.markdown(f"**Site:** {row['site_name']}\n\n**Pending:**\n{row['item_details']}")
+                    with c2: st.markdown(f"**Site:** {row['site_name']} ({row['site_id']})\n\n**Pending:**\n{row['item_details']}")
                     with c3:
                         if not df_teams.empty:
                             team_list = ["Select Team"] + df_teams['name'].tolist()
@@ -1195,6 +1198,8 @@ elif st.session_state.current_page != "Dashboard": # लाईन १७० व�
                                     ai_msg = get_ai_strict_instruction(sel_team, row['project_id'])
                                     row['team_number'] = t_phone
                                     send_stn_whatsapp_automated(row, ai_msg)
-                                    st.success("Notified!")
+                                    st.success(f"Notified {sel_team}!")
+                                else:
+                                    st.warning("Please select a team.")
         else:
-            st.info("No pending STN assignments.")
+            st.info("No pending STN for assignment.")
