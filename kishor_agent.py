@@ -39,7 +39,7 @@ def kishor_process(user_query):
             if res.data:
                 raw_info = str(res.data[0])
         except Exception as e:
-            print(f"Supabase Error: {e}")
+        return f"अहो सरकार, थोडी तांत्रिक अडचण आलीय: {str(e)}"
 
     # ४. किशोरकडून रिस्पॉन्स
     full_prompt = f"{KISHOR_PROMPT}\nलक्षात ठेव, आजची तारीख {today} आहे.\n\n"
