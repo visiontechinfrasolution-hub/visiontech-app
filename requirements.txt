@@ -4,9 +4,6 @@ pandas
 xlsxwriter
 geopy
 openpyxl
-pandas
-supabase
-xlsxwriter
 streamlit
 google-generativeai
 requests
