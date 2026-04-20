@@ -96,7 +96,7 @@ with tab1:
                     tz = pytz.timezone('Asia/Kolkata')
                     now_ist = datetime.now(tz)
                     
-                    if not (10 <= now_ist.hour < 22):
+                    if not (10 <= now_ist.hour < 24):
                         st.error(f"❌ ऑफिस वेळ संपली आहे! वेळ: {now_ist.strftime('%I:%M %p')}")
                     elif not selected_users:
                         st.warning("कृपया टीम मेंबर निवडा.")
