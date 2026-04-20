@@ -42,10 +42,10 @@ with tab1:
     with st.form("tracking_form"):
         p_ids = [s['PROJECT ID'] for s in sites.data] if sites.data else []
         sel_p = st.selectbox("Project ID निवडा", options=p_ids)
-        s_info = next((s for s in sites.data if s['Project ID'] == sel_p), None)
+        s_info = next((s for s in sites.data if s['PROJECT ID'] == sel_p), None)
         
-        st.text_input("Site ID", value=s_info['Site ID'] if s_info else "", disabled=True)
-        st.text_input("Site Name", value=s_info['Site Name'] if s_info else "", disabled=True)
+        st.text_input("Site ID", value=s_info['SITE ID'] if s_info else "", disabled=True)
+        st.text_input("Site Name", value=s_info['SITE NAME'] if s_info else "", disabled=True)
         
         u_names = [u['name'] for u in users.data] if users.data else []
         sel_u = st.selectbox("Assign To", options=u_names)
