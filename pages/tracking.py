@@ -11,25 +11,24 @@ KEY = "sb_secret_h_TJpksUbg2Cr5DvpFz5rA_b8cGGTih"
 supabase: Client = create_client(URL, KEY)
 
 # --- 2. FINAL FIXED WHATSAPP FUNCTION ---
-def send_to_interakt(mobile, project_id, site_id, site_name, remark):
+def send_to_interakt(mobile, project_id, site_id, site_name, remark_text):
     interakt_url = "https://api.interakt.ai/v1/public/message/"
     headers = {
         "Authorization": "Basic S2pFcE5ETjE2NDhiQ1VIMEFjMVA5a3ZwdHB6X0diYXpRM2I2SWRxbGJWYzo=",
         "Content-Type": "application/json"
     }
     
-    # मोबाईल नंबर फॉर्मेट करणे
     clean_mobile = str(mobile).replace(" ", "").replace("+", "")
     if len(clean_mobile) == 10: 
         clean_mobile = "91" + clean_mobile
         
-    # डेटा रिकामा राहू नये म्हणून डिफॉल्ट व्हॅल्यूज (Strict String conversion)
-    p_id = str(project_id).strip() if project_id else "Not Available"
-    s_id = str(site_id).strip() if site_id else "Not Available"
-    s_nm = str(site_name).strip() if site_name else "Not Available"
-    rem = str(remark).strip() if remark else "लवकरात लवकर माहिती द्या."
+    # Strictly using the remark_text passed from the form
+    p_id = str(project_id).strip() if project_id else "NA"
+    s_id = str(site_id).strip() if site_id else "NA"
+    s_nm = str(site_name).strip() if site_name else "NA"
+    # Jar remark kharch r रिकामी asel tarach default vapra, nahi tar form madhla vapra
+    rem = str(remark_text).strip() if remark_text else "माहिती लवकरात लवकर द्या."
 
-    # Interakt Payload (Ordering variables for {{1}}, {{2}}, {{3}}, {{4}})
     payload = {
         "fullPhoneNumber": clean_mobile,
         "type": "Template",
@@ -41,12 +40,9 @@ def send_to_interakt(mobile, project_id, site_id, site_name, remark):
     }
     
     try:
-        # Debugging: आपण काय पाठवतोय हे पाहण्यासाठी (फक्त एकदा चेक करण्यासाठी)
-        # st.write(f"Sending Payload: {payload}") 
-        res = requests.post(interakt_url, json=payload, headers=headers, timeout=15)
-        return res.status_code
-    except Exception as e:
-        return 500
+        requests.post(interakt_url, json=payload, headers=headers, timeout=15)
+    except:
+        pass
 
 # --- 3. UI SETUP ---
 st.set_page_config(page_title="Visiontech Tracking", layout="wide")
@@ -78,27 +74,28 @@ with tab1:
             
             users_res = supabase.table("allowed_users").select("*").execute()
             
-            with st.form("final_v6_form", clear_on_submit=True):
+            # Form chya aat remark handle karne
+            with st.form("final_tracking_form_v7", clear_on_submit=True):
                 c1, c2 = st.columns(2)
                 with c1:
-                    # आपण इकडे व्हॅरिएबल्स सेव्ह करतोय जेणेकरून ते पुढे वापरता येतील
-                    cur_p_id = s_info.get('PROJECT ID', 'NA')
-                    cur_s_id = s_info.get('SITE ID', 'NA')
-                    st.text_input("Project ID", value=cur_p_id, disabled=True)
-                    st.text_input("Site ID", value=cur_s_id, disabled=True)
+                    f_p_id = s_info.get('PROJECT ID', 'NA')
+                    f_s_id = s_info.get('SITE ID', 'NA')
+                    st.text_input("Project ID", value=f_p_id, disabled=True)
+                    st.text_input("Site ID", value=f_s_id, disabled=True)
                 with c2:
-                    cur_s_nm = s_info.get('SITE NAME', 'NA')
-                    st.text_input("Site Name", value=cur_s_nm, disabled=True)
+                    f_s_nm = s_info.get('SITE NAME', 'NA')
+                    st.text_input("Site Name", value=f_s_nm, disabled=True)
                     
                     u_map = {u['name']: u['phone_number'] for u in users_res.data} if users_res.data else {}
                     selected_users = st.multiselect("Assign To", options=list(u_map.keys()))
                 
-                remark = st.text_area("काय काम बाकी आहे?")
+                # IMPORTANT: Form madhla remark variable
+                user_remark = st.text_area("काय काम बाकी आहे? (Remark)")
                 
                 if st.form_submit_button("🚀 Start Tracking & Send WhatsApp"):
-                    # TIME CHECK (10 AM to 10 PM IST)
                     tz = pytz.timezone('Asia/Kolkata')
                     now_ist = datetime.now(tz)
+                    
                     if not (10 <= now_ist.hour < 22):
                         st.error(f"❌ ऑफिस वेळ संपली आहे! वेळ: {now_ist.strftime('%I:%M %p')}")
                     elif not selected_users:
@@ -106,25 +103,25 @@ with tab1:
                     else:
                         for user_name in selected_users:
                             u_phone = u_map.get(user_name)
-                            # डेटाबेसमध्ये सेव्ह करणे
+                            # Database entry
                             entry_data = {
-                                "project_id": cur_p_id,
-                                "site_id": cur_s_id,
-                                "site_name": cur_s_nm,
-                                "remark": remark,
+                                "project_id": f_p_id,
+                                "site_id": f_s_id,
+                                "site_name": f_s_nm,
+                                "remark": user_remark,
                                 "user_name": user_name,
                                 "user_mobile_number": str(u_phone),
                                 "status": "Open"
                             }
                             try:
                                 supabase.table("site_tracking").insert(entry_data).execute()
-                                # व्हॉट्सॲप पाठवणे
+                                # WhatsApp logic - passing user_remark directly
                                 if u_phone:
-                                    send_to_interakt(u_phone, cur_p_id, cur_s_id, cur_s_nm, remark)
+                                    send_to_interakt(u_phone, f_p_id, f_s_id, f_s_nm, user_remark)
                             except Exception as e:
                                 st.error(f"Error for {user_name}: {e}")
                         
-                        st.success(f"🎯 मेसेज गेले आणि ट्रॅकिंग सुरू झाले!")
+                        st.success(f"🎯 फॉलो-अप सुरू झाला आणि मेसेज पाठवले!")
         else:
             st.error("ह्या प्रोजेक्ट आयडीची माहिती सापडली नाही.")
 
@@ -139,8 +136,8 @@ with tab2:
             df_active = pd.DataFrame(active_res.data).sort_values(by='created_at', ascending=False)
             for _, t in df_active.iterrows():
                 with st.expander(f"📍 {t['site_name']} | {t['user_name']}"):
-                    st.write(f"Remark: {t['remark']}")
-                    if st.button(f"Close Tracking Task", key=f"cls_{t['id']}"):
+                    st.write(f"**Remark:** {t['remark']}")
+                    if st.button(f"Close Task ✅", key=f"cls_{t['id']}"):
                         supabase.table("site_tracking").update({"status": "Closed"}).eq("id", t['id']).execute()
                         st.rerun()
         else:
