@@ -125,9 +125,9 @@ if 'current_page' not in st.session_state:
     st.session_state.current_page = "Dashboard"
 
 def navigate_to(page):
-    # जर नवीन ट्रॅकिंग पेज असेल तर डायरेक्ट स्विच करा
     if page == "Tracking":
-        st.switch_page("pages/tracking.py")
+        # 'pages/' kadhun takle aahe karan file baherach aahe
+        st.switch_page("tracking.py") 
     else:
         st.session_state.current_page = page
         st.rerun()
