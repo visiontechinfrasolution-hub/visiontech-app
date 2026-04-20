@@ -163,10 +163,14 @@ if st.session_state.current_page == "Dashboard":
         if st.button("📊\nIndus Data"): navigate_to("Indus")
         if st.button("💰\nFinance"): navigate_to("Finance")
         if st.button("🚨\nSTN Manager"): navigate_to("STN Manager")
+        
     with c2:
         if st.button("🧾\nPO Report"): navigate_to("PO")
         if st.button("📡\nWCC Tracker"): navigate_to("WCC")
         if st.button("📝\nAudit Portal"): navigate_to("Audit")
+        # --- नवीन बटन इथे ॲड केले आहे ---
+        if st.button("🛰️\nSite Tracking"): navigate_to("Tracking") 
+        
     with c3:
         if st.button("🏗️\nSite Detail"): navigate_to("Site")
         if st.button("📁\nData Entry"): navigate_to("Data")
