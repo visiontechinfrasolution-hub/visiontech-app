@@ -11,3 +11,4 @@ streamlit
 google-generativeai
 requests
 google-genai
+streamlit>=1.30.0
