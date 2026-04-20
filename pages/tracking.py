@@ -40,7 +40,7 @@ with tab1:
     users = supabase.table("allowed_users").select("*").execute()
     
     with st.form("tracking_form"):
-        p_ids = [s['Project ID'] for s in sites.data] if sites.data else []
+        p_ids = [s['PROJECT ID'] for s in sites.data] if sites.data else []
         sel_p = st.selectbox("Project ID निवडा", options=p_ids)
         s_info = next((s for s in sites.data if s['Project ID'] == sel_p), None)
         
