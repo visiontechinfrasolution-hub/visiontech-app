@@ -128,8 +128,15 @@ def navigate_to(page):
     if page == "Tracking":
         st.switch_page("pages/tracking.py") 
     elif page == "PDFFormat":
-        # Yahan hum check kar rahe hain ki PDFFormat page par jana hai
-        st.switch_page("pages/PDFFormat.py")
+        try:
+            # Try 1: Standard path
+            st.switch_page("pages/PDFFormat.py")
+        except:
+            try:
+                # Try 2: Bina pages/ folder ke (Streamlit kabhi kabhi aise handle karta hai)
+                st.switch_page("PDFFormat.py")
+            except Exception as e:
+                st.error(f"File nahi mili! Please check karein ki 'pages' folder mein 'PDFFormat.py' isi spelling se hai ya nahi.")
     else:
         st.session_state.current_page = page
         st.rerun()
