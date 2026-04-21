@@ -1,74 +1,90 @@
 import streamlit as st
 import fitz  # PyMuPDF
-from PIL import Image, ImageEnhance, ImageFilter, ImageOps
+from PIL import Image, ImageEnhance, ImageFilter
 import io
 import random
 import numpy as np
 
-def show_pdf_vintage_page():
-    st.markdown("<h2 style='text-align: center;'>📜 Vintage PDF Transformer</h2>", unsafe_allow_html=True)
-    st.info("Apna PDF upload karein aur use 'purana document' look dein.")
+# --- Page Config ---
+st.set_page_config(page_title="Visiontech - PDF Transformer", layout="centered")
+
+# --- Styling ---
+st.markdown("""
+    <style>
+    .stApp { background-color: #FDFCF0; } /* Purana paper jaisa background */
+    .back-btn { margin-bottom: 20px; }
+    </style>
+    """, unsafe_allow_html=True)
+
+def apply_vintage_effect(img):
+    # 1. Subtle Rotation (Jaise kisine photo kheenchi ho)
+    angle = random.uniform(-0.8, 0.8)
+    img = img.rotate(angle, resample=Image.BICUBIC, expand=True, fillcolor=(255, 255, 255))
     
-    uploaded_file = st.file_uploader("Upload PDF", type="pdf", key="vintage_uploader")
+    # 2. Sepia / Old Paper Color Tone
+    sepia_overlay = Image.new("RGB", img.size, (240, 225, 195))
+    img = Image.blend(img, sepia_overlay, alpha=0.35)
+    
+    # 3. Add Noise (Dhool aur grain effect)
+    img_array = np.array(img)
+    noise = np.random.normal(0, 12, img_array.shape).astype('uint8')
+    img_array = np.clip(img_array + noise, 0, 255)
+    img = Image.fromarray(img_array)
+    
+    # 4. Brightness & Contrast (Thoda faded look)
+    img = ImageEnhance.Brightness(img).enhance(0.92)
+    img = ImageEnhance.Contrast(img).enhance(1.1)
+    
+    # 5. Subtle Blur (Digital sharpness kam karne ke liye)
+    img = img.filter(ImageFilter.GaussianBlur(radius=0.4))
+    
+    return img
 
-    if uploaded_file:
-        if st.button("Generate Old Document ✨"):
-            with st.spinner("Processing..."):
-                try:
-                    import fitz  # PyMuPDF
-                    from PIL import Image, ImageEnhance, ImageFilter
-                    import io
-                    import numpy as np
+# --- UI Layout ---
+st.title("📜 Vintage Document Generator")
+st.write("Apne PDF ko purane aur folded document mein badlein.")
 
-                    doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
-                    processed_images = []
+# Back Button Logic (Visiontech Portal ke liye)
+if st.button("⬅️ Back to Dashboard"):
+    st.switch_page("Visiontech_Portal.py")
+
+uploaded_file = st.file_uploader("Upload PDF File", type=["pdf"])
+
+if uploaded_file is not None:
+    if st.button("Magic: PDF ko Purana Banayein ✨"):
+        with st.spinner("Processing... Har page par texture apply ho raha hai."):
+            try:
+                # PDF read karein
+                pdf_bytes = uploaded_file.read()
+                doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+                processed_images = []
+                
+                progress_bar = st.progress(0)
+                
+                for i in range(len(doc)):
+                    page = doc.load_page(i)
+                    pix = page.get_pixmap(dpi=150)
+                    img = Image.open(io.BytesIO(pix.tobytes())).convert("RGB")
                     
-                    for i in range(len(doc)):
-                        page = doc.load_page(i)
-                        pix = page.get_pixmap(dpi=150)
-                        img = Image.open(io.BytesIO(pix.tobytes())).convert("RGB")
-                        
-                        # Vintage Effect Logic
-                        sepia = Image.new("RGB", img.size, (240, 220, 180))
-                        img = Image.blend(img, sepia, alpha=0.3)
-                        img = ImageEnhance.Contrast(img).enhance(1.2)
-                        img = img.filter(ImageFilter.GaussianBlur(radius=0.3))
-                        
-                        processed_images.append(img)
-
-                    output_pdf = io.BytesIO()
-                    processed_images[0].save(output_pdf, "PDF", save_all=True, append_images=processed_images[1:])
+                    # Effect Apply karein
+                    vintage_img = apply_vintage_effect(img)
+                    processed_images.append(vintage_img)
                     
-                    st.success("PDF Ready!")
-                    st.download_button("📥 Download Purana PDF", data=output_pdf.getvalue(), file_name="vintage.pdf")
-                except Exception as e:
-                    st.error(f"Error: {e}")
+                    progress_bar.progress((i + 1) / len(doc))
 
-# --- Navigation Logic Fix ---
-
-def navigate_to(page):
-    # Ab hum switch_page nahi karenge, sirf session_state badlenge
-    st.session_state.current_page = page
-    st.rerun()
-
-# --- MAIN LOGIC (Bottom of your file) ---
-
-if st.session_state.current_page == "Dashboard":
-    # ... (Aapka Dashboard Buttons wala code yahan rahega) ...
-    # Dashboard ke buttons mein bas navigate_to("PDFFormat") rehne dein
-    
-    # Example for your button:
-    # if st.button("📜\nVintage PDF"): navigate_to("PDFFormat")
-
-elif st.session_state.current_page == "PDFFormat":
-    st.markdown("<div class='back-btn'>", unsafe_allow_html=True)
-    if st.button("⬅️ Back to Dashboard"):
-        navigate_to("Dashboard")
-    st.markdown("</div>", unsafe_allow_html=True)
-    
-    # Yahan humne function call kiya
-    show_pdf_vintage_page()
-
-elif st.session_state.current_page != "Dashboard":
-    # Aapka baaki pages ka logic (Tracking etc.)
-    pass
+                # Wapas PDF mein convert karein
+                output_pdf = io.BytesIO()
+                if processed_images:
+                    processed_images[0].save(
+                        output_pdf, "PDF", save_all=True, append_images=processed_images[1:]
+                    )
+                    
+                    st.success("Aapka 'Purana' document ready hai!")
+                    st.download_button(
+                        label="📥 Download Weathered PDF",
+                        data=output_pdf.getvalue(),
+                        file_name=f"Old_{uploaded_file.name}",
+                        mime="application/pdf"
+                    )
+            except Exception as e:
+                st.error(f"Kuch galat hua: {e}")
