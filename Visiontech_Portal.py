@@ -126,8 +126,10 @@ if 'current_page' not in st.session_state:
 
 def navigate_to(page):
     if page == "Tracking":
-        # 'pages/' kadhun takle aahe karan file baherach aahe
         st.switch_page("pages/tracking.py") 
+    elif page == "PDFFormat":
+        # Yahan hum check kar rahe hain ki PDFFormat page par jana hai
+        st.switch_page("pages/PDFFormat.py")
     else:
         st.session_state.current_page = page
         st.rerun()
