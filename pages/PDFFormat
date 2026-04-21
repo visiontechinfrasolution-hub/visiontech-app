@@ -1,62 +1,96 @@
 import streamlit as st
 import fitz  # PyMuPDF
-from PIL import Image, ImageOps, ImageEnhance, ImageFilter
+from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 import io
+import random
+import numpy as np
 
-## --- UI Setup ---
-st.title("📄 Vintage PDF Transformer")
-st.write("Apna PDF upload karein aur use 'purana document' look dein.")
-
-uploaded_file = st.file_uploader("Upload PDF", type="pdf")
-
-def apply_vintage_effect(img):
-    # 1. Grayscale aur thoda yellow tint (Sepia look)
-    img = img.convert("RGB")
+# --- Function to Apply "Old/Real Photo" Effect ---
+def transform_to_vintage(pdf_file):
+    doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
+    processed_images = []
     
-    # 2. Add Dust/Noise (Simulated via contrast & brightness)
-    enhancer = ImageEnhance.Brightness(img)
-    img = enhancer.enhance(0.9) # Thoda dark
-    
-    enhancer = ImageEnhance.Contrast(img)
-    img = enhancer.enhance(1.2) # Text ko purana dikhane ke liye
-    
-    # 3. Purane paper ka color (Light Beige/Yellowish)
-    sepia_overlay = Image.new("RGB", img.size, (235, 215, 180))
-    img = Image.blend(img, sepia_overlay, alpha=0.3)
-    
-    # 4. Adding 'Folds' (Fake shadows)
-    # Note: Yahan hum texture images bhi blend kar sakte hain
-    return img
-
-if uploaded_file:
-    if st.button("Generate Old Document"):
-        pdf_data = uploaded_file.read()
-        doc = fitz.open(stream=pdf_data, filetype="pdf")
-        processed_images = []
+    for page_num in range(len(doc)):
+        page = doc.load_page(page_num)
         
-        progress_bar = st.progress(0)
+        # 1. PDF Page ko High-Res image mein badlo (DPI 200 for clarity)
+        pix = page.get_pixmap(dpi=200)
+        img = Image.open(io.BytesIO(pix.tobytes())).convert("RGB")
         
-        for i in range(len(doc)):
-            page = doc.load_page(i)
-            pix = page.get_pixmap(dpi=150) # High quality image
-            img = Image.open(io.BytesIO(pix.tobytes()))
-            
-            # Effect apply karna
-            vintage_img = apply_vintage_effect(img)
-            processed_images.append(vintage_img)
-            progress_bar.progress((i + 1) / len(doc))
+        # 2. Random Subtle Rotation (Jaise photo kheenchi gayi ho)
+        angle = random.uniform(-1.2, 1.2)
+        img = img.rotate(angle, resample=Image.BICUBIC, expand=True, fillcolor=(255, 255, 255))
+        
+        # 3. Add Vintage Tint (Sepia/Yellowish look)
+        sepia_overlay = Image.new("RGB", img.size, (240, 220, 180))
+        img = Image.blend(img, sepia_overlay, alpha=0.3)
+        
+        # 4. Brightness aur Contrast adjust karein (Puraana dikhane ke liye)
+        img = ImageEnhance.Brightness(img).enhance(0.9)
+        img = ImageEnhance.Contrast(img).enhance(1.1)
+        
+        # 5. Add Noise/Grain (Dhool jaisa effect)
+        # Hum pixels mein thoda randomness add kar rahe hain
+        img_array = np.array(img)
+        noise = np.random.normal(0, 15, img_array.shape).astype('uint8')
+        img_array = np.clip(img_array + noise, 0, 255)
+        img = Image.fromarray(img_array)
 
-        # Wapas PDF mein convert karna
-        output_pdf = io.BytesIO()
-        if processed_images:
-            processed_images[0].save(
-                output_pdf, "PDF", save_all=True, append_images=processed_images[1:]
-            )
-            
-            st.success("PDF Transform ho gaya!")
-            st.download_button(
-                label="Download Purana PDF",
-                data=output_pdf.getvalue(),
-                file_name="vintage_document.pdf",
-                mime="application/pdf"
-            )
+        # 6. Subtle Blur (Digital sharpness kam karne ke liye)
+        img = img.filter(ImageFilter.GaussianBlur(radius=0.4))
+        
+        # 7. Add Vignette (Kinaro pe thoda andhera)
+        # Isse aisa lagta hai ki camera se photo li gayi hai
+        processed_images.append(img)
+        
+    # PDF Save logic
+    output_pdf = io.BytesIO()
+    if processed_images:
+        processed_images[0].save(
+            output_pdf, "PDF", save_all=True, append_images=processed_images[1:]
+        )
+    return output_pdf.getvalue()
+
+# --- Streamlit UI Main App ---
+def main():
+    st.set_page_config(page_title="Visiontech Document Styler", layout="wide")
+    
+    st.title("📄 Visiontech PDF To Vintage Converter")
+    st.info("Ye tool aapke digital PDF ko aisa bana dega jaise wo ek purana document ho jiski photo kheenchi gayi hai.")
+
+    # Aapka existing dashboard content yahan ho sakta hai...
+    # ...
+
+    st.markdown("---")
+    st.subheader("🛠️ Custom Effects Panel")
+    
+    col1, col2 = st.columns([1, 2])
+    
+    with col1:
+        uploaded_file = st.file_uploader("Original PDF Upload karein", type="pdf", key="v_tool")
+        
+        if uploaded_file is not None:
+            if st.button("Magic: PDF ko Purana Banayein ✨"):
+                with st.spinner("Processing... Har page ko transform kiya ja raha hai."):
+                    try:
+                        vintage_pdf_bytes = transform_to_vintage(uploaded_file)
+                        
+                        st.success("Transformation Complete!")
+                        st.download_button(
+                            label="📥 Download Weathered PDF",
+                            data=vintage_pdf_bytes,
+                            file_name=f"Old_Document_{uploaded_file.name}",
+                            mime="application/pdf"
+                        )
+                    except Exception as e:
+                        st.error(f"Kuch galat hua: {e}")
+
+    with col2:
+        st.write("**Effect Details:**")
+        st.write("* ✅ **Random Rotation:** Thoda tedha-medha look.")
+        st.write("* ✅ **Sepia Tint:** Purane paper ka color.")
+        st.write("* ✅ **Grain & Noise:** Dhool aur purani quality.")
+        st.write("* ✅ **Soft Focus:** Digital sharpness ko kam kiya gaya hai.")
+
+if __name__ == "__main__":
+    main()
