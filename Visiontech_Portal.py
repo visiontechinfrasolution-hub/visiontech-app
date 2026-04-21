@@ -20,7 +20,7 @@ URL = "https://sckyflvukpmdqmdzjzhs.supabase.co"
 KEY = "sb_publishable_rAiegSkKYvM0Z9n7sUAI1w_WTgm1S4I" 
 supabase = create_client(URL, KEY)
 
-# --- 1.A EMAIL FUNCTION (With Full Signature & Body) ---
+# --- 1.A EMAIL FUNCTION ---
 def send_professional_email(selected_df, to_emails, cc_emails):
     import smtplib
     from email.mime.multipart import MIMEMultipart
@@ -89,14 +89,30 @@ def send_professional_email(selected_df, to_emails, cc_emails):
         server.quit()
         return True
     except Exception as e:
-        import streamlit as st
         st.error(f"Gmail Error: {e}")
         return False
 
-# --- 2. UI SETUP ---
+# --- NAVIGATION FUNCTION ---
+def navigate_to(page):
+    if page == "Tracking":
+        st.switch_page("pages/tracking.py")
+    elif page == "PDFFormat":
+        # Multi-check logic to prevent file not found errors
+        try:
+            st.switch_page("pages/PDFFormat.py")
+        except:
+            try:
+                st.switch_page("pages/pdfformat.py")
+            except:
+                st.error("Error: PDFFormat.py file pages folder mein nahi mili. Spelling check karein!")
+    else:
+        st.session_state.current_page = page
+        st.rerun()
+
+# --- UI SETUP ---
 st.set_page_config(page_title="Visiontech Portal", layout="wide", initial_sidebar_state="collapsed")
 
-# --- 3. CUSTOM CSS FOR MOBILE APP LOOK ---
+# --- CUSTOM CSS ---
 st.markdown("""
     <style>
     [data-testid="stSidebar"] { display: none; }
@@ -120,15 +136,11 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# Navigation Control
 if 'current_page' not in st.session_state:
     st.session_state.current_page = "Dashboard"
 
-Error: PDFFormat.py file pages folder mein nahi mili. Spelling check karein!
-
 # --- MAIN DASHBOARD ---
 if st.session_state.current_page == "Dashboard":
-    # 👉 मोबाईलवर २ बटन्स एका लाईनमध्ये येण्यासाठी फक्त इथे CSS ॲड केली आहे
     st.markdown("""
         <style>
         @media (max-width: 768px) {
@@ -142,7 +154,6 @@ if st.session_state.current_page == "Dashboard":
                 max-width: 48% !important;
                 padding: 0 5px !important;
             }
-            /* लॅपटॉपची रिकामी जागा (Spacers) मोबाईलवर लपवणे */
             div[data-testid="column"]:nth-child(1), 
             div[data-testid="column"]:nth-child(5) {
                 display: none !important;
@@ -153,7 +164,6 @@ if st.session_state.current_page == "Dashboard":
 
     st.markdown("<h1 style='text-align: center; color: #1E3A8A;'>🚀 Visiontech Portal</h1>", unsafe_allow_html=True)
     
-    # बटन्सना लॅपटॉपवर जवळ आणण्यासाठी आजूबाजूला 1.5 ची रिकामी जागा (spacer) जोडली आहे
     spacer1, c1, c2, c3, spacer2 = st.columns([1.5, 2, 2, 2, 1.5])
     
     with c1:
@@ -176,7 +186,7 @@ if st.session_state.current_page == "Dashboard":
         if st.button("📄\nJMS Generator"): navigate_to("JMS")
        
 # --- PAGES LOGIC ---
-elif st.session_state.current_page != "Dashboard": # लाईन १७० वर 'else' काढून हे टाकले आहे
+elif st.session_state.current_page != "Dashboard":
     st.markdown("<div class='back-btn'>", unsafe_allow_html=True)
     if st.button("⬅️ Dashboard"):
         navigate_to("Dashboard")
