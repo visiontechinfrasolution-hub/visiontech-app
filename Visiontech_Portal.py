@@ -126,17 +126,20 @@ if 'current_page' not in st.session_state:
 
 def navigate_to(page):
     if page == "Tracking":
-        st.switch_page("pages/tracking.py") 
+        st.switch_page("pages/tracking.py")
+    
     elif page == "PDFFormat":
+        # Streamlit Cloud ke liye hum absolute path jaisa try karenge
+        # Make sure spelling is EXACTLY: PDFFormat.py
         try:
-            # Try 1: Standard path
             st.switch_page("pages/PDFFormat.py")
         except:
-            try:
-                # Try 2: Bina pages/ folder ke (Streamlit kabhi kabhi aise handle karta hai)
-                st.switch_page("PDFFormat.py")
-            except Exception as e:
-                st.error(f"File nahi mili! Please check karein ki 'pages' folder mein 'PDFFormat.py' isi spelling se hai ya nahi.")
+            # Agar upar wala fail ho toh ye try karein
+            st.switch_page("PDFFormat.py")
+            
+    else:
+        st.session_state.current_page = page
+        st.rerun()
     else:
         st.session_state.current_page = page
         st.rerun()
