@@ -18,7 +18,8 @@ def send_to_interakt(mobile, project_id, site_id, site_name, remark_text):
         "Content-Type": "application/json"
     }
     clean_mobile = str(mobile).replace(" ", "").replace("+", "")
-    if len(clean_mobile) == 10: clean_mobile = "91" + clean_mobile
+    if len(clean_mobile) == 10: 
+        clean_mobile = "91" + clean_mobile
         
     payload = {
         "fullPhoneNumber": clean_mobile,
@@ -56,7 +57,8 @@ with tab1:
         btn_search = st.button("🔍 Search Site", use_container_width=True)
     with col_s3:
         st.write("##")
-        if st.button("🧹 Clear", use_container_width=True): st.rerun()
+        if st.button("🧹 Clear", use_container_width=True): 
+            st.rerun()
 
     if btn_search or search_pid:
         res = supabase.table("VIS Portal Site Data").select("*").ilike("PROJECT ID", f"%{search_pid}%").execute()
@@ -74,56 +76,77 @@ with tab1:
                 with c2:
                     f_s_nm = s_info.get('SITE NAME', 'NA')
                     st.text_input("Site Name", value=f_s_nm, disabled=True)
-                    u_map = {u['name']: u['phone_number'] for u in users_res.data}
+                    u_map = {u['name']: u['phone_number'] for u in users_res.data} if users_res.data else {}
                     selected_users = st.multiselect("Assign To", options=list(u_map.keys()))
-                    if st.button("📜\nVintage PDF"): 
-        navigate_to("PDFFormat")
                 
                 user_remark = st.text_area("काय काम बाकी आहे?")
                 
                 if st.form_submit_button("🚀 Start Tracking"):
-                    for user_name in selected_users:
-                        u_phone = u_map.get(user_name)
-                        entry = {"project_id": f_p_id, "site_id": f_s_id, "site_name": f_s_nm, "remark": user_remark, "user_name": user_name, "user_mobile_number": str(u_phone), "status": "Open"}
-                        supabase.table("site_tracking").insert(entry).execute()
-                        if u_phone: send_to_interakt(u_phone, f_p_id, f_s_id, f_s_nm, user_remark)
-                    st.success("✅ एन्ट्री सेव्ह झाली!")
+                    if not selected_users:
+                        st.warning("कृपया टीम मेंबर निवडा.")
+                    else:
+                        for user_name in selected_users:
+                            u_phone = u_map.get(user_name)
+                            entry = {
+                                "project_id": f_p_id, 
+                                "site_id": f_s_id, 
+                                "site_name": f_s_nm, 
+                                "remark": user_remark, 
+                                "user_name": user_name, 
+                                "user_mobile_number": str(u_phone), 
+                                "status": "Open"
+                            }
+                            supabase.table("site_tracking").insert(entry).execute()
+                            if u_phone: 
+                                send_to_interakt(u_phone, f_p_id, f_s_id, f_s_nm, user_remark)
+                        st.success("✅ एन्ट्री सेव्ह झाली आणि मेसेज गेले!")
+        else:
+            st.error("ह्या प्रोजेक्ट आयडीची माहिती सापडली नाही.")
 
 # --- TAB 2: ACTIVE LIST ---
 with tab2:
     st.subheader("Current Live Tracking")
-    active_res = supabase.table("site_tracking").select("*").eq("status", "Open").execute()
-    if active_res.data:
-        df = pd.DataFrame(active_res.data)
-        for _, t in df.iterrows():
-            with st.expander(f"📍 {t['site_name']} | {t['user_name']}"):
-                st.write(f"Remark: {t['remark']}")
-                if st.button(f"Close Task ✅", key=f"cls_{t['id']}"):
-                    supabase.table("site_tracking").update({"status": "Closed"}).eq("id", t['id']).execute()
-                    st.rerun()
-    else: st.info("No active tracking.")
+    try:
+        active_res = supabase.table("site_tracking").select("*").eq("status", "Open").execute()
+        if active_res.data:
+            df = pd.DataFrame(active_res.data)
+            if 'created_at' in df.columns:
+                df = df.sort_values(by='created_at', ascending=False)
+            for _, t in df.iterrows():
+                with st.expander(f"📍 {t['site_name']} | {t['user_name']}"):
+                    st.write(f"Remark: {t['remark']}")
+                    if st.button(f"Close Task ✅", key=f"cls_{t['id']}"):
+                        supabase.table("site_tracking").update({"status": "Closed"}).eq("id", t['id']).execute()
+                        st.rerun()
+        else: 
+            st.info("No active tracking.")
+    except:
+        st.error("डेटा लोड होत नाहीये.")
 
 # --- TAB 3: BULK REMINDER BUTTON ---
 with tab3:
     st.subheader("Manual Bulk Reminder")
-    st.write("Khalil button dabalya-var sarv active users na tyanchya pending sites cha WhatsApp reminder jail.")
+    st.write("खालील बटन दाबल्यावर सर्व Active युजर्सना त्यांच्या पेन्डिंग साईट्सचा व्हॉट्सॲप रिमाइंडर जाईल.")
     
     if st.button("📢 Send All Reminders (Daily 11 AM)", use_container_width=True):
-        active_list = supabase.table("site_tracking").select("*").eq("status", "Open").execute()
-        
-        if active_list.data:
-            count = 0
-            with st.spinner("Reminders pathvat aahe..."):
-                for item in active_list.data:
-                    if item['user_mobile_number']:
-                        send_to_interakt(
-                            item['user_mobile_number'], 
-                            item['project_id'], 
-                            item['site_id'], 
-                            item['site_name'], 
-                            f"REMINDER: {item['remark']}"
-                        )
-                        count += 1
-            st.success(f"✅ Total {count} Reminders pathvale ahet!")
-        else:
-            st.warning("Pathvnya-sathi kontihi active case nahiye.")
+        try:
+            active_list = supabase.table("site_tracking").select("*").eq("status", "Open").execute()
+            
+            if active_list.data:
+                count = 0
+                with st.spinner("Reminders पाठवत आहे..."):
+                    for item in active_list.data:
+                        if item['user_mobile_number']:
+                            send_to_interakt(
+                                item['user_mobile_number'], 
+                                item['project_id'], 
+                                item['site_id'], 
+                                item['site_name'], 
+                                f"REMINDER: {item['remark']}"
+                            )
+                            count += 1
+                st.success(f"✅ एकूण {count} रिमाइंडर्स पाठवले आहेत!")
+            else:
+                st.warning("पाठवण्यासाठी कोणतीही ॲक्टिव्ह केस नाहीये.")
+        except Exception as e:
+            st.error(f"Error: {e}")
