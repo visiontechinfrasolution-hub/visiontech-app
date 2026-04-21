@@ -172,8 +172,8 @@ if st.session_state.current_page == "Dashboard":
         if st.button("🧾\nPO Report"): navigate_to("PO")
         if st.button("📡\nWCC Tracker"): navigate_to("WCC")
         if st.button("📝\nAudit Portal"): navigate_to("Audit")
-        # --- नवीन बटन इथे ॲड केले आहे ---
-        if st.button("🛰️\nSite Tracking"): navigate_to("Tracking") 
+        if st.button("🛰️\nSite Tracking"): navigate_to("Tracking")
+        if st.button("📜\nVintage PDF"): navigate_to("PDFFormat")
         
     with c3:
         if st.button("🏗️\nSite Detail"): navigate_to("Site")
