@@ -128,7 +128,19 @@ def navigate_to(page):
     if page == "Tracking":
         st.switch_page("pages/tracking.py")
     elif page == "PDFFormat":
-        st.switch_page("pages/PDFFormat.py")
+        # Hum 3 alag tarike se file dhoondne ki koshish karenge
+        try:
+            st.switch_page("pages/PDFFormat.py")
+        except:
+            try:
+                # Agar pehla fail ho, toh bina 'pages/' ke try karein
+                st.switch_page("PDFFormat.py")
+            except:
+                try:
+                    # Agar upar dono fail hon, toh lowercase try karein
+                    st.switch_page("pages/pdfformat.py")
+                except Exception as e:
+                    st.error("Error: PDFFormat.py file pages folder mein nahi mili. Spelling check karein!")
     else:
         st.session_state.current_page = page
         st.rerun()
