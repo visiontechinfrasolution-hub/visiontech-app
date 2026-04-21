@@ -1,0 +1,62 @@
+import streamlit as st
+import fitz  # PyMuPDF
+from PIL import Image, ImageOps, ImageEnhance, ImageFilter
+import io
+
+## --- UI Setup ---
+st.title("📄 Vintage PDF Transformer")
+st.write("Apna PDF upload karein aur use 'purana document' look dein.")
+
+uploaded_file = st.file_uploader("Upload PDF", type="pdf")
+
+def apply_vintage_effect(img):
+    # 1. Grayscale aur thoda yellow tint (Sepia look)
+    img = img.convert("RGB")
+    
+    # 2. Add Dust/Noise (Simulated via contrast & brightness)
+    enhancer = ImageEnhance.Brightness(img)
+    img = enhancer.enhance(0.9) # Thoda dark
+    
+    enhancer = ImageEnhance.Contrast(img)
+    img = enhancer.enhance(1.2) # Text ko purana dikhane ke liye
+    
+    # 3. Purane paper ka color (Light Beige/Yellowish)
+    sepia_overlay = Image.new("RGB", img.size, (235, 215, 180))
+    img = Image.blend(img, sepia_overlay, alpha=0.3)
+    
+    # 4. Adding 'Folds' (Fake shadows)
+    # Note: Yahan hum texture images bhi blend kar sakte hain
+    return img
+
+if uploaded_file:
+    if st.button("Generate Old Document"):
+        pdf_data = uploaded_file.read()
+        doc = fitz.open(stream=pdf_data, filetype="pdf")
+        processed_images = []
+        
+        progress_bar = st.progress(0)
+        
+        for i in range(len(doc)):
+            page = doc.load_page(i)
+            pix = page.get_pixmap(dpi=150) # High quality image
+            img = Image.open(io.BytesIO(pix.tobytes()))
+            
+            # Effect apply karna
+            vintage_img = apply_vintage_effect(img)
+            processed_images.append(vintage_img)
+            progress_bar.progress((i + 1) / len(doc))
+
+        # Wapas PDF mein convert karna
+        output_pdf = io.BytesIO()
+        if processed_images:
+            processed_images[0].save(
+                output_pdf, "PDF", save_all=True, append_images=processed_images[1:]
+            )
+            
+            st.success("PDF Transform ho gaya!")
+            st.download_button(
+                label="Download Purana PDF",
+                data=output_pdf.getvalue(),
+                file_name="vintage_document.pdf",
+                mime="application/pdf"
+            )
