@@ -96,15 +96,13 @@ def send_professional_email(selected_df, to_emails, cc_emails):
 def navigate_to(page):
     if page == "Tracking":
         st.switch_page("pages/tracking.py")
+    
     elif page == "PDFFormat":
-        # Multi-check logic to prevent file not found errors
-        try:
-            st.switch_page("pages/PDFFormat.py")
-        except:
-            try:
-                st.switch_page("pages/pdfformat.py")
-            except:
-                st.error("Error: PDFFormat.py file pages folder mein nahi mili. Spelling check karein!")
+        # Agar switch_page fail ho raha hai, toh ye browser ko force karega page badalne ke liye
+        # Isme /PDFFormat wahi naam hai jo aapke sidebar mein dikhta hai
+        st.markdown('<meta http-equiv="refresh" content="0;URL=\'/PDFFormat\'">', unsafe_allow_html=True)
+        st.stop() # Script ko yahin roko taaki redirect ho sake
+        
     else:
         st.session_state.current_page = page
         st.rerun()
