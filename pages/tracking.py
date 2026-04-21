@@ -76,6 +76,8 @@ with tab1:
                     st.text_input("Site Name", value=f_s_nm, disabled=True)
                     u_map = {u['name']: u['phone_number'] for u in users_res.data}
                     selected_users = st.multiselect("Assign To", options=list(u_map.keys()))
+                    if st.button("📜\nVintage PDF"): 
+        navigate_to("PDFFormat")
                 
                 user_remark = st.text_area("काय काम बाकी आहे?")
                 
