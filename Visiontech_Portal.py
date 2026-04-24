@@ -453,11 +453,7 @@ import pandas as pd
 import urllib.parse
 from geopy.distance import geodesic
 
-# ... (बाकी के imports और supabase initialization यहाँ रहेंगे) ...
-
-# ध्यान दें: यह सुनिश्चित करें कि यह 'if' ब्लॉक 'elif' से पहले मौजूद हो
-if st.session_state.current_page == "Home":
-    st.write("Welcome Home")
+# ... (Supabase initialization और बाकी के पन्ने यहाँ रहेंगे) ...
 
 elif st.session_state.current_page == "Indus":
     st.markdown("<h3 style='text-align: center;'>📊 Indus Basic Data</h3>", unsafe_allow_html=True)
@@ -476,7 +472,7 @@ elif st.session_state.current_page == "Indus":
             st.subheader("📌 Vertical Site Details")
             row_in = res_ind.data[0]
             
-            # --- Calculation for Distance (Base Point: 18.6233, 74.0312) ---
+            # --- Distance Logic (No changes to logic or variables) ---
             base_lat, base_lon = 18.6233, 74.0312
             site_lat = row_in.get('Lat')
             site_lon = row_in.get('Long')
@@ -497,33 +493,37 @@ elif st.session_state.current_page == "Indus":
                 st.markdown(call_html("👨‍🔧 **Tech Name**", row_in.get('Tech Name','-'), row_in.get('Tech Number','-')), unsafe_allow_html=True)
                 st.markdown(call_html("👷 **FSE**", row_in.get('FSE','-'), row_in.get('FSE Number','-')), unsafe_allow_html=True)
             with v2:
-                st.markdown(f"📏 **Distance (Base)** :- **{dist_km}**")
+                st.markdown(f"📏 **Aerial Distance** :- **{dist_km}**")
                 st.markdown(call_html("👨‍💼 **AOM Name**", row_in.get('AOM Name','-'), row_in.get('AOM Number','-')), unsafe_allow_html=True)
                 lat, lon = row_in.get('Lat', ''), row_in.get('Long', '')
                 if lat and lon and str(lat).strip() not in ['-', '', 'None', 'nan']:
-                    maps_url = f"http://maps.google.com/maps?q={lat},{lon}"
+                    maps_url = f"https://www.google.com/maps/dir/{base_lat},{base_lon}/{lat},{lon}"
                     st.markdown(f"📍 **Lat/Long** :- {lat} / {lon} <a href='{maps_url}' target='_blank'><button style='background-color:#EA4335;color:white;border:none;padding:2px 10px;border-radius:5px;cursor:pointer;font-weight:bold;'>📍 Direction</button></a>", unsafe_allow_html=True)
-                else: 
-                    st.markdown(f"📍 **Lat/Long** :- {lat if lat else '-'} / {lon if lon else '-'}")
+                else: st.markdown(f"📍 **Lat/Long** :- {lat if lat else '-'} / {lon if lon else '-'}")
             
-            # WhatsApp Message Format
-            f_no = row_in.get('Tech Number', row_in.get('FE Number', ''))
-            if f_no:
-                msg_body = (
-                    f"*{row_in.get('Site ID', '-') or '-' }*\n"
-                    f"*{row_in.get('Project ID', '-') or '-' }*\n"
-                    f"*{row_in.get('Site Name', '-') or '-' }*\n"
-                    f"*{row_in.get('Area Name', '-') or '-' }*\n\n"
-                    f"👨‍🔧 *Tech Name* : {row_in.get('Tech Name','-')} ({row_in.get('Tech Number','-')}) 📞 Call\n"
-                    f"👷 *FSE* : {row_in.get('FSE','-')} ({row_in.get('FSE Number','-')}) 📞 Call\n"
-                    f"👨‍💼 *AOM Name* : {row_in.get('AOM Name','-')} ({row_in.get('AOM Number','-')}) 📞 Call\n"
-                    f"📍 *Lat/Long* :- {lat} / {lon}\n"
-                    f"🔗 *Maps Link*: http://maps.google.com/maps?q={lat},{lon}"
-                )
-                wa_msg = urllib.parse.quote(msg_body)
-                st.markdown(f'<a href="https://wa.me/91{f_no}?text={wa_msg}" target="_blank"><button style="width:100%; background-color:#25D366; color:white; border:none; padding:10px; border-radius:5px; font-weight:bold; cursor:pointer;">💬 Message on WhatsApp</button></a>', unsafe_allow_html=True)
-        else: 
-            st.info("No Indus data found.")
+            # --- WhatsApp Logic: Fixed Encoding & Contact Selection ---
+            maps_dir = f"https://www.google.com/maps/dir/{base_lat},{base_lon}/{lat},{lon}"
+            
+            msg_body = (
+                f"*{row_in.get('Site ID', '-') or '-' }*\n"
+                f"*{row_in.get('Project ID', '-') or '-' }*\n"
+                f"*{row_in.get('Site Name', '-') or '-' }*\n"
+                f"*{row_in.get('Area Name', '-') or '-' }*\n\n"
+                f"👨‍🔧 *Tech Name* : {row_in.get('Tech Name','-')} ({row_in.get('Tech Number','-')}) 📞 Call\n"
+                f"👷 *FSE* : {row_in.get('FSE','-')} ({row_in.get('FSE Number','-')}) 📞 Call\n"
+                f"👨‍💼 *AOM Name* : {row_in.get('AOM Name','-')} ({row_in.get('AOM Number','-')}) 📞 Call\n"
+                f"📍 *Lat/Long* :- {lat} / {lon}\n\n"
+                f"🗺️ *Road Route Link*:\n{maps_dir}"
+            )
+            
+            # Encoded for safety (fixes emoji issue)
+            wa_encoded = urllib.parse.quote(msg_body)
+            # send?text opens WhatsApp contact list
+            wa_link = f"https://web.whatsapp.com/send?text={wa_encoded}"
+            
+            st.markdown(f'<a href="{wa_link}" target="_blank"><button style="width:100%; background-color:#25D366; color:white; border:none; padding:10px; border-radius:5px; font-weight:bold; cursor:pointer;">💬 Select Contact & Send</button></a>', unsafe_allow_html=True)
+
+        else: st.info("No Indus data found.")
 
     st.divider()
     st.subheader("🧭 Route Plan")
@@ -543,13 +543,10 @@ elif st.session_state.current_page == "Indus":
                     else: st.error("Site ID not found!")
         if st.session_state.route_list:
             st.write("**Current Sites:** " + ", ".join([s['Site ID'] for s in st.session_state.route_list]))
-            if st.button("🗑️ Clear List"): 
-                st.session_state.route_list = []
-                st.rerun()
+            if st.button("🗑️ Clear List"): st.session_state.route_list = []; st.rerun()
     
     if st.button("🚀 Calculate Best Route", use_container_width=True):
-        if not start_coords or not end_coords or not st.session_state.route_list: 
-            st.warning("Incomplete details!")
+        if not start_coords or not end_coords or not st.session_state.route_list: st.warning("Incomplete details!")
         else:
             try:
                 from geopy.geocoders import Nominatim
@@ -558,23 +555,18 @@ elif st.session_state.current_page == "Indus":
                     if ',' in loc and any(c.isdigit() for c in loc): return [float(x.strip()) for x in loc.split(',')]
                     l = geolocator.geocode(loc); return [l.latitude, l.longitude] if l else None
                 curr_p, end_p = get_lat_lon(start_coords), get_lat_lon(end_coords)
-                if not curr_p or not end_p: 
-                    st.error("Check Start/End location.")
+                if not curr_p or not end_p: st.error("Check Start/End location.")
                 else:
-                    unvisited = st.session_state.route_list.copy()
-                    final_path = []
+                    unvisited = st.session_state.route_list.copy(); final_path = []
                     while unvisited:
                         next_s = min(unvisited, key=lambda x: geodesic(curr_p, (float(x['Lat']), float(x['Long']))).km)
-                        final_path.append(next_s)
-                        curr_p = (float(next_s['Lat']), float(next_s['Long']))
-                        unvisited.remove(next_s)
+                        final_path.append(next_s); curr_p = (float(next_s['Lat']), float(next_s['Long'])); unvisited.remove(next_s)
                     route_data = [{"Serial No": str(i), "Site ID": s['Site ID'], "Location": f"{s['Lat']}, {s['Long']}"} for i, s in enumerate(final_path, 1)]
                     st.table(pd.DataFrame(route_data))
                     coords_str = "/".join([start_coords] + [f"{s['Lat']},{s['Long']}" for s in final_path] + [end_coords])
                     gmaps_route = f"https://www.google.com/maps/dir/{coords_str}"
                     st.markdown(f'<a href="{gmaps_route}" target="_blank"><button style="width:100%; background-color:#4285F4; color:white; border:none; padding:10px; border-radius:5px; font-weight:bold; cursor:pointer;">🗺️ Open Full Route in Maps</button></a>', unsafe_allow_html=True)
-            except Exception as e: 
-                st.error(f"Error: {e}")
+            except Exception as e: st.error(f"Error: {e}")
 
    # =====================================================================
     # 📡 TAB 5: WCC STATUS (AUTO-WHATSAPP WITH 8 VARIABLES - 0% LOGIC CHANGE)
