@@ -583,14 +583,14 @@ elif st.session_state.current_page == "Indus":
             headers = {"Authorization": f"Basic {api_key}", "Content-Type": "application/json"}
             
             body_values = [
-                str(row_data.get("Project", "")),        # {{1}}
-                str(row_data.get("Project ID", "")),     # {{2}}
-                str(row_data.get("Site ID", "")),        # {{3}}
-                str(row_data.get("Site Name", "")),      # {{4}}
-                str(row_data.get("PO Number", "")),      # {{5}}
-                str(row_data.get("Reqeust Date", "")),   # {{6}}
-                str(row_data.get("WCC Number", "")),     # {{7}}
-                str(row_data.get("WCC Status", ""))      # {{8}}
+                str(row_data.get("Project", "")),        # {{1}} [cite: 1]
+                str(row_data.get("Project ID", "")),     # {{2}} [cite: 1]
+                str(row_data.get("Site ID", "")),        # {{3}} [cite: 1]
+                str(row_data.get("Site Name", "")),      # {{4}} [cite: 1]
+                str(row_data.get("PO Number", "")),      # {{5}} [cite: 1]
+                str(row_data.get("Reqeust Date", "")),   # {{6}} [cite: 1]
+                str(row_data.get("WCC Number", "")),     # {{7}} [cite: 1]
+                str(row_data.get("WCC Status", ""))      # {{8}} [cite: 1]
             ]
 
             for num in numbers:
@@ -633,7 +633,7 @@ elif st.session_state.current_page == "Indus":
                 st.error(f"Supabase Error: {e}")
 
 # =====================================================================
-# 🏗️ TAB 6: DATA ENTRY (0% Logic Change - Corrected Chain)
+# 🏗️ TAB 6: DATA ENTRY (Indentation Fixed)
 # =====================================================================
     elif "Data" in str(st.session_state.current_page) or "Entry" in str(st.session_state.current_page):
     
