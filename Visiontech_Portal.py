@@ -564,7 +564,7 @@ elif st.session_state.current_page == "Indus":
                     st.markdown(f'<a href="{gmaps_route}" target="_blank"><button style="width:100%; background-color:#4285F4; color:white; border:none; padding:12px; border-radius:5px; font-weight:bold; cursor:pointer;">🗺️ Open Sequential Route (1-2-3-4)</button></a>', unsafe_allow_html=True)
             except Exception as e: st.error(f"Error: {e}")
   # =====================================================================
-# 📡 TAB 5: WCC STATUS (ORIGINAL LOGIC - RESTORED)
+# 📡 TAB 5: WCC STATUS (0% LOGIC CHANGE - NO BLANK SCREEN)
 # =====================================================================
     elif st.session_state.current_page == "WCC":
         st.markdown("""
@@ -583,21 +583,15 @@ elif st.session_state.current_page == "Indus":
             headers = {"Authorization": f"Basic {api_key}", "Content-Type": "application/json"}
             
             body_values = [
-                str(row_data.get("Project", "")),        # {{1}}
-                str(row_data.get("Project ID", "")),     # {{2}}
-                str(row_data.get("Site ID", "")),        # {{3}}
-                str(row_data.get("Site Name", "")),      # {{4}}
-                str(row_data.get("PO Number", "")),      # {{5}}
-                str(row_data.get("Reqeust Date", "")),   # {{6}}
-                str(row_data.get("WCC Number", "")),     # {{7}}
-                str(row_data.get("WCC Status", ""))      # {{8}}
+                str(row_data.get("Project", "")), str(row_data.get("Project ID", "")),
+                str(row_data.get("Site ID", "")), str(row_data.get("Site Name", "")),
+                str(row_data.get("PO Number", "")), str(row_data.get("Reqeust Date", "")),
+                str(row_data.get("WCC Number", "")), str(row_data.get("WCC Status", ""))
             ]
 
             for num in numbers:
                 payload = {
-                    "countryCode": "+91",
-                    "phoneNumber": num[2:], 
-                    "type": "Template",
+                    "countryCode": "+91", "phoneNumber": num[2:], "type": "Template",
                     "template": {"name": "wccrequest", "languageCode": "en", "bodyValues": body_values}
                 }
                 try: requests.post(url, headers=headers, json=payload, timeout=5)
@@ -610,7 +604,7 @@ elif st.session_state.current_page == "Indus":
             st.session_state.wcc_role = None
         
         if not st.session_state.wcc_role:
-            pwd_input = st.text_input("Enter Password:", type="password", key="wcc_pwd_final_fix")
+            pwd_input = st.text_input("Enter Password:", type="password", key="wcc_pwd_final_check")
             if st.button("🔓 Unlock Tracker"):
                 if pwd_input == "Vision@321": 
                     st.session_state.wcc_role = "requester"
@@ -621,16 +615,16 @@ elif st.session_state.current_page == "Indus":
                 else: 
                     st.error("❌ Wrong Password!")
         else:
-            # Table Display (0% Change)
+            # Purna table logic (0% Change)
             try:
                 res = supabase.table("WCC Status").select("*").execute()
-                data_list = res.data
-                df_wcc = pd.DataFrame(data_list)[::-1] if data_list else pd.DataFrame()
-                
+                df_wcc = pd.DataFrame(res.data)[::-1] if res.data else pd.DataFrame()
                 if not df_wcc.empty:
                     st.dataframe(df_wcc, use_container_width=True)
+                else:
+                    st.info("No data found in WCC Status table.")
             except Exception as e:
-                st.error(f"Error: {e}")
+                st.error(f"Supabase Error: {e}")
     # =====================================================================
     # 🏗️ TAB 6: DATA ENTRY (Document Center & Tracker) - FINAL MASTER
     # =====================================================================
