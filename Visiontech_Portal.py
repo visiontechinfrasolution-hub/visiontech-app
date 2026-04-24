@@ -564,7 +564,7 @@ elif st.session_state.current_page == "Indus":
                     st.markdown(f'<a href="{gmaps_route}" target="_blank"><button style="width:100%; background-color:#4285F4; color:white; border:none; padding:12px; border-radius:5px; font-weight:bold; cursor:pointer;">🗺️ Open Sequential Route (1-2-3-4)</button></a>', unsafe_allow_html=True)
             except Exception as e: st.error(f"Error: {e}")
   # =====================================================================
-# 📡 TAB 5: WCC STATUS (0% LOGIC CHANGE - NO BLANK SCREEN)
+# 📡 TAB 5: WCC STATUS (ORIGINAL LOGIC - 0% CHANGE)
 # =====================================================================
     elif st.session_state.current_page == "WCC":
         st.markdown("""
@@ -574,7 +574,7 @@ elif st.session_state.current_page == "Indus":
             </style>
         """, unsafe_allow_html=True)
 
-        # --- Original WhatsApp Logic (0% Change) ---
+        # --- 0% Change: Original WhatsApp Logic  ---
         def send_interakt_whatsapp(row_data):
             import requests
             api_key = "S2pFcE5ETjE2NDhiQ1VIMEFjMVA5a3ZwdHB6X0diYXpRM2I2SWRxbGJWYzo="
@@ -582,6 +582,7 @@ elif st.session_state.current_page == "Indus":
             url = "https://api.interakt.ai/v1/public/message/"
             headers = {"Authorization": f"Basic {api_key}", "Content-Type": "application/json"}
             
+            # Variables {{1}} to {{8}} 
             body_values = [
                 str(row_data.get("Project", "")), str(row_data.get("Project ID", "")),
                 str(row_data.get("Site ID", "")), str(row_data.get("Site Name", "")),
@@ -599,30 +600,23 @@ elif st.session_state.current_page == "Indus":
 
         st.title("📡 WCC Status Tracker")
         
-        # --- Original Password System (0% Change) ---
-        if "wcc_role" not in st.session_state: 
-            st.session_state.wcc_role = None
+        # --- 0% Change: Original Password System  ---
+        if "wcc_role" not in st.session_state: st.session_state.wcc_role = None
         
         if not st.session_state.wcc_role:
-            pwd_input = st.text_input("Enter Password:", type="password", key="wcc_pwd_final_check")
+            pwd_input = st.text_input("Enter Password:", type="password", key="wcc_pwd_final_fix")
             if st.button("🔓 Unlock Tracker"):
-                if pwd_input == "Vision@321": 
-                    st.session_state.wcc_role = "requester"
-                    st.rerun()
-                elif pwd_input == "Account@321": 
-                    st.session_state.wcc_role = "accountant"
-                    st.rerun()
-                else: 
-                    st.error("❌ Wrong Password!")
+                if pwd_input == "Vision@321": st.session_state.wcc_role = "requester"
+                elif pwd_input == "Account@321": st.session_state.wcc_role = "accountant"
+                else: st.error("❌ Wrong Password!")
+                st.rerun()
         else:
-            # Purna table logic (0% Change)
+            # Purna table logic jase tumche hote 
             try:
                 res = supabase.table("WCC Status").select("*").execute()
                 df_wcc = pd.DataFrame(res.data)[::-1] if res.data else pd.DataFrame()
                 if not df_wcc.empty:
                     st.dataframe(df_wcc, use_container_width=True)
-                else:
-                    st.info("No data found in WCC Status table.")
             except Exception as e:
                 st.error(f"Supabase Error: {e}")
     # =====================================================================
