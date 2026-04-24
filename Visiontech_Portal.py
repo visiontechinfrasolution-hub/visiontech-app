@@ -96,14 +96,8 @@ def send_professional_email(selected_df, to_emails, cc_emails):
 def navigate_to(page):
     if page == "Tracking":
         st.switch_page("pages/tracking.py")
-    
-    elif page == "PDFFormat":
-        # Agar switch_page fail ho raha hai, toh ye browser ko force karega page badalne ke liye
-        # Isme /PDFFormat wahi naam hai jo aapke sidebar mein dikhta hai
-        st.markdown('<meta http-equiv="refresh" content="0;URL=\'/PDFFormat\'">', unsafe_allow_html=True)
-        st.stop() # Script ko yahin roko taaki redirect ho sake
-        
     else:
+        # He logic PDFFormat ani itar sarva internal pages sathi kaam karel
         st.session_state.current_page = page
         st.rerun()
 
@@ -1233,83 +1227,50 @@ elif st.session_state.current_page == "Indus":
                             st.toast(f"AI: {m}")
 
 # =====================================================================
-# 📜 TAB 10: VINTAGE PDF FORMATTER (REAL-LIFE SCAN FEEL)
-# =====================================================================
-elif st.session_state.current_page == "PDFFormat":
-    import fitz  # PyMuPDF
-    
-    st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>📜 Vintage PDF Generator</h3>", unsafe_allow_html=True)
-    st.info("ℹ️ Yethun kontihi PDF upload kara, ti thodi dhul asaleli (dusty), fata-phut ani 'Real Scan' vatel ashi banun milel.")
-
-    # --- Processing Logic ---
-    def apply_vintage_effect(image):
-        # 1. Convert to Gray/Vintage Yellow Tone
-        img = image.convert("RGB")
+    # 📜 TAB 10: VINTAGE PDF FORMATTER
+    # =====================================================================
+    elif st.session_state.current_page == "PDFFormat":
+        import fitz  # PyMuPDF (Install: pip install pymupdf)
         
-        # 2. Add Noise/Grains (Dhul chadi waali feel)
-        img_array = np.array(img)
-        noise = np.random.normal(0, 15, img_array.shape)
-        img_noised = np.clip(img_array + noise, 0, 255).astype(np.uint8)
-        img = Image.fromarray(img_noised)
-        
-        # 3. Add Fold Line (Fata wala/Folded feel)
-        draw = ImageDraw.Draw(img)
-        w, h = img.size
-        # Ek random fold line draw karnyasahti
-        draw.line([(0, h//2), (w, h//2+random.randint(-10,10))], fill=(180, 180, 180), width=2)
-        
-        # 4. Blur thoda sa (Normal fata wala look)
-        img = img.filter(ImageFilter.GaussianBlur(radius=0.5))
-        
-        # 5. Overlays for Paper Texture
-        overlay = Image.new('RGB', img.size, (240, 230, 200)) # Light yellow old paper tint
-        img = ImageOps.colorize(ImageOps.grayscale(img), black="black", white="#f4ecd8")
-        
-        return img
+        st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>📜 Vintage PDF Generator</h3>", unsafe_allow_html=True)
+        st.info("ℹ️ Fresh PDF upload kara, ti real-life scanned copy sarkhi disel.")
 
-    # --- UI Layout ---
-    col_u, col_d, col_c = st.columns(3)
-    
-    uploaded_pdf = st.file_uploader("📂 Upload Fresh PDF", type=['pdf'], key="vintage_uploader")
+        # PDF la vintage banvnyache function
+        def apply_vintage_effect(image):
+            img = image.convert("RGB")
+            img_array = np.array(img)
+            # Dust/Noise effect
+            noise = np.random.normal(0, 12, img_array.shape)
+            img_noised = np.clip(img_array + noise, 0, 255).astype(np.uint8)
+            img = Image.fromarray(img_noised)
+            # Vintage paper tint (thoda pivlasar color)
+            img = ImageOps.colorize(ImageOps.grayscale(img), black="#000000", white="#fdf5e6")
+            return img
 
-    if uploaded_pdf:
-        # Convert PDF to Images
-        pdf_bytes = uploaded_pdf.read()
-        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-        processed_images = []
+        # UI Buttons
+        up_col, down_col, clr_col = st.columns(3)
+        
+        v_file = st.file_uploader("📂 Upload PDF here", type=['pdf'], key="v_up_1")
 
-        with st.spinner("⏳ Vintage magic apply hot aahe..."):
-            for page in doc:
-                pix = page.get_pixmap(matrix=fitz.Matrix(2, 2)) # Higher Quality
-                img = Image.open(io.BytesIO(pix.tobytes()))
-                
-                # Apply the effect
-                vintage_img = apply_vintage_effect(img)
-                processed_images.append(vintage_img)
-
-        # Convert back to PDF
-        output_pdf = io.BytesIO()
-        if processed_images:
-            processed_images[0].save(output_pdf, format="PDF", save_all=True, append_images=processed_images[1:])
+        if v_file:
+            doc = fitz.open(stream=v_file.read(), filetype="pdf")
+            processed_pages = []
             
-        # --- Buttons ---
-        with col_u:
-            st.success("✅ PDF Processed!")
-            
-        with col_d:
-            st.download_button(
-                label="📥 DOWNLOAD VINTAGE PDF",
-                data=output_pdf.getvalue(),
-                file_name=f"Vintage_{uploaded_pdf.name}",
-                mime="application/pdf",
-                use_container_width=True
-            )
-            
-        with col_c:
-            if st.button("🧹 CLEAR ALL", use_container_width=True):
-                st.rerun()
+            with st.spinner("Processing..."):
+                for page in doc:
+                    pix = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5))
+                    img = Image.open(io.BytesIO(pix.tobytes()))
+                    processed_pages.append(apply_vintage_effect(img))
 
-        # Preview
-        st.divider()
-        st.subheader("👀 Preview (First Page)")
-        st.image(processed_images[0], use_container_width=True)
+            # Rebuild PDF
+            out_pdf = io.BytesIO()
+            processed_pages[0].save(out_pdf, format="PDF", save_all=True, append_images=processed_pages[1:])
+            
+            with up_col: st.success("Magic Done! ✅")
+            with down_col:
+                st.download_button("📥 DOWNLOAD PDF", out_pdf.getvalue(), f"Vintage_{v_file.name}", "application/pdf")
+            with clr_col:
+                if st.button("🧹 CLEAR"): st.rerun()
+
+            st.divider()
+            st.image(processed_pages[0], caption="First Page Preview", use_container_width=True)
