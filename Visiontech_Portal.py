@@ -453,7 +453,7 @@ import pandas as pd
 import urllib.parse
 from geopy.distance import geodesic
 
-# --- Syntax Error से बचने के लिए पिछला 'if' अलाइनमेंट ---
+# --- Syntax Alignment ---
 if st.session_state.current_page == "Home":
     st.markdown("<h2 style='text-align: center;'>🏠 Visiontech Portal Home</h2>", unsafe_allow_html=True)
 
@@ -474,7 +474,7 @@ elif st.session_state.current_page == "Indus":
             st.subheader("📌 Vertical Site Details")
             row_in = res_ind.data[0]
             
-            # --- Distance Logic (0% Change in Logic/Variables) ---
+            # --- Distance Logic ---
             base_lat, base_lon = 18.6233, 74.0312
             site_lat = row_in.get('Lat')
             site_lon = row_in.get('Long')
@@ -499,35 +499,24 @@ elif st.session_state.current_page == "Indus":
                 st.markdown(call_html("👨‍💼 **AOM Name**", row_in.get('AOM Name','-'), row_in.get('AOM Number','-')), unsafe_allow_html=True)
                 lat, lon = row_in.get('Lat', ''), row_in.get('Long', '')
                 if lat and lon and str(lat).strip() not in ['-', '', 'None', 'nan']:
-                    maps_url = f"https://www.google.com/maps/dir/{base_lat},{base_lon}/{lat},{lon}"
+                    # Road Direction Fix for Start Button
+                    maps_url = f"https://www.google.com/maps/dir/?api=1&origin={base_lat},{base_lon}&destination={lat},{lon}&travelmode=driving"
                     st.markdown(f"📍 **Lat/Long** :- {lat} / {lon} <a href='{maps_url}' target='_blank'><button style='background-color:#EA4335;color:white;border:none;padding:2px 10px;border-radius:5px;cursor:pointer;font-weight:bold;'>📍 Direction</button></a>", unsafe_allow_html=True)
                 else: st.markdown(f"📍 **Lat/Long** :- {lat if lat else '-'} / {lon if lon else '-'}")
             
-            # --- WhatsApp Logic: Desktop App Protocol ---
-            maps_dir = f"https://www.google.com/maps/dir/{base_lat},{base_lon}/{lat},{lon}"
-            msg_body = (
-                f"*{row_in.get('Site ID', '-') or '-' }*\n"
-                f"*{row_in.get('Project ID', '-') or '-' }*\n"
-                f"*{row_in.get('Site Name', '-') or '-' }*\n"
-                f"*{row_in.get('Area Name', '-') or '-' }*\n\n"
-                f"👨‍🔧 *Tech Name* : {row_in.get('Tech Name','-')} ({row_in.get('Tech Number','-')}) 📞 Call\n"
-                f"👷 *FSE* : {row_in.get('FSE','-')} ({row_in.get('FSE Number','-')}) 📞 Call\n"
-                f"👨‍💼 *AOM Name* : {row_in.get('AOM Name','-')} ({row_in.get('AOM Number','-')}) 📞 Call\n"
-                f"📍 *Lat/Long* :- {lat} / {lon}\n\n"
-                f"🗺️ *Route Map Link*:\n{maps_dir}"
-            )
-            wa_encoded = urllib.parse.quote(msg_body)
-            wa_desktop_link = f"whatsapp://send?text={wa_encoded}"
-            st.link_button("🚀 Send to WhatsApp Desktop App", wa_desktop_link, use_container_width=True)
-        else: st.info("No Indus data found.")
+            # --- WhatsApp Site Details ---
+            maps_dir = f"https://www.google.com/maps/dir/?api=1&origin={base_lat},{base_lon}&destination={lat},{lon}"
+            msg_body = f"*{row_in.get('Site ID','-')}*\n*{row_in.get('Site Name','-')}*\n📍 *Lat/Long*: {lat}/{lon}\n🗺️ *Map*: {maps_dir}"
+            wa_link = f"whatsapp://send?text={urllib.parse.quote(msg_body)}"
+            st.link_button("🚀 Send Site Details to WhatsApp", wa_link, use_container_width=True)
 
     st.divider()
     st.subheader("🧭 Route Plan")
     if 'route_list' not in st.session_state: st.session_state.route_list = []
     with st.expander("🛠️ Create New Route Plan", expanded=False):
         c1, c2 = st.columns(2)
-        with c1: start_coords = st.text_input("🏠 Start Location", placeholder="e.g. Pune")
-        with c2: end_coords = st.text_input("🏁 End Location", placeholder="e.g. Mumbai")
+        with c1: start_coords = st.text_input("🏠 Start Location", value="18.6233, 74.0312")
+        with c2: end_coords = st.text_input("🏁 End Location", placeholder="e.g. Pune")
         with st.form("add_site_form", clear_on_submit=True):
             add_sid = st.text_input("📍 Add Indus Site ID")
             if st.form_submit_button("➕ Add +"):
@@ -537,11 +526,8 @@ elif st.session_state.current_page == "Indus":
                         st.session_state.route_list.append(s_res.data[0])
                         st.success(f"Site {add_sid} added!")
                     else: st.error("Site ID not found!")
-        if st.session_state.route_list:
-            st.write("**Current Sites:** " + ", ".join([s['Site ID'] for s in st.session_state.route_list]))
-            if st.button("🗑️ Clear List"): st.session_state.route_list = []; st.rerun()
-    
-    if st.button("🚀 Calculate Best Route", use_container_width=True):
+
+    if st.button("🚀 Calculate & Share Route", use_container_width=True):
         if not start_coords or not end_coords or not st.session_state.route_list: st.warning("Incomplete details!")
         else:
             try:
@@ -550,24 +536,31 @@ elif st.session_state.current_page == "Indus":
                 def get_lat_lon(loc):
                     if ',' in loc and any(c.isdigit() for c in loc): return [float(x.strip()) for x in loc.split(',')]
                     l = geolocator.geocode(loc); return [l.latitude, l.longitude] if l else None
+                
                 curr_p, end_p = get_lat_lon(start_coords), get_lat_lon(end_coords)
-                if not curr_p or not end_p: st.error("Check Start/End location.")
-                else:
-                    # --- FIX: Filter out sites with missing Lat/Long to avoid NoneType Error ---
-                    unvisited = [s for s in st.session_state.route_list if s.get('Lat') and s.get('Long')]
-                    if not unvisited:
-                        st.error("None of the added sites have Lat/Long coordinates!")
-                    else:
-                        final_path = []
-                        while unvisited:
-                            next_s = min(unvisited, key=lambda x: geodesic(curr_p, (float(x['Lat']), float(x['Long']))).km)
-                            final_path.append(next_s); curr_p = (float(next_s['Lat']), float(next_s['Long'])); unvisited.remove(next_s)
-                        
-                        route_data = [{"Serial No": str(i), "Site ID": s['Site ID'], "Location": f"{s['Lat']}, {s['Long']}"} for i, s in enumerate(final_path, 1)]
-                        st.table(pd.DataFrame(route_data))
-                        coords_str = "/".join([start_coords] + [f"{s['Lat']},{s['Long']}" for s in final_path] + [end_coords])
-                        gmaps_route = f"https://www.google.com/maps/dir/{coords_str}"
-                        st.markdown(f'<a href="{gmaps_route}" target="_blank"><button style="width:100%; background-color:#4285F4; color:white; border:none; padding:10px; border-radius:5px; font-weight:bold; cursor:pointer;">🗺️ Open Full Route in Maps</button></a>', unsafe_allow_html=True)
+                unvisited = [s for s in st.session_state.route_list if s.get('Lat') and s.get('Long')]
+                
+                if unvisited:
+                    final_path = []
+                    while unvisited:
+                        next_s = min(unvisited, key=lambda x: geodesic(curr_p, (float(x['Lat']), float(x['Long']))).km)
+                        final_path.append(next_s); curr_p = (float(next_s['Lat']), float(next_s['Long'])); unvisited.remove(next_s)
+                    
+                    # --- Multi-Stop Navigation Link (Fixes 'Start' button issue) ---
+                    waypoints = "|".join([f"{s['Lat']},{s['Long']}" for s in final_path])
+                    gmaps_route = f"https://www.google.com/maps/dir/?api=1&origin={start_coords}&destination={end_coords}&waypoints={waypoints}&travelmode=driving"
+                    
+                    st.table(pd.DataFrame([{"No": i+1, "Site": s['Site ID']} for i, s in enumerate(final_path)]))
+                    st.markdown(f'<a href="{gmaps_route}" target="_blank"><button style="width:100%; background-color:#4285F4; color:white; border:none; padding:10px; border-radius:5px; font-weight:bold;">🗺️ Open in Maps (With Start Button)</button></a>', unsafe_allow_html=True)
+                    
+                    # --- WhatsApp Share Route Plan ---
+                    route_msg = f"🚩 *Visiontech Route Plan*\n\n"
+                    for i, s in enumerate(final_path, 1):
+                        route_msg += f"{i}. {s['Site ID']} ({s['Lat']},{s['Long']})\n"
+                    route_msg += f"\n🗺️ *Full Route Link*:\n{gmaps_route}"
+                    
+                    wa_route_link = f"whatsapp://send?text={urllib.parse.quote(route_msg)}"
+                    st.link_button("🚀 Share Full Route on WhatsApp", wa_route_link, use_container_width=True)
             except Exception as e: st.error(f"Error: {e}")
    # =====================================================================
     # 📡 TAB 5: WCC STATUS (AUTO-WHATSAPP WITH 8 VARIABLES - 0% LOGIC CHANGE)
