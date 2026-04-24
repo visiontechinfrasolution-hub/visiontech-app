@@ -771,7 +771,7 @@ if "Data" in str(st.session_state.current_page) or "Entry" in str(st.session_sta
     # =====================================================================
     # 💰 TAB 1: FINANCE ENTRY (Baaki code same rahega)
     # =====================================================================
-    elif st.session_state.current_page == "Finance":
+    if st.session_state.current_page == "Finance":
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>💰 Finance Entry (PO Analyzer)</h3>", unsafe_allow_html=True)
         
         def clean_num_fixed(val):
@@ -838,7 +838,7 @@ if "Data" in str(st.session_state.current_page) or "Entry" in str(st.session_sta
     # =====================================================================
     # 📝 TAB 8: AUDIT MANAGEMENT PORTAL
     # =====================================================================
-    elif st.session_state.current_page == "Audit":
+    if st.session_state.current_page == "Audit":
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Audit Management Portal</h3>", unsafe_allow_html=True)
         
         if 'audit_queue' not in st.session_state:
@@ -966,7 +966,7 @@ if "Data" in str(st.session_state.current_page) or "Entry" in str(st.session_sta
 # =====================================================================
     # 📢 PAGE 9: RFAI BILLING PENDING (EXCEL/CSV EXPORT ONLY)
     # =====================================================================
-    elif st.session_state.current_page == "RFAI":
+    if st.session_state.current_page == "RFAI":
         st.markdown("<h3 style='text-align: center; color: #E11D48;'>📢 RFAI Billing Pending</h3>", unsafe_allow_html=True)
         
         col_1, col_2, col_3, col_4 = st.columns([1, 1, 1, 1])
@@ -1017,7 +1017,7 @@ if "Data" in str(st.session_state.current_page) or "Entry" in str(st.session_sta
 # =====================================================================
     # 🚨 TAB 7: STN MANAGER - NON-STOP MARATHI FOLLOW-UP
     # =====================================================================
-    elif st.session_state.current_page == "STN Manager":
+    if st.session_state.current_page == "STN Manager":
         import requests
         import pandas as pd
         import re 
