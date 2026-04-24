@@ -453,7 +453,7 @@ import pandas as pd
 import urllib.parse
 from geopy.distance import geodesic
 
-# --- Syntax Error से बचने के लिए पिछला ब्लॉक अलाइन किया गया है ---
+# --- Syntax Error से बचने के लिए पिछला 'if' अलाइनमेंट ---
 if st.session_state.current_page == "Home":
     st.markdown("<h2 style='text-align: center;'>🏠 Visiontech Portal Home</h2>", unsafe_allow_html=True)
 
@@ -503,7 +503,7 @@ elif st.session_state.current_page == "Indus":
                     st.markdown(f"📍 **Lat/Long** :- {lat} / {lon} <a href='{maps_url}' target='_blank'><button style='background-color:#EA4335;color:white;border:none;padding:2px 10px;border-radius:5px;cursor:pointer;font-weight:bold;'>📍 Direction</button></a>", unsafe_allow_html=True)
                 else: st.markdown(f"📍 **Lat/Long** :- {lat if lat else '-'} / {lon if lon else '-'}")
             
-            # --- Updated WhatsApp Logic: Using st.link_button to avoid "Sad Face" error ---
+            # --- WhatsApp Logic: Using Desktop Protocol ---
             maps_dir = f"https://www.google.com/maps/dir/{base_lat},{base_lon}/{lat},{lon}"
             
             msg_body = (
@@ -518,12 +518,11 @@ elif st.session_state.current_page == "Indus":
                 f"🗺️ *Route Map Link*:\n{maps_dir}"
             )
             
-            wa_encoded = urllib.parse.quote_plus(msg_body)
-            # api.whatsapp.com is standard and works with link_button
-            wa_link = f"https://api.whatsapp.com/send?text={wa_encoded}"
+            wa_encoded = urllib.parse.quote(msg_body)
+            # 'whatsapp://' प्रोटोकॉल सीधा डेस्कटॉप ऐप के लिए होता है
+            wa_desktop_link = f"whatsapp://send?text={wa_encoded}"
             
-            # Streamlit native link_button handles the opening logic safely
-            st.link_button("💬 Select Contact & Send (WhatsApp)", wa_link, use_container_width=True)
+            st.link_button("🚀 Send to WhatsApp Desktop App", wa_desktop_link, use_container_width=True)
 
         else: st.info("No Indus data found.")
 
