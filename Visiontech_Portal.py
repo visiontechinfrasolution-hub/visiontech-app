@@ -564,159 +564,237 @@ elif st.session_state.current_page == "Indus":
                     st.markdown(f'<a href="{gmaps_route}" target="_blank"><button style="width:100%; background-color:#4285F4; color:white; border:none; padding:12px; border-radius:5px; font-weight:bold; cursor:pointer;">🗺️ Open Sequential Route (1-2-3-4)</button></a>', unsafe_allow_html=True)
             except Exception as e: st.error(f"Error: {e}")
     # =====================================================================
-# 📡 TAB 5: WCC STATUS (ORIGINAL LOGIC + SEARCH BOX)
-# =====================================================================
-if st.session_state.current_page == "WCC":
-    st.markdown("""
-        <style>
-            .site-badge { background-color: #E0F2FE; color: #0369A1; padding: 2px 8px; border-radius: 12px; font-weight: 600; font-size: 11px; border: 1px solid #BAE6FD; }
-            .wa-btn { background-color: #25D366; color: white !important; padding: 4px 8px; border-radius: 6px; font-weight: bold; text-decoration: none; font-size: 12px; }
-            [data-testid="column"] { display: flex; align-items: center; justify-content: center; }
-        </style>
-    """, unsafe_allow_html=True)
+    # 📡 TAB 5: WCC STATUS (ORIGINAL + SEARCH BOX)
+    # =====================================================================
+    elif st.session_state.current_page == "WCC":
+        st.markdown("""
+            <style>
+                .site-badge { background-color: #E0F2FE; color: #0369A1; padding: 2px 8px; border-radius: 12px; font-weight: 600; font-size: 11px; border: 1px solid #BAE6FD; }
+                .wa-btn { background-color: #25D366; color: white !important; padding: 4px 8px; border-radius: 6px; font-weight: bold; text-decoration: none; font-size: 12px; }
+                [data-testid="column"] { display: flex; align-items: center; justify-content: center; }
+            </style>
+        """, unsafe_allow_html=True)
 
-    def send_interakt_whatsapp(row_data):
-        import requests
-        api_key = "S2pFcE5ETjE2NDhiQ1VIMEFjMVA5a3ZwdHB6X0diYXpRM2I2SWRxbGJWYzo="
-        numbers = ["919960843473", "919552273181", "917498984373"]
-        url = "https://api.interakt.ai/v1/public/message/"
-        headers = {
-            "Authorization": f"Basic {api_key}",
-            "Content-Type": "application/json"
-        }
-        
-        body_values = [
-            str(row_data.get("Project", "")),        # {{1}}
-            str(row_data.get("Project ID", "")),     # {{2}}
-            str(row_data.get("Site ID", "")),        # {{3}}
-            str(row_data.get("Site Name", "")),      # {{4}}
-            str(row_data.get("PO Number", "")),      # {{5}}
-            str(row_data.get("Reqeust Date", "")),   # {{6}}
-            str(row_data.get("WCC Number", "")),     # {{7}}
-            str(row_data.get("WCC Status", ""))      # {{8}}
-        ]
-
-        for num in numbers:
-            payload = {
-                "countryCode": "+91",
-                "phoneNumber": num[2:], 
-                "callbackData": "WCC Request Automation",
-                "type": "Template",
-                "template": {
-                    "name": "wccrequest",
-                    "languageCode": "en",
-                    "bodyValues": body_values
+        def send_interakt_whatsapp(row_data):
+            import requests
+            api_key = "S2pFcE5ETjE2NDhiQ1VIMEFjMVA5a3ZwdHB6X0diYXpRM2I2SWRxbGJWYzo="
+            numbers = ["919960843473", "919552273181", "917498984373"]
+            url = "https://api.interakt.ai/v1/public/message/"
+            headers = {"Authorization": f"Basic {api_key}", "Content-Type": "application/json"}
+            body_values = [
+                str(row_data.get("Project", "")), str(row_data.get("Project ID", "")),
+                str(row_data.get("Site ID", "")), str(row_data.get("Site Name", "")),
+                str(row_data.get("PO Number", "")), str(row_data.get("Reqeust Date", "")),
+                str(row_data.get("WCC Number", "")), str(row_data.get("WCC Status", ""))
+            ]
+            for num in numbers:
+                payload = {
+                    "countryCode": "+91", "phoneNumber": num[2:], 
+                    "callbackData": "WCC Request Automation", "type": "Template",
+                    "template": {"name": "wccrequest", "languageCode": "en", "bodyValues": body_values}
                 }
-            }
-            try: requests.post(url, headers=headers, json=payload, timeout=5)
-            except: pass
+                try: requests.post(url, headers=headers, json=payload, timeout=5)
+                except: pass
 
-    def fetch_wcc_data_simple():
-        try: 
-            res = supabase.table("WCC Status").select("*").execute()
-            return res.data
-        except Exception as e:
-            st.error(f"Fetch Error: {e}")
-            return []
+        def fetch_wcc_data_simple():
+            try: 
+                res = supabase.table("WCC Status").select("*").execute()
+                return res.data
+            except Exception as e:
+                st.error(f"Fetch Error: {e}")
+                return []
 
-    def update_wcc_record(payload):
-        try: 
-            res = supabase.table("WCC Status").upsert(payload).execute()
-            return res
-        except Exception as e:
-            st.error(f"SUPABASE ERROR: {str(e)}")
-            return None
+        def update_wcc_record(payload):
+            try: 
+                res = supabase.table("WCC Status").upsert(payload).execute()
+                return res
+            except Exception as e:
+                st.error(f"SUPABASE ERROR: {str(e)}")
+                return None
 
-    st.title("📡 WCC Status Tracker")
-    
-    if "wcc_role" not in st.session_state: st.session_state.wcc_role = None
-    
-    if not st.session_state.wcc_role:
+        st.title("📡 WCC Status Tracker")
+        
+        if "wcc_role" not in st.session_state: 
+            st.session_state.wcc_role = None
+        
+        if not st.session_state.wcc_role:
+            pwd_input = st.text_input("Enter Password:", type="password", key="wcc_login_pwd_v2")
+            if st.button("🔓 Unlock Tracker"):
+                if pwd_input == "Vision@321": st.session_state.wcc_role = "requester"
+                elif pwd_input == "Account@321": st.session_state.wcc_role = "accountant"
+                else: st.error("❌ Wrong Password!")
+                st.rerun()
+        else:
+            role = st.session_state.wcc_role
+            
+            @st.dialog("📝 WCC Details Form", width="large")
+            def wcc_edit_modal(row_data=None):
+                is_edit = row_data is not None
+                with st.form("wcc_form_v25"):
+                    if role == "requester":
+                        c1, c2 = st.columns(2)
+                        v_proj = c1.text_input("Project", value=str(row_data.get("Project", "")) if is_edit else "")
+                        v_pid = c2.text_input("Project ID *", value=str(row_data.get("Project ID", "")) if is_edit else "", disabled=is_edit)
+                        c3, c4 = st.columns(2)
+                        v_sid = c3.text_input("Site ID", value=str(row_data.get("Site ID", "")) if is_edit else "")
+                        v_snm = c4.text_input("Site Name", value=str(row_data.get("Site Name", "")) if is_edit else "")
+                        c5, c6 = st.columns(2)
+                        v_po = c5.text_input("PO Number", value=str(row_data.get("PO Number", "")) if is_edit else "")
+                        v_dt = st.date_input("Request Date", value=datetime.now().date())
+                        v_sts = st.selectbox("WCC Status", ["Creation Pending", "Pending for Approval", "Proceed", "Rejected", "Cancel"], 
+                                             index=0 if not is_edit else ["Creation Pending", "Pending for Approval", "Proceed", "Rejected", "Cancel"].index(row_data.get("WCC Status", "Creation Pending")))
+                        v_wno = st.text_input("WCC Number", value=str(row_data.get("WCC Number", "")) if is_edit else "")
+                        v_rem = st.text_area("Remark", value=str(row_data.get("Remark", "")) if is_edit else "")
+                    else:
+                        v_pid = row_data.get('Project ID')
+                        v_wno = st.text_input("Enter/Update WCC Number", value=str(row_data.get("WCC Number", "")) if is_edit else "")
+                        v_rem = st.text_area("Remark", value=str(row_data.get("Remark", "")) if is_edit else "")
+                    
+                    if st.form_submit_button("💾 Save Changes", use_container_width=True):
+                        if not v_pid or v_pid.strip() == "":
+                            st.warning("Project ID is mandatory!")
+                        else:
+                            def to_num(val): return str(val).strip() if str(val).strip() != "" else None
+                            payload = {"Project ID": v_pid.strip(), "WCC Number": to_num(v_wno), "Remark": v_rem}
+                            if role == "requester": 
+                                payload.update({"Project": v_proj, "Site ID": v_sid, "Site Name": v_snm, "PO Number": to_num(v_po), "Reqeust Date": str(v_dt), "WCC Status": v_sts})
+                            response = update_wcc_record(payload)
+                            if response:
+                                if role == "requester": send_interakt_whatsapp(payload)
+                                st.success("Data Saved & WhatsApp Sent! ✅")
+                                st.rerun()
+
+            data_list = fetch_wcc_data_simple()
+            df_wcc = pd.DataFrame(data_list)[::-1] if data_list else pd.DataFrame()
+            
+            c_top1, c_top2, c_top3 = st.columns([1, 1, 1.5])
+            with c_top1:
+                if role == "requester" and st.button("➕ Add New Site Request", type="primary"): wcc_edit_modal()
+            with c_top2:
+                if not df_wcc.empty:
+                    excel_data = df_wcc.to_csv(index=False).encode('utf-8')
+                    st.download_button("📥 Download Report", data=excel_data, file_name=f"WCC_Report.csv", mime="text/csv")
+            with c_top3:
+                search_query = st.text_input("🔍 Search Project, Site, PO...", key="wcc_search_v1")
+
+            if search_query and not df_wcc.empty:
+                df_wcc = df_wcc[df_wcc.astype(str).apply(lambda x: x.str.contains(search_query, case=False)).any(axis=1)]
+
+            with st.expander("🛠️ Bulk Update WCC & Remarks via Excel"):
+                st.info("फक्त डाउनलोड केलेली फाईल वापरा (Project ID, PO Number, WCC Number, Remark)")
+                uploaded_file = st.file_uploader("Upload Excel/CSV", type=["csv", "xlsx"], key="bulk_up_v3")
+                if uploaded_file:
+                    try:
+                        up_df = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
+                        up_df.columns = [str(c).strip() for c in up_df.columns]
+                        if st.button("🆙 Start Update Process"):
+                            success_count, not_found_count = 0, 0
+                            for _, up_row in up_df.iterrows():
+                                def get_clean_val(col_name):
+                                    val = str(up_row.get(col_name, '')).strip()
+                                    if val.endswith('.0'): val = val[:-2]
+                                    return val if val not in ['nan', 'None', ''] else None
+                                pid, po_no, wcc_no, remark = get_clean_val('Project ID'), get_clean_val('PO Number'), get_clean_val('WCC Number'), get_clean_val('Remark')
+                                if pid and po_no:
+                                    match = df_wcc[(df_wcc['Project ID'].astype(str).str.strip() == pid) & (df_wcc['PO Number'].astype(str).str.strip() == po_no)]
+                                    if not match.empty:
+                                        try:
+                                            supabase.table("WCC Status").update({"WCC Number": wcc_no, "Remark": remark if remark else ""}).eq("Project ID", pid).eq("PO Number", po_no).execute()
+                                            success_count += 1
+                                        except Exception as e: st.error(f"Error for {pid}: {e}")
+                                    else: not_found_count += 1
+                            if success_count > 0: st.success(f"✅ {success_count} Records Updated!"); st.rerun()
+                            else: st.error("❌ No matches found!")
+                    except Exception as e: st.error(f"❌ File Error: {e}")            
+            
+            st.divider()
+
+            if not df_wcc.empty:
+                h_cols = st.columns([1, 0.4, 0.8, 1.2, 0.8, 1, 0.8, 0.8, 1, 1])
+                cols_names = ["Actions", "Sr.", "Project", "Project ID", "Site ID", "Site Name", "PO No", "WCC No", "Status", "Remark"]
+                for col, name in zip(h_cols, cols_names): col.markdown(f"<p style='color:#1E3A8A; font-weight:bold; font-size:11px; text-align:center;'>{name}</p>", unsafe_allow_html=True)
+                st.markdown("<hr style='margin:2px 0px; border-top: 2px solid #1E3A8A;'>", unsafe_allow_html=True)
+
+                for i, row in df_wcc.iterrows():
+                    r_cols = st.columns([1, 0.4, 0.8, 1.2, 0.8, 1, 0.8, 0.8, 1, 1])
+                    def clean_none(val): return str(val) if val and str(val).lower() != 'none' else ""
+                    with r_cols[0]:
+                        b1, b2 = st.columns(2)
+                        if b1.button("✏️", key=f"edit_{row['Project ID']}_{i}"): wcc_edit_modal(row)
+                        if role == 'requester':
+                            import urllib.parse
+                            msg = (f"*Hello Prakash Ji,*\nRaise WCC urgently...\n\n*Project* :- {clean_none(row.get('Project'))}\n*Project ID* :- {clean_none(row.get('Project ID'))}\n*Site ID* :- {clean_none(row.get('Site ID'))}\n*PO Number* :- {clean_none(row.get('PO Number'))}\n\nThanks,\n*Mayur Patil*")
+                            wa_url = f"whatsapp://send?text={urllib.parse.quote(msg)}"
+                            b2.markdown(f'<a href="{wa_url}" class="wa-btn" style="text-align:center; display:block; text-decoration:none;">💬</a>', unsafe_allow_html=True)
+                    r_cols[1].markdown(f"<p style='font-size:11px; text-align:center;'>{i+1}</p>", unsafe_allow_html=True)
+                    r_cols[2].markdown(f"<p style='font-size:11px; text-align:center;'>{clean_none(row.get('Project'))}</p>", unsafe_allow_html=True)
+                    r_cols[3].markdown(f"<p style='font-size:11px; text-align:center; font-weight:bold;'>{clean_none(row.get('Project ID'))}</p>", unsafe_allow_html=True)
+                    r_cols[4].markdown(f"<div style='text-align:center;'><span class='site-badge'>{clean_none(row.get('Site ID'))}</span></div>", unsafe_allow_html=True)
+                    r_cols[5].markdown(f"<p style='font-size:11px; text-align:center;'>{clean_none(row.get('Site Name'))}</p>", unsafe_allow_html=True)
+                    r_cols[6].markdown(f"<p style='font-size:11px; text-align:center;'>{clean_none(row.get('PO Number'))}</p>", unsafe_allow_html=True)
+                    r_cols[7].markdown(f"<p style='font-size:11px; text-align:center; color:#0369A1; font-weight:bold;'>{clean_none(row.get('WCC Number'))}</p>", unsafe_allow_html=True)
+                    r_cols[8].markdown(f"<p style='font-size:11px; text-align:center;'>{clean_none(row.get('WCC Status'))}</p>", unsafe_allow_html=True)
+                    r_cols[9].markdown(f"<p style='font-size:10px; color:gray; text-align:center;'>{clean_none(row.get('Remark'))}</p>", unsafe_allow_html=True)
+                    st.markdown("<hr style='margin:1px 0px; border-top: 1px solid #E5E7EB;'>", unsafe_allow_html=True)
+
     # =====================================================================
     # 🏗️ TAB 6: DATA ENTRY (Document Center & Tracker)
     # =====================================================================
     elif "Data" in str(st.session_state.current_page) or "Entry" in str(st.session_state.current_page):
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center & Tracker</h3>", unsafe_allow_html=True)
-    
-    doc_sub1, doc_sub2, doc_sub3 = st.tabs(["📤 Manager Upload", "🔍 Team Search", "📊 Tracker"])
-    
-    with doc_sub1:
-        with st.form("doc_upload_final_v1", clear_on_submit=True):
-            col_u1, col_u2 = st.columns(2)
-            u_proj = col_u1.text_input("📁 Project Number")
-            u_indus = col_u2.text_input("📍 Indus ID")
-            u_site = col_u1.text_input("🏢 Site Name")
-            u_type = col_u2.selectbox("📄 Doc Type", ["Photo", "SRC", "DC", "STN", "REPORT", "OTHER"])
-            u_files = st.file_uploader("Select Files", accept_multiple_files=True)
-            
-            if st.form_submit_button("🚀 Upload All Files"):
-                if u_files and u_proj:
-                    try:
-                        for i, f in enumerate(u_files):
-                            clean_p = u_proj.replace("/", "-").strip()
-                            fname = f"{clean_p}_{u_indus}_{u_type}_{i}.{f.name.split('.')[-1]}"
-                            
-                            supabase.storage.from_("site_documents").upload(
-                                path=fname, 
-                                file=f.getvalue(), 
-                                file_options={"x-upsert": "true"}
-                            )
-                            
-                            p_url = f"{URL}/storage/v1/object/public/site_documents/{fname}"
-                            
-                            supabase.table("site_documents_master").upsert({
-                                "project_number": u_proj, 
-                                "indus_id": u_indus, 
-                                "site_name": u_site, 
-                                "doc_type": u_type, 
-                                "file_name": fname, 
-                                "file_url": p_url
-                            }, on_conflict="file_name").execute()
-                            
-                        st.success("✅ Files Uploaded & Master Updated!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"❌ Error: {e}")
-                else:
-                    st.warning("⚠️ Files aur Project Number dalna zaroori hai!")
+        doc_sub1, doc_sub2, doc_sub3 = st.tabs(["📤 Manager Upload", "🔍 Team Search", "📊 Tracker"])
+        
+        with doc_sub1:
+            with st.form("doc_upload_final_v1", clear_on_submit=True):
+                col_u1, col_u2 = st.columns(2)
+                u_proj = col_u1.text_input("📁 Project Number")
+                u_indus = col_u2.text_input("📍 Indus ID")
+                u_site = col_u1.text_input("🏢 Site Name")
+                u_type = col_u2.selectbox("📄 Doc Type", ["Photo", "SRC", "DC", "STN", "REPORT", "OTHER"])
+                u_files = st.file_uploader("Select Files", accept_multiple_files=True)
+                
+                if st.form_submit_button("🚀 Upload All Files"):
+                    if u_files and u_proj:
+                        try:
+                            for i, f in enumerate(u_files):
+                                clean_p = u_proj.replace("/", "-").strip()
+                                fname = f"{clean_p}_{u_indus}_{u_type}_{i}.{f.name.split('.')[-1]}"
+                                supabase.storage.from_("site_documents").upload(path=fname, file=f.getvalue(), file_options={"x-upsert": "true"})
+                                p_url = f"{URL}/storage/v1/object/public/site_documents/{fname}"
+                                supabase.table("site_documents_master").upsert({
+                                    "project_number": u_proj, "indus_id": u_indus, "site_name": u_site, 
+                                    "doc_type": u_type, "file_name": fname, "file_url": p_url
+                                }, on_conflict="file_name").execute()
+                            st.success("✅ Files Uploaded & Master Updated!")
+                            st.rerun()
+                        except Exception as e: st.error(f"❌ Error: {e}")
+                    else: st.warning("⚠️ Files aur Project Number dalna zaroori hai!")
 
-    with doc_sub2:
-        q_s = st.text_input("🔍 Search Documents (Project, Indus, Site)")
-        if q_s:
-            res_db = supabase.table("site_documents_master").select("*").or_(
-                f"project_number.ilike.%{q_s}%,indus_id.ilike.%{q_s}%,site_name.ilike.%{q_s}%"
-            ).execute()
-            
-            if res_db.data:
-                for row in res_db.data:
-                    c1, c2, c3 = st.columns([2, 1, 1])
-                    c1.write(row['file_name'])
-                    c2.info(row['doc_type'])
-                    c3.markdown(f'[📥 View]({row["file_url"]})')
-                    st.divider()
+        with doc_sub2:
+            q_s = st.text_input("🔍 Search Documents (Project, Indus, Site)")
+            if q_s:
+                res_db = supabase.table("site_documents_master").select("*").or_(f"project_number.ilike.%{q_s}%,indus_id.ilike.%{q_s}%,site_name.ilike.%{q_s}%").execute()
+                if res_db.data:
+                    for row in res_db.data:
+                        c1, c2, c3 = st.columns([2, 1, 1])
+                        c1.write(row['file_name']); c2.info(row['doc_type']); c3.markdown(f'[📥 View]({row["file_url"]})')
+                        st.divider()
 
-    with doc_sub3:
-        try:
-            res_t = supabase.table("site_documents_master").select("*").execute()
-            if res_t.data:
-                df_t = pd.DataFrame(res_t.data)
-                site_groups = df_t.groupby('indus_id')
-                summary = []
-                for ind_id, gp in site_groups:
-                    types = gp['doc_type'].str.upper().tolist()
-                    summary.append({
-                        "Project ID": gp.iloc[0]['project_number'], 
-                        "Indus ID": ind_id, 
-                        "Site Name": gp.iloc[0]['site_name'], 
-                        "SRC": "✅" if "SRC" in types else "❌", 
-                        "DC": "✅" if "DC" in types else "❌", 
-                        "STN": "✅" if "STN" in types else "❌", 
-                        "Report": "✅" if "REPORT" in types else "❌", 
-                        "Photo": "✅" if "PHOTO" in types else "❌"
-                    })
-                st.dataframe(pd.DataFrame(summary), use_container_width=True, hide_index=True)
-        except:
-            st.info("Tracker data loading...")
+        with doc_sub3:
+            try:
+                res_t = supabase.table("site_documents_master").select("*").execute()
+                if res_t.data:
+                    df_t = pd.DataFrame(res_t.data)
+                    summary = []
+                    for ind_id, gp in df_t.groupby('indus_id'):
+                        types = gp['doc_type'].str.upper().tolist()
+                        summary.append({
+                            "Project ID": gp.iloc[0]['project_number'], "Indus ID": ind_id, "Site Name": gp.iloc[0]['site_name'], 
+                            "SRC": "✅" if "SRC" in types else "❌", "DC": "✅" if "DC" in types else "❌", "STN": "✅" if "STN" in types else "❌", 
+                            "Report": "✅" if "REPORT" in types else "❌", "Photo": "✅" if "PHOTO" in types else "❌"
+                        })
+                    st.dataframe(pd.DataFrame(summary), use_container_width=True, hide_index=True)
+            except: st.info("Tracker data loading...")
     # =====================================================================
     # 💰 TAB 1: FINANCE ENTRY (Baaki code same rahega)
     # =====================================================================
