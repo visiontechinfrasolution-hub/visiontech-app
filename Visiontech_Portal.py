@@ -563,66 +563,6 @@ elif st.session_state.current_page == "Indus":
                     gmaps_route = f"https://www.google.com/maps/dir/{start_coords}/{stops}/{end_coords}"
                     st.markdown(f'<a href="{gmaps_route}" target="_blank"><button style="width:100%; background-color:#4285F4; color:white; border:none; padding:12px; border-radius:5px; font-weight:bold; cursor:pointer;">🗺️ Open Sequential Route (1-2-3-4)</button></a>', unsafe_allow_html=True)
             except Exception as e: st.error(f"Error: {e}")
-# =====================================================================
-    # 📡 TAB 5: WCC STATUS (ORIGINAL LOGIC - 0% CHANGE)
-    # =====================================================================
-    elif st.session_state.current_page == "WCC":
-        st.markdown("""
-            <style>
-                .site-badge { background-color: #E0F2FE; color: #0369A1; padding: 2px 8px; border-radius: 12px; font-weight: 600; font-size: 11px; border: 1px solid #BAE6FD; }
-                .wa-btn { background-color: #25D366; color: white !important; padding: 4px 8px; border-radius: 6px; font-weight: bold; text-decoration: none; font-size: 12px; }
-            </style>
-        """, unsafe_allow_html=True)
-
-        def send_interakt_whatsapp(row_data):
-            import requests
-            api_key = "S2pFcE5ETjE2NDhiQ1VIMEFjMVA5a3ZwdHB6X0diYXpRM2I2SWRxbGJWYzo="
-            numbers = ["919960843473", "919552273181", "917498984373"]
-            url = "https://api.interakt.ai/v1/public/message/"
-            headers = {"Authorization": f"Basic {api_key}", "Content-Type": "application/json"}
-            
-            body_values = [
-                str(row_data.get("Project", "")), str(row_data.get("Project ID", "")),
-                str(row_data.get("Site ID", "")), str(row_data.get("Site Name", "")),
-                str(row_data.get("PO Number", "")), str(row_data.get("Reqeust Date", "")),
-                str(row_data.get("WCC Number", "")), str(row_data.get("WCC Status", ""))
-            ]
-
-            for num in numbers:
-                payload = {
-                    "countryCode": "+91", "phoneNumber": num[2:], "type": "Template",
-                    "template": {"name": "wccrequest", "languageCode": "en", "bodyValues": body_values}
-                }
-                try: requests.post(url, headers=headers, json=payload, timeout=5)
-                except: pass
-
-        st.title("📡 WCC Status Tracker")
-        
-        if "wcc_role" not in st.session_state: 
-            st.session_state.wcc_role = None
-        
-        if not st.session_state.wcc_role:
-            pwd_input = st.text_input("Enter Password:", type="password", key="wcc_pwd_final_fix")
-            if st.button("🔓 Unlock Tracker"):
-                if pwd_input == "Vision@321": 
-                    st.session_state.wcc_role = "requester"
-                    st.rerun()
-                elif pwd_input == "Account@321": 
-                    st.session_state.wcc_role = "accountant"
-                    st.rerun()
-                else: 
-                    st.error("❌ Wrong Password!")
-        else:
-            try:
-                res = supabase.table("WCC Status").select("*").execute()
-                df_wcc = pd.DataFrame(res.data)[::-1] if res.data else pd.DataFrame()
-                if not df_wcc.empty:
-                    st.dataframe(df_wcc, use_container_width=True)
-                else:
-                    st.info("No records found in WCC table.")
-            except Exception as e:
-                st.error(f"Supabase Error: {e}")
-
     # =====================================================================
     # 📡 TAB 5: WCC STATUS (ORIGINAL LOGIC + SEARCH BOX ADDED)
     # =====================================================================
