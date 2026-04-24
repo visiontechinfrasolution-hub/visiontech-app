@@ -453,10 +453,7 @@ import pandas as pd
 import urllib.parse
 from geopy.distance import geodesic
 
-# --- यह मानकर कि इससे पहले का कोड (Home Page आदि) यहाँ समाप्त हो रहा है ---
-
-if st.session_state.current_page == "Home":
-    st.markdown("<h2 style='text-align: center;'>🏠 Visiontech Home</h2>", unsafe_allow_html=True)
+# ... (Supabase initialization और बाकी के पन्ने ऊपर रहेंगे) ...
 
 elif st.session_state.current_page == "Indus":
     st.markdown("<h3 style='text-align: center;'>📊 Indus Basic Data</h3>", unsafe_allow_html=True)
@@ -504,7 +501,7 @@ elif st.session_state.current_page == "Indus":
                     st.markdown(f"📍 **Lat/Long** :- {lat} / {lon} <a href='{maps_url}' target='_blank'><button style='background-color:#EA4335;color:white;border:none;padding:2px 10px;border-radius:5px;cursor:pointer;font-weight:bold;'>📍 Direction</button></a>", unsafe_allow_html=True)
                 else: st.markdown(f"📍 **Lat/Long** :- {lat if lat else '-'} / {lon if lon else '-'}")
             
-            # --- WhatsApp Logic: Fix Emojis & New Tab Issue ---
+            # --- Updated WhatsApp Logic: Protocol handling to avoid Web loading ---
             maps_dir = f"https://www.google.com/maps/dir/{base_lat},{base_lon}/{lat},{lon}"
             
             msg_body = (
@@ -519,13 +516,19 @@ elif st.session_state.current_page == "Indus":
                 f"🗺️ *Route Map Link*:\n{maps_dir}"
             )
             
-            # quote_plus helps emojis and line breaks to be sent correctly
             wa_encoded = urllib.parse.quote_plus(msg_body)
-            # api.whatsapp.com is more stable for redirects
-            wa_link = f"https://api.whatsapp.com/send?text={wa_encoded}"
             
-            # st.link_button is the cleanest way to open WhatsApp without cluttering tabs
-            st.link_button("💬 Select Contact & Send on WhatsApp", wa_link, use_container_width=True)
+            # 'whatsapp://send' सीधा आपके कंप्यूटर या फोन के WhatsApp APP को खोलता है।
+            # इससे 'web.whatsapp.com' वाला लोडिंग टाइम (20 मिनट) बिल्कुल खत्म हो जाएगा।
+            app_link = f"whatsapp://send?text={wa_encoded}"
+            
+            st.markdown(f'''
+                <a href="{app_link}" target="_self">
+                    <button style="width:100%; background-color:#25D366; color:white; border:none; padding:10px; border-radius:5px; font-weight:bold; cursor:pointer;">
+                        🚀 Open in WhatsApp APP (Fast)
+                    </button>
+                </a>
+                ''', unsafe_allow_html=True)
 
         else: st.info("No Indus data found.")
 
