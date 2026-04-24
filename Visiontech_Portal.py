@@ -503,7 +503,7 @@ elif st.session_state.current_page == "Indus":
                     st.markdown(f"📍 **Lat/Long** :- {lat} / {lon} <a href='{maps_url}' target='_blank'><button style='background-color:#EA4335;color:white;border:none;padding:2px 10px;border-radius:5px;cursor:pointer;font-weight:bold;'>📍 Direction</button></a>", unsafe_allow_html=True)
                 else: st.markdown(f"📍 **Lat/Long** :- {lat if lat else '-'} / {lon if lon else '-'}")
             
-            # --- WhatsApp Format & Universal Link ---
+            # --- Updated WhatsApp Logic: Using st.link_button to avoid "Sad Face" error ---
             maps_dir = f"https://www.google.com/maps/dir/{base_lat},{base_lon}/{lat},{lon}"
             
             msg_body = (
@@ -519,17 +519,11 @@ elif st.session_state.current_page == "Indus":
             )
             
             wa_encoded = urllib.parse.quote_plus(msg_body)
-            # api.whatsapp.com सबसे बेस्ट है, यह ऐप और वेब दोनों पर काम करता है
-            universal_link = f"https://api.whatsapp.com/send?text={wa_encoded}"
+            # api.whatsapp.com is standard and works with link_button
+            wa_link = f"https://api.whatsapp.com/send?text={wa_encoded}"
             
-            # target='_self' इस्तेमाल करने से नया टैब खुलने की समस्या कम होगी
-            st.markdown(f'''
-                <a href="{universal_link}" target="_self">
-                    <button style="width:100%; background-color:#25D366; color:white; border:none; padding:12px; border-radius:8px; font-weight:bold; cursor:pointer; font-size:16px;">
-                        💬 Select Contact & Send (WhatsApp)
-                    </button>
-                </a>
-                ''', unsafe_allow_html=True)
+            # Streamlit native link_button handles the opening logic safely
+            st.link_button("💬 Select Contact & Send (WhatsApp)", wa_link, use_container_width=True)
 
         else: st.info("No Indus data found.")
 
@@ -575,7 +569,6 @@ elif st.session_state.current_page == "Indus":
                     gmaps_route = f"https://www.google.com/maps/dir/{coords_str}"
                     st.markdown(f'<a href="{gmaps_route}" target="_blank"><button style="width:100%; background-color:#4285F4; color:white; border:none; padding:10px; border-radius:5px; font-weight:bold; cursor:pointer;">🗺️ Open Full Route in Maps</button></a>', unsafe_allow_html=True)
             except Exception as e: st.error(f"Error: {e}")
-
    # =====================================================================
     # 📡 TAB 5: WCC STATUS (AUTO-WHATSAPP WITH 8 VARIABLES - 0% LOGIC CHANGE)
     # =====================================================================
