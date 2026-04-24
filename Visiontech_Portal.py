@@ -564,7 +564,7 @@ elif st.session_state.current_page == "Indus":
                     st.markdown(f'<a href="{gmaps_route}" target="_blank"><button style="width:100%; background-color:#4285F4; color:white; border:none; padding:12px; border-radius:5px; font-weight:bold; cursor:pointer;">🗺️ Open Sequential Route (1-2-3-4)</button></a>', unsafe_allow_html=True)
             except Exception as e: st.error(f"Error: {e}")
     # =====================================================================
-    # 📡 TAB 5: WCC STATUS (ORIGINAL LOGIC + SEARCH BOX ADDED)
+    # 📡 TAB 5: WCC STATUS (ORIGINAL + SEARCH BOX)
     # =====================================================================
     elif st.session_state.current_page == "WCC":
         st.markdown("""
@@ -580,10 +580,7 @@ elif st.session_state.current_page == "Indus":
             api_key = "S2pFcE5ETjE2NDhiQ1VIMEFjMVA5a3ZwdHB6X0diYXpRM2I2SWRxbGJWYzo="
             numbers = ["919960843473", "919552273181", "917498984373"]
             url = "https://api.interakt.ai/v1/public/message/"
-            headers = {
-                "Authorization": f"Basic {api_key}",
-                "Content-Type": "application/json"
-            }
+            headers = {"Authorization": f"Basic {api_key}", "Content-Type": "application/json"}
             
             body_values = [
                 str(row_data.get("Project", "")),        # {{1}}
@@ -689,7 +686,6 @@ elif st.session_state.current_page == "Indus":
             data_list = fetch_wcc_data_simple()
             df_wcc = pd.DataFrame(data_list)[::-1] if data_list else pd.DataFrame()
             
-            # --- NAVIN SEARCH BAR LOGIC ADDED HERE ---
             c_top1, c_top2, c_top3 = st.columns([1, 1, 1.5])
             with c_top1:
                 if role == "requester" and st.button("➕ Add New Site Request", type="primary"): wcc_edit_modal()
@@ -698,12 +694,10 @@ elif st.session_state.current_page == "Indus":
                     excel_data = df_wcc.to_csv(index=False).encode('utf-8')
                     st.download_button("📥 Download Report", data=excel_data, file_name=f"WCC_Report.csv", mime="text/csv")
             with c_top3:
-                # User can search Project ID, Site ID, Site Name, etc.
+                # Search Bar Live Integration
                 search_query = st.text_input("🔍 Search Project, Site, PO...", key="wcc_search_v1")
 
-            # Apply Search Filter before showing the table
             if search_query and not df_wcc.empty:
-                # This line searches the entire row for the typed word
                 df_wcc = df_wcc[df_wcc.astype(str).apply(lambda x: x.str.contains(search_query, case=False)).any(axis=1)]
 
             with st.expander("🛠️ Bulk Update WCC & Remarks via Excel"):
@@ -765,11 +759,11 @@ elif st.session_state.current_page == "Indus":
                     r_cols[9].markdown(f"<p style='font-size:10px; color:gray; text-align:center;'>{clean_none(row.get('Remark'))}</p>", unsafe_allow_html=True)
                     st.markdown("<hr style='margin:1px 0px; border-top: 1px solid #E5E7EB;'>", unsafe_allow_html=True)
 
-# =====================================================================
-# 🏗️ TAB 6: DATA ENTRY (Document Center & Tracker)
-# =====================================================================
-if "Data" in str(st.session_state.current_page) or "Entry" in str(st.session_state.current_page):
-    st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center & Tracker</h3>", unsafe_allow_html=True)
+    # =====================================================================
+    # 🏗️ TAB 6: DATA ENTRY (Document Center & Tracker)
+    # =====================================================================
+    elif "Data" in str(st.session_state.current_page) or "Entry" in str(st.session_state.current_page):
+        st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center & Tracker</h3>", unsafe_allow_html=True)
     
     doc_sub1, doc_sub2, doc_sub3 = st.tabs(["📤 Manager Upload", "🔍 Team Search", "📊 Tracker"])
     
