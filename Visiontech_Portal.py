@@ -97,7 +97,6 @@ def navigate_to(page):
     if page == "Tracking":
         st.switch_page("pages/tracking.py")
     else:
-        # He logic PDFFormat ani itar sarva internal pages sathi kaam karel
         st.session_state.current_page = page
         st.rerun()
 
@@ -1227,50 +1226,81 @@ elif st.session_state.current_page == "Indus":
                             st.toast(f"AI: {m}")
 
 # =====================================================================
-    # 📜 TAB 10: VINTAGE PDF FORMATTER
+    # 📜 TAB 10: VINTAGE PDF FORMATTER (REAL-LIFE SCAN FEEL)
     # =====================================================================
     elif st.session_state.current_page == "PDFFormat":
-        import fitz  # PyMuPDF (Install: pip install pymupdf)
+        import fitz  # PyMuPDF (pip install pymupdf)
         
-        st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>📜 Vintage PDF Generator</h3>", unsafe_allow_html=True)
-        st.info("ℹ️ Fresh PDF upload kara, ti real-life scanned copy sarkhi disel.")
+        st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>📜 Vintage PDF Generator</h2>", unsafe_allow_html=True)
+        st.info("ℹ️ Fresh PDF upload kara, ti real-life scanned copy sarkhi (dhul, folds ani normal fata-futa) disel.")
 
-        # PDF la vintage banvnyache function
+        # --- Vintage Processing Logic ---
         def apply_vintage_effect(image):
             img = image.convert("RGB")
             img_array = np.array(img)
-            # Dust/Noise effect
-            noise = np.random.normal(0, 12, img_array.shape)
+            
+            # 1. Add Dust & Noise (Dhul feel)
+            noise = np.random.normal(0, 15, img_array.shape)
             img_noised = np.clip(img_array + noise, 0, 255).astype(np.uint8)
             img = Image.fromarray(img_noised)
-            # Vintage paper tint (thoda pivlasar color)
-            img = ImageOps.colorize(ImageOps.grayscale(img), black="#000000", white="#fdf5e6")
+            
+            # 2. Add Random Folds (Fata wala look)
+            draw = ImageDraw.Draw(img)
+            w, h = img.size
+            for _ in range(2): # 2 random lines sathi
+                y_pos = random.randint(h//4, 3*h//4)
+                draw.line([(0, y_pos), (w, y_pos + random.randint(-20, 20))], fill=(200, 200, 200), width=1)
+            
+            # 3. Vintage Paper Tint (Old paper color)
+            img = ImageOps.colorize(ImageOps.grayscale(img), black="#000000", white="#f4ecd8")
+            
+            # 4. Slight Blur (Scan feel)
+            img = img.filter(ImageFilter.GaussianBlur(radius=0.3))
+            
             return img
 
-        # UI Buttons
-        up_col, down_col, clr_col = st.columns(3)
+        # --- UI LAYOUT ---
+        col_up, col_down, col_clr = st.columns(3)
         
-        v_file = st.file_uploader("📂 Upload PDF here", type=['pdf'], key="v_up_1")
+        v_file = st.file_uploader("📂 Upload Fresh PDF", type=['pdf'], key="v_up_unique")
 
         if v_file:
-            doc = fitz.open(stream=v_file.read(), filetype="pdf")
+            # PDF to Images
+            pdf_bytes = v_file.read()
+            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
             processed_pages = []
-            
-            with st.spinner("Processing..."):
+
+            with st.spinner("⏳ Vintage magic apply hot aahe..."):
                 for page in doc:
-                    pix = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5))
+                    # Rendering page at high resolution
+                    pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
                     img = Image.open(io.BytesIO(pix.tobytes()))
-                    processed_pages.append(apply_vintage_effect(img))
+                    
+                    # Processing each page
+                    vintage_img = apply_vintage_effect(img)
+                    processed_pages.append(vintage_img)
 
-            # Rebuild PDF
-            out_pdf = io.BytesIO()
-            processed_pages[0].save(out_pdf, format="PDF", save_all=True, append_images=processed_pages[1:])
+            # Build Output PDF
+            output_pdf = io.BytesIO()
+            if processed_pages:
+                processed_pages[0].save(output_pdf, format="PDF", save_all=True, append_images=processed_pages[1:])
             
-            with up_col: st.success("Magic Done! ✅")
-            with down_col:
-                st.download_button("📥 DOWNLOAD PDF", out_pdf.getvalue(), f"Vintage_{v_file.name}", "application/pdf")
-            with clr_col:
-                if st.button("🧹 CLEAR"): st.rerun()
+            # Buttons Logic
+            with col_up:
+                st.success("✅ Success!")
+            with col_down:
+                st.download_button(
+                    label="📥 DOWNLOAD PDF",
+                    data=output_pdf.getvalue(),
+                    file_name=f"Vintage_{v_file.name}",
+                    mime="application/pdf",
+                    use_container_width=True
+                )
+            with col_clr:
+                if st.button("🧹 CLEAR ALL", use_container_width=True):
+                    st.rerun()
 
+            # Preview
             st.divider()
-            st.image(processed_pages[0], caption="First Page Preview", use_container_width=True)
+            st.subheader("👀 Preview")
+            st.image(processed_pages[0], caption="First Page Vintage View", use_container_width=True)
