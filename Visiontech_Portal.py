@@ -563,7 +563,7 @@ elif st.session_state.current_page == "Indus":
                     gmaps_route = f"https://www.google.com/maps/dir/{start_coords}/{stops}/{end_coords}"
                     st.markdown(f'<a href="{gmaps_route}" target="_blank"><button style="width:100%; background-color:#4285F4; color:white; border:none; padding:12px; border-radius:5px; font-weight:bold; cursor:pointer;">🗺️ Open Sequential Route (1-2-3-4)</button></a>', unsafe_allow_html=True)
             except Exception as e: st.error(f"Error: {e}")
-  # =====================================================================
+ # =====================================================================
 # 📡 TAB 5: WCC STATUS (RESTORED ALIGNMENT - 0% LOGIC CHANGE)
 # =====================================================================
     elif st.session_state.current_page == "WCC":
@@ -583,14 +583,14 @@ elif st.session_state.current_page == "Indus":
             headers = {"Authorization": f"Basic {api_key}", "Content-Type": "application/json"}
             
             body_values = [
-                str(row_data.get("Project", "")),        # {{1}} [cite: 1]
-                str(row_data.get("Project ID", "")),     # {{2}} [cite: 1]
-                str(row_data.get("Site ID", "")),        # {{3}} [cite: 1]
-                str(row_data.get("Site Name", "")),      # {{4}} [cite: 1]
-                str(row_data.get("PO Number", "")),      # {{5}} [cite: 1]
-                str(row_data.get("Reqeust Date", "")),   # {{6}} [cite: 1]
-                str(row_data.get("WCC Number", "")),     # {{7}} [cite: 1]
-                str(row_data.get("WCC Status", ""))      # {{8}} [cite: 1]
+                str(row_data.get("Project", "")),        # {{1}}
+                str(row_data.get("Project ID", "")),     # {{2}}
+                str(row_data.get("Site ID", "")),        # {{3}}
+                str(row_data.get("Site Name", "")),      # {{4}}
+                str(row_data.get("PO Number", "")),      # {{5}}
+                str(row_data.get("Reqeust Date", "")),   # {{6}}
+                str(row_data.get("WCC Number", "")),     # {{7}}
+                str(row_data.get("WCC Status", ""))      # {{8}}
             ]
 
             for num in numbers:
