@@ -1225,7 +1225,7 @@ elif st.session_state.current_page == "Indus":
                             st.toast(f"AI: {m}")
 
 # =====================================================================
-# 📜 TAB 10: VINTAGE PDF FORMATTER - EXACT JPEG REPLICA (SNC FIXED)
+# 📜 TAB 10: VINTAGE PDF FORMATTER - 4-FOLD CREASE & INTERNAL TEAR
 # =====================================================================
 if st.session_state.current_page == "PDFFormat":
     import io
@@ -1239,88 +1239,68 @@ if st.session_state.current_page == "PDFFormat":
     try:
         import fitz 
     except ImportError:
-        st.error("Terminal mein run karein: pip install pymupdf")
+        st.error("Terminal mein pip install pymupdf karein")
         st.stop()
 
-    st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>📜 Exact-Real Vintage Generator</h2>", unsafe_allow_html=True)
-    st.info("ℹ️ Isme niche se fata wala look aur exact paper folds apply honge.")
+    st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>📜 Professional Vintage Folded Scan</h2>", unsafe_allow_html=True)
     
     col_u, col_d, col_cl = st.columns(3)
-    v_file = st.file_uploader("📂 Upload Fresh PDF", type=['pdf'], key=f"v_up_exact_{st.session_state.v_uploader_key}")
+    v_file = st.file_uploader("📂 Upload PDF", type=['pdf'], key=f"v_up_fold_{st.session_state.v_uploader_key}")
 
-    def apply_exact_vintage(image):
+    def apply_4fold_vintage(image):
         image = image.convert("RGBA")
         w, h = image.size
         
-        # 1. Canvas Setup (Thodi extra space niche fadne ke liye)
-        canvas_w, canvas_h = w + 40, h + 100
-        paper = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0))
-        # Image ko thoda upar rakhenge taaki niche se fadne ka space mile
-        paper.paste(image, (20, 20))
+        # 1. Background Setup (Asli purana kagaz color)
+        bg_color = (241, 232, 210)
+        canvas = Image.new("RGBA", (w, h), bg_color + (255,))
+        canvas.paste(image, (0, 0), image)
 
-        # 2. Exact Tearing Logic (Niche se fata wala - As per JPEG)
-        mask = Image.new("L", (canvas_w, canvas_h), 255)
-        draw_mask = ImageDraw.Draw(mask)
+        # 2. 4-Fold Realism (Gradient Shadows - No straight lines)
+        draw = ImageDraw.Draw(canvas)
+        # 4 Horizontal Fold positions
+        folds = [h//5, 2*h//5, 3*h//5, 4*h//5]
         
-        # Bottom Edge Tearing (V-shape and irregular cuts)
-        y_bottom = h + 20
-        points = []
-        points.append((0, canvas_h))
-        for x in range(0, canvas_w, 15):
-            y_cut = y_bottom + random.randint(10, 60)
-            # Kahi kahi gehra cut (Fata wala look)
-            if x > w//3 and x < 2*w//3:
-                y_cut -= random.randint(30, 50)
-            points.append((x, y_cut))
-        points.append((canvas_w, canvas_h))
-        points.append((canvas_w, 0))
-        points.append((0, 0))
+        for f_y in folds:
+            offset = random.randint(-20, 20)
+            y = f_y + offset
+            # Dark crease (Shadow)
+            for i in range(5):
+                alpha = 40 - (i * 8)
+                draw.line([(0, y+i), (w, y+i+random.randint(-2,2))], fill=(100, 90, 70, alpha), width=1)
+            # Light crease (Highlight)
+            for i in range(3):
+                alpha = 30 - (i * 10)
+                draw.line([(0, y-i), (w, y-i+random.randint(-2,2))], fill=(255, 255, 240, alpha), width=1)
+
+        # 3. Internal Bottom Tear (Sirf niche se fata hua - Boundary ke andar)
+        mask = Image.new("L", (w, h), 255)
+        d_mask = ImageDraw.Draw(mask)
+        tear_y = h - random.randint(40, 80)
         
-        # Fill outside area with black (transparent)
-        draw_mask.rectangle([0, y_bottom, canvas_w, canvas_h], fill=0)
-        draw_mask.polygon(points, fill=255)
+        points = [(0, tear_y)]
+        for x in range(0, w, 10):
+            ty = tear_y + random.randint(-15, 30)
+            if x > w//4 and x < 3*w//4: # Beech mein zyada gehra cut
+                ty -= random.randint(20, 40)
+            points.append((x, ty))
+        points.extend([(w, h), (0, h)])
+        d_mask.polygon(points, fill=0)
         
-        # 3. Side rough edges
-        for i in range(0, y_bottom, 10):
-            draw_mask.ellipse([random.randint(-10, 5), i, random.randint(10, 25), i+15], fill=0)
-            draw_mask.ellipse([canvas_w-random.randint(10, 25), i, canvas_w+10, i+15], fill=0)
-
-        paper.putalpha(mask.filter(ImageFilter.GaussianBlur(radius=0.8)))
-
-        # 4. Background & Texture
-        final_img = Image.new("RGB", (canvas_w, canvas_h), (242, 235, 218))
-        final_img.paste(paper, (0, 0), paper)
-
-        # 5. Exact Folds (JPEG Style)
-        draw = ImageDraw.Draw(final_img)
-        # Main Fold (Niche se thoda upar - exact as image)
-        y_main = int(canvas_h * 0.65)
-        # Shadow
-        draw.line([(0, y_main), (canvas_w, y_main + 5)], fill=(150, 140, 120), width=3)
-        # Highlight
-        draw.line([(0, y_main+3), (canvas_w, y_main + 8)], fill=(255, 250, 240), width=2)
+        # Applying the tear mask
+        canvas.putalpha(mask.filter(ImageFilter.GaussianBlur(radius=0.5)))
         
-        # Second vertical subtle fold
-        x_fold = int(canvas_w * 0.3)
-        draw.line([(x_fold, 0), (x_fold-5, canvas_h)], fill=(160, 150, 130, 50), width=1)
+        # 4. Overall Texture & Grain
+        final = Image.new("RGB", (w, h), (255, 255, 255)) # Transparent areas white ho jayengi
+        final.paste(canvas, (0, 0), canvas)
+        
+        img_array = np.array(final)
+        noise = np.random.normal(0, 8, img_array.shape)
+        final = Image.fromarray(np.clip(img_array + noise, 0, 255).astype(np.uint8))
 
-        # 6. Noise & Grains (Dhul)
-        img_array = np.array(final_img)
-        noise = np.random.normal(0, 10, img_array.shape)
-        img_noised = np.clip(img_array + noise, 0, 255).astype(np.uint8)
-        final_img = Image.fromarray(img_noised)
-
-        # 7. Subtle Stains
-        for _ in range(3):
-            sx, sy = random.randint(50, w), random.randint(50, h)
-            stain = Image.new("L", (120, 120), 0)
-            ImageDraw.Draw(stain).ellipse([30, 30, 90, 90], fill=random.randint(15, 35))
-            stain = stain.filter(ImageFilter.GaussianBlur(radius=20))
-            final_img.paste(Image.new("RGB", (120, 120), (139, 115, 85)), (sx, sy), stain)
-
-        # Post Processing for Scan Realism
-        final_img = ImageOps.colorize(ImageOps.grayscale(final_img), black="#1e1e1e", white="#f4ece0")
-        return final_img
+        # 5. Final Tint
+        final = ImageOps.colorize(ImageOps.grayscale(final), black="#201b12", white="#f2e8d5")
+        return final
 
     if v_file:
         try:
@@ -1328,22 +1308,22 @@ if st.session_state.current_page == "PDFFormat":
             doc = fitz.open(stream=pdf_bytes, filetype="pdf")
             processed_pages = []
 
-            with st.spinner("⏳ Exact Scanned Look apply hot aahe..."):
+            with st.spinner("⏳ Paper mod kar fata wala look de raha hoon..."):
                 for page in doc:
                     pix = page.get_pixmap(matrix=fitz.Matrix(2.0, 2.0))
                     img = Image.open(io.BytesIO(pix.tobytes()))
-                    processed_pages.append(apply_exact_vintage(img))
+                    processed_pages.append(apply_4fold_vintage(img))
 
             output_pdf = io.BytesIO()
             if processed_pages:
                 processed_pages[0].save(output_pdf, format="PDF", save_all=True, append_images=processed_pages[1:])
             
-            with col_u: st.success("✅ SNC Master Magic Done!")
+            with col_u: st.success("✅ Real 4-Fold Magic Done!")
             with col_d:
-                st.download_button("📥 DOWNLOAD REAL-PDF", output_pdf.getvalue(), f"RealVintage_{v_file.name}", "application/pdf", use_container_width=True)
+                st.download_button("📥 DOWNLOAD VINTAGE PDF", output_pdf.getvalue(), f"Folded_{v_file.name}", "application/pdf", use_container_width=True)
             
             st.divider()
-            st.subheader("👀 Preview (Exact JPEG Replica)")
+            st.subheader("👀 Preview (4 Folds & Bottom Tear)")
             st.image(processed_pages[0], use_container_width=True)
 
         except Exception as e:
