@@ -633,7 +633,7 @@ elif st.session_state.current_page == "Indus":
                 st.error(f"Supabase Error: {e}")
 
 # =====================================================================
-# 🏗️ TAB 6: DATA ENTRY (Indentation Fixed)
+# 🏗️ TAB 6: DATA ENTRY (0% Logic Change - Indentation Fixed)
 # =====================================================================
     elif "Data" in str(st.session_state.current_page) or "Entry" in str(st.session_state.current_page):
     
