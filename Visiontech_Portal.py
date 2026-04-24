@@ -1226,66 +1226,61 @@ elif st.session_state.current_page == "Indus":
                             st.toast(f"AI: {m}")
 
 # =====================================================================
-    # 📜 TAB 10: VINTAGE PDF FORMATTER (REAL-LIFE SCAN FEEL)
+    # 📜 TAB 10: VINTAGE PDF FORMATTER (PDF To Scanned Look)
     # =====================================================================
     elif st.session_state.current_page == "PDFFormat":
-        import fitz  # PyMuPDF (pip install pymupdf)
+        import fitz  # PyMuPDF (Install: pip install pymupdf)
         
         st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>📜 Vintage PDF Generator</h2>", unsafe_allow_html=True)
-        st.info("ℹ️ Fresh PDF upload kara, ti real-life scanned copy sarkhi (dhul, folds ani normal fata-futa) disel.")
+        st.info("ℹ️ Fresh PDF upload kara, ti real-life scanned copy sarkhi (dhul, folds ani grains) disel.")
 
-        # --- Vintage Processing Logic ---
+        # --- Vintage Processing Brain ---
         def apply_vintage_effect(image):
             img = image.convert("RGB")
             img_array = np.array(img)
             
-            # 1. Add Dust & Noise (Dhul feel)
+            # 1. Add Dust & Grains (Noise)
             noise = np.random.normal(0, 15, img_array.shape)
             img_noised = np.clip(img_array + noise, 0, 255).astype(np.uint8)
             img = Image.fromarray(img_noised)
             
-            # 2. Add Random Folds (Fata wala look)
+            # 2. Add Paper Folds (Random lines)
             draw = ImageDraw.Draw(img)
             w, h = img.size
-            for _ in range(2): # 2 random lines sathi
+            for _ in range(2):
                 y_pos = random.randint(h//4, 3*h//4)
-                draw.line([(0, y_pos), (w, y_pos + random.randint(-20, 20))], fill=(200, 200, 200), width=1)
+                draw.line([(0, y_pos), (w, y_pos + random.randint(-15, 15))], fill=(200, 200, 200), width=1)
             
-            # 3. Vintage Paper Tint (Old paper color)
+            # 3. Vintage Paper Tint (Sepia/Old Look)
             img = ImageOps.colorize(ImageOps.grayscale(img), black="#000000", white="#f4ecd8")
             
-            # 4. Slight Blur (Scan feel)
+            # 4. Scan Blur (Digital sharpness kadhnya sathi)
             img = img.filter(ImageFilter.GaussianBlur(radius=0.3))
             
             return img
 
-        # --- UI LAYOUT ---
+        # --- UI BUTTONS ---
         col_up, col_down, col_clr = st.columns(3)
-        
-        v_file = st.file_uploader("📂 Upload Fresh PDF", type=['pdf'], key="v_up_unique")
+        v_file = st.file_uploader("📂 Upload Fresh PDF", type=['pdf'], key="v_up_unique_vision")
 
         if v_file:
-            # PDF to Images
+            # Step 1: PDF to Images Conversion
             pdf_bytes = v_file.read()
             doc = fitz.open(stream=pdf_bytes, filetype="pdf")
             processed_pages = []
 
             with st.spinner("⏳ Vintage magic apply hot aahe..."):
                 for page in doc:
-                    # Rendering page at high resolution
-                    pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
+                    pix = page.get_pixmap(matrix=fitz.Matrix(2, 2)) # DPI maintain karnya sathi
                     img = Image.open(io.BytesIO(pix.tobytes()))
-                    
-                    # Processing each page
-                    vintage_img = apply_vintage_effect(img)
-                    processed_pages.append(vintage_img)
+                    processed_pages.append(apply_vintage_effect(img))
 
-            # Build Output PDF
+            # Step 2: Build Output PDF from processed images
             output_pdf = io.BytesIO()
             if processed_pages:
                 processed_pages[0].save(output_pdf, format="PDF", save_all=True, append_images=processed_pages[1:])
             
-            # Buttons Logic
+            # Step 3: Button Actions
             with col_up:
                 st.success("✅ Success!")
             with col_down:
@@ -1302,5 +1297,5 @@ elif st.session_state.current_page == "Indus":
 
             # Preview
             st.divider()
-            st.subheader("👀 Preview")
-            st.image(processed_pages[0], caption="First Page Vintage View", use_container_width=True)
+            st.subheader("👀 Preview (Page 1)")
+            st.image(processed_pages[0], use_container_width=True)
