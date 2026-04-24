@@ -453,10 +453,9 @@ import pandas as pd
 import urllib.parse
 from geopy.distance import geodesic
 
-# --- यह सुनिश्चित करें कि 'elif' से पहले वाला 'if' ब्लॉक सही से बंद है ---
-
+# --- यह सुनिश्चित करने के लिए कि 'elif' एरर न दे, पिछला ब्लॉक यहाँ है ---
 if st.session_state.current_page == "Home":
-    st.markdown("<h2 style='text-align: center;'>🏠 Visiontech Home</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center;'>🏠 Visiontech Portal Home</h2>", unsafe_allow_html=True)
 
 elif st.session_state.current_page == "Indus":
     st.markdown("<h3 style='text-align: center;'>📊 Indus Basic Data</h3>", unsafe_allow_html=True)
@@ -475,7 +474,7 @@ elif st.session_state.current_page == "Indus":
             st.subheader("📌 Vertical Site Details")
             row_in = res_ind.data[0]
             
-            # --- Distance Logic (No changes to logic or variables) ---
+            # --- Distance Logic (0% Change in Logic/Variables) ---
             base_lat, base_lon = 18.6233, 74.0312
             site_lat = row_in.get('Lat')
             site_lon = row_in.get('Long')
@@ -500,11 +499,12 @@ elif st.session_state.current_page == "Indus":
                 st.markdown(call_html("👨‍💼 **AOM Name**", row_in.get('AOM Name','-'), row_in.get('AOM Number','-')), unsafe_allow_html=True)
                 lat, lon = row_in.get('Lat', ''), row_in.get('Long', '')
                 if lat and lon and str(lat).strip() not in ['-', '', 'None', 'nan']:
+                    # Road Direction link
                     maps_url = f"https://www.google.com/maps/dir/{base_lat},{base_lon}/{lat},{lon}"
                     st.markdown(f"📍 **Lat/Long** :- {lat} / {lon} <a href='{maps_url}' target='_blank'><button style='background-color:#EA4335;color:white;border:none;padding:2px 10px;border-radius:5px;cursor:pointer;font-weight:bold;'>📍 Direction</button></a>", unsafe_allow_html=True)
                 else: st.markdown(f"📍 **Lat/Long** :- {lat if lat else '-'} / {lon if lon else '-'}")
             
-            # --- WhatsApp Logic: Protocol handling (Fast & No New Tabs) ---
+            # --- WhatsApp Format & Direct App Trigger ---
             maps_dir = f"https://www.google.com/maps/dir/{base_lat},{base_lon}/{lat},{lon}"
             
             msg_body = (
@@ -520,16 +520,10 @@ elif st.session_state.current_page == "Indus":
             )
             
             wa_encoded = urllib.parse.quote_plus(msg_body)
-            # whatsapp:// प्रोटोकॉल सीधा डेस्कटॉप ऐप खोलता है
+            # whatsapp:// protocol opens the local app directly, skipping Web WhatsApp loading
             app_link = f"whatsapp://send?text={wa_encoded}"
             
-            st.markdown(f'''
-                <a href="{app_link}" target="_self">
-                    <button style="width:100%; background-color:#25D366; color:white; border:none; padding:10px; border-radius:5px; font-weight:bold; cursor:pointer;">
-                        🚀 Quick Send on WhatsApp App
-                    </button>
-                </a>
-                ''', unsafe_allow_html=True)
+            st.link_button("🚀 Send Details via WhatsApp (Fast)", app_link, use_container_width=True)
 
         else: st.info("No Indus data found.")
 
