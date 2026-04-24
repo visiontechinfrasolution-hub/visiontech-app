@@ -455,10 +455,8 @@ from geopy.distance import geodesic
 
 # ... (बाकी के पन्ने और supabase initialization ऊपर रहेंगे) ...
 
-# 1. सुनिश्चित करें कि 'elif' से पहले एक 'if' मौजूद है और उसका इंडेंटेशन समान है
 if st.session_state.current_page == "Home":
     st.markdown("<h2 style='text-align: center;'>🏠 Welcome to Visiontech Portal</h2>", unsafe_allow_html=True)
-    # होम पेज का कोड यहाँ...
 
 elif st.session_state.current_page == "Indus":
     st.markdown("<h3 style='text-align: center;'>📊 Indus Basic Data</h3>", unsafe_allow_html=True)
@@ -502,14 +500,12 @@ elif st.session_state.current_page == "Indus":
                 st.markdown(call_html("👨‍💼 **AOM Name**", row_in.get('AOM Name','-'), row_in.get('AOM Number','-')), unsafe_allow_html=True)
                 lat, lon = row_in.get('Lat', ''), row_in.get('Long', '')
                 if lat and lon and str(lat).strip() not in ['-', '', 'None', 'nan']:
-                    # Road Direction link (Base to Site)
                     maps_url = f"https://www.google.com/maps/dir/{base_lat},{base_lon}/{lat},{lon}"
                     st.markdown(f"📍 **Lat/Long** :- {lat} / {lon} <a href='{maps_url}' target='_blank'><button style='background-color:#EA4335;color:white;border:none;padding:2px 10px;border-radius:5px;cursor:pointer;font-weight:bold;'>📍 Direction</button></a>", unsafe_allow_html=True)
                 else: 
                     st.markdown(f"📍 **Lat/Long** :- {lat if lat else '-'} / {lon if lon else '-'}")
             
-            # --- WhatsApp Logic: Fixed Encoding & Contact Selection ---
-            # Maps link for Road Distance awareness
+            # --- WhatsApp Logic: Fixed Encoding & New Tab Issue ---
             maps_dir = f"https://www.google.com/maps/dir/{base_lat},{base_lon}/{lat},{lon}"
             
             msg_body = (
@@ -525,10 +521,17 @@ elif st.session_state.current_page == "Indus":
             )
             
             wa_encoded = urllib.parse.quote(msg_body)
-            # URL without phone number to trigger contact selection
-            wa_link = f"https://web.whatsapp.com/send?text={wa_encoded}"
+            # 'wa.me' लिंक ब्राउज़र में WhatsApp App या पहले से खुले टैब को ट्रिगर करने की कोशिश करता है
+            wa_link = f"https://wa.me/?text={wa_encoded}"
             
-            st.markdown(f'<a href="{wa_link}" target="_blank"><button style="width:100%; background-color:#25D366; color:white; border:none; padding:10px; border-radius:5px; font-weight:bold; cursor:pointer;">💬 Select Contact & Send</button></a>', unsafe_allow_html=True)
+            # यहाँ हमने target='_blank' की जगह सीधा लिंक इस्तेमाल किया है
+            st.markdown(f'''
+                <a href="{wa_link}">
+                    <button style="width:100%; background-color:#25D366; color:white; border:none; padding:10px; border-radius:5px; font-weight:bold; cursor:pointer;">
+                        💬 Select Contact & Send (WhatsApp)
+                    </button>
+                </a>
+                ''', unsafe_allow_html=True)
         else: 
             st.info("No Indus data found.")
 
