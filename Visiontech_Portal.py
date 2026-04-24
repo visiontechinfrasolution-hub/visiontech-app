@@ -1225,7 +1225,7 @@ elif st.session_state.current_page == "Indus":
                             st.toast(f"AI: {m}")
 
 # =====================================================================
-    # 📜 TAB 10: VINTAGE PDF FORMATTER - HIGH-LEVEL REALISM (SNC FIXED)
+    # 📜 TAB 10: VINTAGE PDF FORMATTER - HIGH-LEVEL REALISM (FINAL FIXED)
     # =====================================================================
     if st.session_state.current_page == "PDFFormat":
         import io
@@ -1233,6 +1233,14 @@ elif st.session_state.current_page == "Indus":
         import numpy as np
         from PIL import Image, ImageDraw, ImageOps, ImageFilter
         
+        # --- CLEAR LOGIC (Dynamic Key) ---
+        if "v_uploader_key" not in st.session_state:
+            st.session_state.v_uploader_key = 100
+
+        def clear_pdf_action():
+            st.session_state.v_uploader_key += 1
+            st.rerun()
+
         # Check PyMuPDF dependency
         try:
             import fitz 
@@ -1245,155 +1253,93 @@ elif st.session_state.current_page == "Indus":
         
         # --- UI Layout ---
         col_u, col_d, col_cl = st.columns(3)
-        v_file = st.file_uploader("📂 Upload Fresh PDF", type=['pdf'], key="v_up_vision_protected")
+        
+        # Uploader with Dynamic Key for 100% Clear Fix
+        v_file = st.file_uploader("📂 Upload Fresh PDF", type=['pdf'], key=f"v_up_vision_{st.session_state.v_uploader_key}")
 
         if v_file:
-            # --- High-Level Vintage Brain Logic ---
+            # --- High-Level Vintage Brain Logic (Wahi asli wala logic) ---
             def apply_vintage_effect(image):
                 w, h = image.size
-                
-                # Canvas size thodi vaadhvun kada banvnya sathi (for torn edges)
                 canvas_w, canvas_h = w + 40, h + 40
-                torn_bg = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0)) # Fully Transparent background
+                torn_bg = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0)) 
                 
-                # Main paper mask transparent bg var
                 paper_mask = Image.new("L", (canvas_w, canvas_h), 0)
                 draw_mask = ImageDraw.Draw(paper_mask)
-                draw_mask.rectangle([20, 20, w+20, h+20], fill=255) # White paper area
+                draw_mask.rectangle([20, 20, w+20, h+20], fill=255)
 
-                # ==========================================
-                # 🛑 3. Fata Wala Look (Random Torn Edges on mask)
-                # ==========================================
-                # 0% logic change, fakt parameters update sathi randomness add keli ahe.
-                for _ in range(30):
-                    x = random.randint(0, 10)
+                # 🛑 3. Fata Wala Look (Random Torn Edges)
+                for _ in range(35):
+                    x = random.randint(0, 15)
                     y = random.randint(0, h + 30)
-                    draw_mask.ellipse([x, y, x+random.randint(15,25), y+random.randint(15,25)], fill=0) # Left
-                    x = random.randint(w + 30, w + 40)
+                    draw_mask.ellipse([x, y, x+random.randint(15,30), y+random.randint(15,30)], fill=0)
+                    x = random.randint(w + 25, w + 40)
                     y = random.randint(0, h + 30)
-                    draw_mask.ellipse([x, y, x+random.randint(15,25), y+random.randint(15,25)], fill=0) # Right
+                    draw_mask.ellipse([x, y, x+random.randint(15,30), y+random.randint(15,30)], fill=0)
 
                 paper_mask = paper_mask.filter(ImageFilter.GaussianBlur(radius=random.uniform(1.0, 2.5)))
-                
-                # Image transparent background var paste karnya sathi mask vapra
                 torn_bg.paste(image.convert("RGBA"), (20, 20), paper_mask.crop([20, 20, w+20, h+20]))
                 
-                # Convert back to RGB for other effects
-                img = Image.new("RGB", torn_bg.size, (244, 236, 216)) # Sepia/Pivla base color
-                img.paste(torn_bg, (0, 0), torn_bg) # Paste transparent torn image over base
+                img = Image.new("RGB", torn_bg.size, (244, 236, 216)) 
+                img.paste(torn_bg, (0, 0), torn_bg)
 
-                img_array = np.array(img)
-                
-                # ==========================================
                 # 🛑 4. Dhul Ani Daag (Random Dust/Coffee Stains)
-                # ==========================================
-                num_stains = random.randint(1, 4)
-                for _ in range(num_stains):
-                    stain_type = random.choice(['spot', 'splash'])
-                    stain_x = random.randint(w // 6, w // 2)
-                    stain_y = random.randint(h // 6, h // 2)
-                    
-                    if stain_type == 'splash':
-                         # Coffee splash mask
-                         splash_mask = Image.new("L", (200, 200), 0)
-                         ImageDraw.Draw(splash_mask).ellipse([50, 50, 150, 150], fill=255)
-                         splash_mask = splash_mask.filter(ImageFilter.GaussianBlur(radius=20))
-                         # Coffee overlay
-                         coffee = Image.new("RGB", (200, 200), (random.randint(100,160), random.randint(80,120), random.randint(50,80)))
-                         img.paste(coffee, (stain_x, stain_y), splash_mask)
-                    else:
-                        # Grains mask
-                        stain_mask = Image.new("L", img.size, 0)
-                        ImageDraw.Draw(stain_mask).ellipse([stain_x, stain_y, stain_x+20, stain_y+20], fill=180)
-                        stain_mask = stain_mask.filter(ImageFilter.GaussianBlur(radius=5))
-                        # Grains splash
-                        img.paste(Image.new("RGB", img.size, (50,50,50)), (0, 0), stain_mask)
+                for _ in range(random.randint(2, 5)):
+                    stain_x = random.randint(w // 6, w - 100)
+                    stain_y = random.randint(h // 6, h - 100)
+                    splash_mask = Image.new("L", (150, 150), 0)
+                    ImageDraw.Draw(splash_mask).ellipse([25, 25, 125, 125], fill=random.randint(30, 80))
+                    splash_mask = splash_mask.filter(ImageFilter.GaussianBlur(radius=15))
+                    coffee = Image.new("RGB", (150, 150), (random.randint(110,150), random.randint(90,110), random.randint(60,80)))
+                    img.paste(coffee, (stain_x, stain_y), splash_mask)
 
-                # ==========================================
                 # 🛑 1. Fold Marks (Randomized)
-                # ==========================================
-                # logic same, parameters updated for high realism.
-                num_folds = random.randint(1, 3) # Random number of folds per page
+                num_folds = random.randint(1, 3)
                 draw = ImageDraw.Draw(img)
-                paper_w, paper_h = img.size
                 for _ in range(num_folds):
-                    fold_type = random.choice(['h', 'v'])
-                    if fold_type == 'h':
-                        # Horizontal random fold
-                        y_pos = random.randint(paper_h // 4, 3 * paper_h // 4)
-                        # Dark line for shadow
-                        draw.line([(0, y_pos), (paper_w, y_pos + random.randint(-20, 20))], fill=(190, 180, 160), width=1)
-                        # White line for fold crease
-                        draw.line([(0, y_pos+1), (paper_w, y_pos+1 + random.randint(-20, 20))], fill=(240, 230, 210), width=1)
-                    else:
-                        # Vertical random fold
-                        x_pos = random.randint(paper_w // 4, 3 * paper_w // 4)
-                        draw.line([(x_pos, 0), (x_pos + random.randint(-15, 15), paper_h)], fill=(190, 180, 160), width=1)
-                        draw.line([(x_pos+1, 0), (x_pos+1 + random.randint(-15, 15), paper_h)], fill=(240, 230, 210), width=1)
+                    y_pos = random.randint(h // 4, 3 * h // 4)
+                    draw.line([(0, y_pos), (canvas_w, y_pos + random.randint(-15, 15))], fill=(190, 180, 160), width=1)
+                    draw.line([(0, y_pos+1), (canvas_w, y_pos+1 + random.randint(-15, 15))], fill=(240, 230, 210), width=1)
 
-                # ==========================================
-                # 🛑 2. Churgula Wala Look (Random Mesh Gaussian Blur)
-                # ==========================================
-                # Logic: Gaussian mesh over image, Gaussian radius random sathi
+                # 🛑 2. Churgula Look
                 mesh_img = Image.new("RGB", img.size, (200, 200, 200))
-                ImageDraw.Draw(mesh_img).rectangle([50, 50, img.size[0]-50, img.size[1]-50], fill=(0,0,0), outline=(255,255,255), width=20)
-                mesh_img = mesh_img.filter(ImageFilter.GaussianBlur(radius=random.uniform(5.0, 15.0)))
-                # Blend the mesh with image for crumple effect
-                img = Image.blend(img, mesh_img, alpha=random.uniform(0.05, 0.15))
+                ImageDraw.Draw(mesh_img).rectangle([40, 40, img.size[0]-40, img.size[1]-40], fill=(0,0,0), outline=(255,255,255), width=20)
+                mesh_img = mesh_img.filter(ImageFilter.GaussianBlur(radius=random.uniform(8.0, 18.0)))
+                img = Image.blend(img, mesh_img, alpha=random.uniform(0.06, 0.14))
 
-                # Final tint and slight blur for scan realism
-                # sepia pivla effect
+                # Final Scanned Scratches & Blur
                 img = ImageOps.colorize(ImageOps.grayscale(img), black="#221e16", white="#f0e6d6")
-                # blur for focus
-                img = img.filter(ImageFilter.GaussianBlur(radius=0.15))
-                
+                img = img.filter(ImageFilter.GaussianBlur(radius=0.2))
                 return img
 
             # Processing
             try:
-                # PDF read parameters 0% change, logic updated inside effects function.
                 pdf_bytes = v_file.read()
                 doc = fitz.open(stream=pdf_bytes, filetype="pdf")
                 processed_pages = []
 
-                with st.spinner("⏳ High-Realism magic suru aahe... (Yala vel lagel, thamba Malak!)"):
+                with st.spinner("⏳ High-Realism magic suru aahe... Thamba Malak!"):
                     for page in doc:
-                        # Rendaring parameters change: matrix parameter for good quality.
-                        pix = page.get_pixmap(matrix=fitz.Matrix(2.0, 2.0)) # Matrix parameter updated to 2.0
+                        pix = page.get_pixmap(matrix=fitz.Matrix(2.0, 2.0))
                         img = Image.open(io.BytesIO(pix.tobytes()))
                         processed_pages.append(apply_vintage_effect(img))
 
-                # Build Output PDF parameters updated for high quality.
                 output_pdf = io.BytesIO()
                 if processed_pages:
-                    # save_all parameter and append_images parameter logic same, but inside quality enhanced.
-                    processed_pages[0].save(
-                        output_pdf, 
-                        format="PDF", 
-                        save_all=True, 
-                        append_images=processed_pages[1:],
-                        quality=100, # Added quality parameter
-                        optimize=False # Optimization false for realism
-                    )
+                    processed_pages[0].save(output_pdf, format="PDF", save_all=True, append_images=processed_pages[1:], quality=100)
                 
-                with col_u: st.success("✅ SNC Protected High-Realism Magic Done!")
+                with col_u: st.success("✅ SNC High-Realism Done!")
                 with col_d:
-                    # SNC logic for download logic 0% change, unique keys added.
-                    st.download_button(
-                        "📥 DOWNLOAD HIGH-REAL PDF", 
-                        output_pdf.getvalue(), 
-                        f"RealVintage_{v_file.name}", 
-                        "application/pdf", 
-                        use_container_width=True, 
-                        key="v_dl_vision_btn_protected"
-                    )
-                with col_cl:
-                    if st.button("🧹 CLEAR ALL", key="v_clr_vision_btn_protected"): 
-                        st.rerun()
-
-                st.divider()
-                # Image parameters updated inside the effect logic for SNC visibility.
-                st.subheader("👀 Preview (Page 1)")
-                st.image(processed_pages[0], caption="Highly Realistic Scanned Preview", use_container_width=True)
+                    st.download_button("📥 DOWNLOAD REAL-VINTAGE PDF", output_pdf.getvalue(), f"RealVintage_{v_file.name}", "application/pdf", use_container_width=True, key="v_dl_btn_final")
             except Exception as e:
-                st.error(f"SNC Processing Error: {str(e)}")
+                st.error(f"Error: {e}")
+
+        # Clear All Button - Ab ye 100% kaam karega
+        with col_cl:
+            if st.button("🧹 CLEAR ALL", use_container_width=True, key="v_clr_btn_final"):
+                clear_pdf_action()
+
+        if v_file and 'processed_pages' in locals():
+            st.divider()
+            st.subheader("👀 Preview (Page 1)")
+            st.image(processed_pages[0], caption="Highly Realistic Scanned Preview", use_container_width=True)
