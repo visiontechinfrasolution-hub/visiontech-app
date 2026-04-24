@@ -1225,123 +1225,117 @@ elif st.session_state.current_page == "Indus":
                             st.toast(f"AI: {m}")
 
 # =====================================================================
-# 📜 TAB 10: VINTAGE PDF FORMATTER - HIGH-LEVEL REALISM (ANTI-BLANK FIX)
+# 📜 TAB 10: VINTAGE PDF FORMATTER - HARDCORE REALISM (FOLDED & TORN)
 # =====================================================================
 if st.session_state.current_page == "PDFFormat":
     import io
     import random
     import numpy as np
     from PIL import Image, ImageDraw, ImageOps, ImageFilter
-    
-    # --- 1. BOOTSTRAP / INITIALIZATION (Blank screen rokne ke liye) ---
+
     if "v_uploader_key" not in st.session_state:
         st.session_state.v_uploader_key = 100
 
-    # Check PyMuPDF dependency
     try:
         import fitz 
     except ImportError:
         st.error("Terminal madhe run kara: pip install pymupdf")
         st.stop()
 
-    st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>📜 High-Realism Vintage PDF Generator</h2>", unsafe_allow_html=True)
-    st.info("ℹ️ Fresh PDF upload kara, ti real-life scanned copy sarkhi (dhul, folds, fata-futa ani daag) disel.")
+    st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>📜 Ultra-Real Vintage Generator</h2>", unsafe_allow_html=True)
+    st.info("ℹ️ Ata yaat Proper 6 Folds, Edge Tearing ani Dust effects distil.")
     
-    # --- 2. UI BUTTONS ---
     col_u, col_d, col_cl = st.columns(3)
-    
-    # Uploader with Dynamic Key
     v_file = st.file_uploader("📂 Upload Fresh PDF", type=['pdf'], key=f"v_up_vtech_{st.session_state.v_uploader_key}")
 
-    # --- 3. HIGH-LEVEL VINTAGE LOGIC ---
-    def apply_vintage_effect(image):
+    def apply_hardcore_vintage(image):
+        # 1. Canvas Setup (Edge karnya sathi thodi extra space)
+        image = image.convert("RGBA")
         w, h = image.size
-        # Canvas size thodi vaadhvun kada banvnya sathi (for torn edges)
-        canvas_w, canvas_h = w + 40, h + 40
-        torn_bg = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0)) 
+        # Thoda yellow tint suruwatila
+        overlay = Image.new("RGBA", image.size, (244, 236, 216, 100))
+        image = Image.alpha_composite(image, overlay)
         
-        # Main paper mask
-        paper_mask = Image.new("L", (canvas_w, canvas_h), 0)
-        draw_mask = ImageDraw.Draw(paper_mask)
-        draw_mask.rectangle([20, 20, w+20, h+20], fill=255)
+        canvas_w, canvas_h = w + 60, h + 60
+        new_img = Image.new("RGBA", (canvas_w, canvas_h), (255, 255, 255, 0))
+        new_img.paste(image, (30, 30))
 
-        # 🛑 Torn Edges (Fata wala look)
-        for _ in range(35):
-            # Left edge
-            lx, ly = random.randint(0, 15), random.randint(0, canvas_h)
-            draw_mask.ellipse([lx, ly, lx+25, ly+25], fill=0)
-            # Right edge
-            rx, ry = random.randint(canvas_w-15, canvas_w), random.randint(0, canvas_h)
-            draw_mask.ellipse([rx, ry, rx+25, ry+25], fill=0)
-
-        paper_mask = paper_mask.filter(ImageFilter.GaussianBlur(radius=random.uniform(1.2, 2.8)))
-        torn_bg.paste(image.convert("RGBA"), (20, 20), paper_mask.crop([20, 20, w+20, h+20]))
+        # 2. Hard Edge Tearing (Kagad fata-futa disnya sathi)
+        mask = Image.new("L", (canvas_w, canvas_h), 255)
+        draw_mask = ImageDraw.Draw(mask)
+        # Randomly eat edges
+        for i in range(0, canvas_h, 5): # Left & Right
+            draw_mask.ellipse([random.randint(-10, 5), i, random.randint(15, 35), i+random.randint(10,20)], fill=0)
+            draw_mask.ellipse([canvas_w-random.randint(15, 35), i, canvas_w+10, i+random.randint(10,20)], fill=0)
+        for i in range(0, canvas_w, 5): # Top & Bottom
+            draw_mask.ellipse([i, random.randint(-10, 5), i+random.randint(10,20), random.randint(15, 35)], fill=0)
+            draw_mask.ellipse([i, canvas_h-random.randint(15, 35), i+random.randint(10,20), canvas_h+10], fill=0)
         
-        # Base Paper Color (Old Sepia)
-        img = Image.new("RGB", torn_bg.size, (244, 236, 216)) 
-        img.paste(torn_bg, (0, 0), torn_bg)
+        mask = mask.filter(ImageFilter.GaussianBlur(radius=1))
+        new_img.putalpha(mask)
 
-        # 🛑 Random Coffee/Dust Stains (Daag)
-        for _ in range(random.randint(2, 4)):
-            sx, sy = random.randint(50, canvas_w-150), random.randint(50, canvas_h-150)
-            stain_size = random.randint(100, 200)
-            splash = Image.new("L", (stain_size, stain_size), 0)
-            ImageDraw.Draw(splash).ellipse([stain_size//4, stain_size//4, 3*stain_size//4, 3*stain_size//4], fill=random.randint(20, 60))
-            splash = splash.filter(ImageFilter.GaussianBlur(radius=20))
-            coffee_color = (random.randint(110,160), random.randint(90,120), random.randint(60,80))
-            img.paste(Image.new("RGB", (stain_size, stain_size), coffee_color), (sx, sy), splash)
+        # 3. Proper 6 Folds (4 Horizontal, 2 Vertical)
+        final_img = Image.new("RGB", (canvas_w, canvas_h), (240, 230, 210))
+        final_img.paste(new_img, (0, 0), new_img)
+        draw = ImageDraw.Draw(final_img)
 
-        # 🛑 Fold Marks (Churgula)
-        draw = ImageDraw.Draw(img)
-        for _ in range(random.randint(1, 3)):
-            y_f = random.randint(canvas_h//4, 3*canvas_h//4)
-            # Shadow line
-            draw.line([(0, y_f), (canvas_w, y_f + random.randint(-15, 15))], fill=(190, 185, 165), width=1)
-            # Highlight line
-            draw.line([(0, y_f+1), (canvas_w, y_f+1 + random.randint(-15, 15))], fill=(245, 240, 225), width=1)
+        # Horizontal Folds
+        for i in range(1, 5):
+            y = (canvas_h // 5) * i + random.randint(-20, 20)
+            # Fold Shadow
+            draw.line([(0, y), (canvas_w, y + random.randint(-5, 5))], fill=(160, 150, 130), width=2)
+            # Fold Highlight
+            draw.line([(0, y+2), (canvas_w, y+2 + random.randint(-5, 5))], fill=(255, 252, 240), width=1)
 
-        # 🛑 Crumple/Mesh Effect
-        mesh = Image.new("RGB", img.size, (200, 200, 200))
-        ImageDraw.Draw(mesh).rectangle([40, 40, canvas_w-40, canvas_h-40], fill=(0,0,0), outline=(255,255,255), width=30)
-        mesh = mesh.filter(ImageFilter.GaussianBlur(radius=random.uniform(10, 20)))
-        img = Image.blend(img, mesh, alpha=random.uniform(0.05, 0.12))
+        # Vertical Folds
+        for i in range(1, 3):
+            x = (canvas_w // 3) * i + random.randint(-20, 20)
+            draw.line([(x, 0), (x + random.randint(-5, 5), canvas_h)], fill=(160, 150, 130), width=2)
+            draw.line([(x+2, 0), (x+2 + random.randint(-5, 5), canvas_h)], fill=(255, 252, 240), width=1)
 
-        # Final Post-processing
-        img = ImageOps.colorize(ImageOps.grayscale(img), black="#221e16", white="#f0e6d6")
-        img = img.filter(ImageFilter.GaussianBlur(radius=0.2))
-        return img
+        # 4. Randomized Coffee/Dust Stains
+        for _ in range(random.randint(3, 6)):
+            sx = random.randint(50, canvas_w-100)
+            sy = random.randint(50, canvas_h-100)
+            stain_size = random.randint(30, 120)
+            stain_mask = Image.new("L", (stain_size, stain_size), 0)
+            ImageDraw.Draw(stain_mask).ellipse([5, 5, stain_size-5, stain_size-5], fill=random.randint(30, 70))
+            stain_mask = stain_mask.filter(ImageFilter.GaussianBlur(radius=10))
+            stain_color = (random.randint(120, 150), random.randint(100, 120), random.randint(70, 90))
+            final_img.paste(Image.new("RGB", (stain_size, stain_size), stain_color), (sx, sy), stain_mask)
 
-    # --- 4. EXECUTION ---
+        # 5. Final Distort (Kagad thoda churgulnyasathi)
+        final_img = ImageOps.colorize(ImageOps.grayscale(final_img), black="#1a1a1a", white="#f4ecd8")
+        return final_img
+
     if v_file:
         try:
             pdf_bytes = v_file.read()
             doc = fitz.open(stream=pdf_bytes, filetype="pdf")
             processed_pages = []
 
-            with st.spinner("⏳ Visiontech High-Realism processing..."):
+            with st.spinner("⏳ Kagad fadun, ghadya ghalun nava banawat aahe..."):
                 for page in doc:
                     pix = page.get_pixmap(matrix=fitz.Matrix(2.0, 2.0))
                     img = Image.open(io.BytesIO(pix.tobytes()))
-                    processed_pages.append(apply_vintage_effect(img))
+                    processed_pages.append(apply_hardcore_vintage(img))
 
-            # Build Output PDF
             output_pdf = io.BytesIO()
             if processed_pages:
-                processed_pages[0].save(output_pdf, format="PDF", save_all=True, append_images=processed_pages[1:], quality=95)
+                processed_pages[0].save(output_pdf, format="PDF", save_all=True, append_images=processed_pages[1:], quality=90)
             
-            with col_u: st.success("✅ Magic Done!")
+            with col_u: st.success("✅ Real Scanned Magic Done!")
             with col_d:
-                st.download_button("📥 DOWNLOAD PDF", output_pdf.getvalue(), f"RealVintage_{v_file.name}", "application/pdf", use_container_width=True, key="dl_v_final")
+                st.download_button("📥 DOWNLOAD REAL-PDF", output_pdf.getvalue(), f"HardVintage_{v_file.name}", "application/pdf", use_container_width=True)
             
             st.divider()
-            st.subheader("👀 Preview (Page 1)")
-            st.image(processed_pages[0], caption="Highly Realistic Scan Preview", use_container_width=True)
+            st.subheader("👀 Preview (Hard-Folded Look)")
+            st.image(processed_pages[0], use_container_width=True)
 
         except Exception as e:
             st.error(f"Error: {e}")
 
-    # --- 5. CLEAR ALL BUTTON (Always at bottom of the logic) ---
     with col_cl:
-        if st.button("🧹 CLEAR ALL", use_container_width=True, key="clr_v_final"):
+        if st.button("🧹 CLEAR ALL", use_container_width=True):
             st.session_state.v_uploader_key += 1
             st.rerun()
