@@ -11,3 +11,5 @@ google-genai
 streamlit>=1.30.0
 pytz
 pymupdf
+pillow
+numpy
