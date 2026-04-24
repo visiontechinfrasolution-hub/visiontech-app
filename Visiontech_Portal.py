@@ -1225,7 +1225,7 @@ elif st.session_state.current_page == "Indus":
                             st.toast(f"AI: {m}")
 
 # =====================================================================
-# 📜 TAB 10: VINTAGE PDF FORMATTER - 4-FOLD CREASE & INTERNAL TEAR
+# 📜 TAB 10: VINTAGE PDF FORMATTER - CLEAN WHITE FOLDED LOOK (SNC)
 # =====================================================================
 if st.session_state.current_page == "PDFFormat":
     import io
@@ -1242,64 +1242,69 @@ if st.session_state.current_page == "PDFFormat":
         st.error("Terminal mein pip install pymupdf karein")
         st.stop()
 
-    st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>📜 Professional Vintage Folded Scan</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>📜 Professional Folded Scan (White Edition)</h2>", unsafe_allow_html=True)
     
     col_u, col_d, col_cl = st.columns(3)
-    v_file = st.file_uploader("📂 Upload PDF", type=['pdf'], key=f"v_up_fold_{st.session_state.v_uploader_key}")
+    v_file = st.file_uploader("📂 Upload PDF", type=['pdf'], key=f"v_up_white_{st.session_state.v_uploader_key}")
 
-    def apply_4fold_vintage(image):
+    def apply_clean_vintage_fold(image):
         image = image.convert("RGBA")
         w, h = image.size
         
-        # 1. Background Setup (Asli purana kagaz color)
-        bg_color = (241, 232, 210)
-        canvas = Image.new("RGBA", (w, h), bg_color + (255,))
+        # 1. Base Setup - Half White / Off-White (Zyada peela nahi)
+        base_paper = (248, 246, 240) # Clean professional off-white
+        canvas = Image.new("RGBA", (w, h), base_paper + (255,))
         canvas.paste(image, (0, 0), image)
 
-        # 2. 4-Fold Realism (Gradient Shadows - No straight lines)
+        # 2. 4-Fold Realism (Subtle Creases - No hard lines)
         draw = ImageDraw.Draw(canvas)
-        # 4 Horizontal Fold positions
-        folds = [h//5, 2*h//5, 3*h//5, 4*h//5]
-        
-        for f_y in folds:
-            offset = random.randint(-20, 20)
-            y = f_y + offset
-            # Dark crease (Shadow)
-            for i in range(5):
-                alpha = 40 - (i * 8)
-                draw.line([(0, y+i), (w, y+i+random.randint(-2,2))], fill=(100, 90, 70, alpha), width=1)
-            # Light crease (Highlight)
-            for i in range(3):
-                alpha = 30 - (i * 10)
-                draw.line([(0, y-i), (w, y-i+random.randint(-2,2))], fill=(255, 255, 240, alpha), width=1)
+        # Proper horizontal folds
+        h_folds = [h//4, h//2, 3*h//4]
+        for f_y in h_folds:
+            y = f_y + random.randint(-10, 10)
+            # Darker Crease (Shadow)
+            for i in range(4):
+                alpha = 30 - (i * 5)
+                draw.line([(0, y+i), (w, y+i)], fill=(120, 115, 100, alpha), width=1)
+            # Brighter Crease (Highlight)
+            for i in range(2):
+                alpha = 25 - (i * 10)
+                draw.line([(0, y-i), (w, y-i)], fill=(255, 255, 255, alpha), width=1)
 
-        # 3. Internal Bottom Tear (Sirf niche se fata hua - Boundary ke andar)
+        # 3. Vertical Fold (Middle Crease)
+        x_mid = w // 2 + random.randint(-15, 15)
+        for i in range(4):
+            alpha = 25 - (i * 5)
+            draw.line([(x_mid+i, 0), (x_mid+i, h)], fill=(120, 115, 100, alpha), width=1)
+
+        # 4. Internal Bottom Tear (Niche se fata hua - Internal Only)
         mask = Image.new("L", (w, h), 255)
         d_mask = ImageDraw.Draw(mask)
-        tear_y = h - random.randint(40, 80)
+        tear_y = h - random.randint(30, 60)
         
         points = [(0, tear_y)]
-        for x in range(0, w, 10):
-            ty = tear_y + random.randint(-15, 30)
-            if x > w//4 and x < 3*w//4: # Beech mein zyada gehra cut
-                ty -= random.randint(20, 40)
+        for x in range(0, w, 15):
+            # Asli phatne ka curve (irregular)
+            ty = tear_y + random.randint(-10, 25)
+            if x > w//3 and x < 2*w//3:
+                ty -= random.randint(15, 35) # Beech ka gehra cut
             points.append((x, ty))
         points.extend([(w, h), (0, h)])
         d_mask.polygon(points, fill=0)
         
-        # Applying the tear mask
+        # Applying the mask with subtle blur for paper fiber look
         canvas.putalpha(mask.filter(ImageFilter.GaussianBlur(radius=0.5)))
         
-        # 4. Overall Texture & Grain
-        final = Image.new("RGB", (w, h), (255, 255, 255)) # Transparent areas white ho jayengi
+        # 5. Noise & Scan Texture
+        final = Image.new("RGB", (w, h), (255, 255, 255))
         final.paste(canvas, (0, 0), canvas)
         
         img_array = np.array(final)
-        noise = np.random.normal(0, 8, img_array.shape)
+        noise = np.random.normal(0, 5, img_array.shape) # Minimal noise for clean look
         final = Image.fromarray(np.clip(img_array + noise, 0, 255).astype(np.uint8))
 
-        # 5. Final Tint
-        final = ImageOps.colorize(ImageOps.grayscale(final), black="#201b12", white="#f2e8d5")
+        # 6. Final Contrast Polish (Sarkari Scan Look)
+        final = ImageOps.colorize(ImageOps.grayscale(final), black="#1a1a1a", white="#fcfbf7")
         return final
 
     if v_file:
@@ -1308,22 +1313,22 @@ if st.session_state.current_page == "PDFFormat":
             doc = fitz.open(stream=pdf_bytes, filetype="pdf")
             processed_pages = []
 
-            with st.spinner("⏳ Paper mod kar fata wala look de raha hoon..."):
+            with st.spinner("⏳ White Paper par folds aur cuts apply ho rahe hain..."):
                 for page in doc:
                     pix = page.get_pixmap(matrix=fitz.Matrix(2.0, 2.0))
                     img = Image.open(io.BytesIO(pix.tobytes()))
-                    processed_pages.append(apply_4fold_vintage(img))
+                    processed_pages.append(apply_clean_vintage_fold(img))
 
             output_pdf = io.BytesIO()
             if processed_pages:
-                processed_pages[0].save(output_pdf, format="PDF", save_all=True, append_images=processed_pages[1:])
+                processed_pages[0].save(output_pdf, format="PDF", save_all=True, append_images=processed_pages[1:], quality=95)
             
-            with col_u: st.success("✅ Real 4-Fold Magic Done!")
+            with col_u: st.success("✅ Clean Vintage Magic Done!")
             with col_d:
-                st.download_button("📥 DOWNLOAD VINTAGE PDF", output_pdf.getvalue(), f"Folded_{v_file.name}", "application/pdf", use_container_width=True)
+                st.download_button("📥 DOWNLOAD PDF", output_pdf.getvalue(), f"WhiteFolded_{v_file.name}", "application/pdf", use_container_width=True)
             
             st.divider()
-            st.subheader("👀 Preview (4 Folds & Bottom Tear)")
+            st.subheader("👀 Preview (Half-White Folded Look)")
             st.image(processed_pages[0], use_container_width=True)
 
         except Exception as e:
