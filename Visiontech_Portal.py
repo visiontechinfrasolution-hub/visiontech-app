@@ -563,9 +563,9 @@ elif st.session_state.current_page == "Indus":
                     gmaps_route = f"https://www.google.com/maps/dir/{start_coords}/{stops}/{end_coords}"
                     st.markdown(f'<a href="{gmaps_route}" target="_blank"><button style="width:100%; background-color:#4285F4; color:white; border:none; padding:12px; border-radius:5px; font-weight:bold; cursor:pointer;">🗺️ Open Sequential Route (1-2-3-4)</button></a>', unsafe_allow_html=True)
             except Exception as e: st.error(f"Error: {e}")
- # =====================================================================
-# 📡 TAB 5: WCC STATUS (RESTORED ALIGNMENT - 0% LOGIC CHANGE)
 # =====================================================================
+    # 📡 TAB 5: WCC STATUS (ORIGINAL LOGIC - 0% CHANGE)
+    # =====================================================================
     elif st.session_state.current_page == "WCC":
         st.markdown("""
             <style>
@@ -574,7 +574,6 @@ elif st.session_state.current_page == "Indus":
             </style>
         """, unsafe_allow_html=True)
 
-        # --- 0% Change: Original WhatsApp Logic ---
         def send_interakt_whatsapp(row_data):
             import requests
             api_key = "S2pFcE5ETjE2NDhiQ1VIMEFjMVA5a3ZwdHB6X0diYXpRM2I2SWRxbGJWYzo="
@@ -583,21 +582,15 @@ elif st.session_state.current_page == "Indus":
             headers = {"Authorization": f"Basic {api_key}", "Content-Type": "application/json"}
             
             body_values = [
-                str(row_data.get("Project", "")),        # {{1}}
-                str(row_data.get("Project ID", "")),     # {{2}}
-                str(row_data.get("Site ID", "")),        # {{3}}
-                str(row_data.get("Site Name", "")),      # {{4}}
-                str(row_data.get("PO Number", "")),      # {{5}}
-                str(row_data.get("Reqeust Date", "")),   # {{6}}
-                str(row_data.get("WCC Number", "")),     # {{7}}
-                str(row_data.get("WCC Status", ""))      # {{8}}
+                str(row_data.get("Project", "")), str(row_data.get("Project ID", "")),
+                str(row_data.get("Site ID", "")), str(row_data.get("Site Name", "")),
+                str(row_data.get("PO Number", "")), str(row_data.get("Reqeust Date", "")),
+                str(row_data.get("WCC Number", "")), str(row_data.get("WCC Status", ""))
             ]
 
             for num in numbers:
                 payload = {
-                    "countryCode": "+91",
-                    "phoneNumber": num[2:], 
-                    "type": "Template",
+                    "countryCode": "+91", "phoneNumber": num[2:], "type": "Template",
                     "template": {"name": "wccrequest", "languageCode": "en", "bodyValues": body_values}
                 }
                 try: requests.post(url, headers=headers, json=payload, timeout=5)
@@ -605,7 +598,6 @@ elif st.session_state.current_page == "Indus":
 
         st.title("📡 WCC Status Tracker")
         
-        # --- 0% Change: Original Password System ---
         if "wcc_role" not in st.session_state: 
             st.session_state.wcc_role = None
         
@@ -621,7 +613,6 @@ elif st.session_state.current_page == "Indus":
                 else: 
                     st.error("❌ Wrong Password!")
         else:
-            # Full table display (0% Change)
             try:
                 res = supabase.table("WCC Status").select("*").execute()
                 df_wcc = pd.DataFrame(res.data)[::-1] if res.data else pd.DataFrame()
@@ -632,15 +623,10 @@ elif st.session_state.current_page == "Indus":
             except Exception as e:
                 st.error(f"Supabase Error: {e}")
 
-# =====================================================================
-# 🏗️ TAB 6: DATA ENTRY (Indentation Fixed)
-# =====================================================================
+    # =====================================================================
+    # 🏗️ TAB 6: DATA ENTRY (Document Center & Tracker)
+    # =====================================================================
     elif "Data" in str(st.session_state.current_page) or "Entry" in str(st.session_state.current_page):
-    
-    # Debug line: Isse screen par dikhega ki sidebar mein kya select hai
-    # st.sidebar.write(f"DEBUG: Current Page is '{st.session_state.current_page}'")
-
-    # Humne 'in' use kiya hai taaki Emoji ya Space ki galti pakdi jaye
     if "Data" in str(st.session_state.current_page) or "Entry" in str(st.session_state.current_page):
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center & Tracker</h3>", unsafe_allow_html=True)
         
