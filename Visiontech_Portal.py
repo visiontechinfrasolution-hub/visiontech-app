@@ -627,8 +627,10 @@ elif st.session_state.current_page == "Indus":
                 df_wcc = pd.DataFrame(res.data)[::-1] if res.data else pd.DataFrame()
                 if not df_wcc.empty:
                     st.dataframe(df_wcc, use_container_width=True)
+                else:
+                    st.info("No records found in WCC table.")
             except Exception as e:
-                st.error(f"Error: {e}")
+                st.error(f"Supabase Error: {e}")
     # =====================================================================
     # 🏗️ TAB 6: DATA ENTRY (Document Center & Tracker) - FINAL MASTER
     # =====================================================================
