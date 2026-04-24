@@ -566,7 +566,7 @@ elif st.session_state.current_page == "Indus":
     # =====================================================================
     # 📡 TAB 5: WCC STATUS (ORIGINAL + SEARCH BOX)
     # =====================================================================
-    elif st.session_state.current_page == "WCC":
+    if st.session_state.current_page == "WCC":
         st.markdown("""
             <style>
                 .site-badge { background-color: #E0F2FE; color: #0369A1; padding: 2px 8px; border-radius: 12px; font-weight: 600; font-size: 11px; border: 1px solid #BAE6FD; }
@@ -762,7 +762,7 @@ elif st.session_state.current_page == "Indus":
     # =====================================================================
     # 🏗️ TAB 6: DATA ENTRY (Document Center & Tracker)
     # =====================================================================
-    elif "Data" in str(st.session_state.current_page) or "Entry" in str(st.session_state.current_page):
+    if "Data" in str(st.session_state.current_page) or "Entry" in str(st.session_state.current_page):
         st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>🏗️ Document Center & Tracker</h3>", unsafe_allow_html=True)
     
     doc_sub1, doc_sub2, doc_sub3 = st.tabs(["📤 Manager Upload", "🔍 Team Search", "📊 Tracker"])
