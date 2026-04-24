@@ -1231,3 +1231,85 @@ elif st.session_state.current_page == "Indus":
                             m = get_ai_followup(row['site_id'], row['assigned_team'])
                             send_wa_chat(row['team_number'], m)
                             st.toast(f"AI: {m}")
+
+# =====================================================================
+# 📜 TAB 10: VINTAGE PDF FORMATTER (REAL-LIFE SCAN FEEL)
+# =====================================================================
+elif st.session_state.current_page == "PDFFormat":
+    import fitz  # PyMuPDF
+    
+    st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>📜 Vintage PDF Generator</h3>", unsafe_allow_html=True)
+    st.info("ℹ️ Yethun kontihi PDF upload kara, ti thodi dhul asaleli (dusty), fata-phut ani 'Real Scan' vatel ashi banun milel.")
+
+    # --- Processing Logic ---
+    def apply_vintage_effect(image):
+        # 1. Convert to Gray/Vintage Yellow Tone
+        img = image.convert("RGB")
+        
+        # 2. Add Noise/Grains (Dhul chadi waali feel)
+        img_array = np.array(img)
+        noise = np.random.normal(0, 15, img_array.shape)
+        img_noised = np.clip(img_array + noise, 0, 255).astype(np.uint8)
+        img = Image.fromarray(img_noised)
+        
+        # 3. Add Fold Line (Fata wala/Folded feel)
+        draw = ImageDraw.Draw(img)
+        w, h = img.size
+        # Ek random fold line draw karnyasahti
+        draw.line([(0, h//2), (w, h//2+random.randint(-10,10))], fill=(180, 180, 180), width=2)
+        
+        # 4. Blur thoda sa (Normal fata wala look)
+        img = img.filter(ImageFilter.GaussianBlur(radius=0.5))
+        
+        # 5. Overlays for Paper Texture
+        overlay = Image.new('RGB', img.size, (240, 230, 200)) # Light yellow old paper tint
+        img = ImageOps.colorize(ImageOps.grayscale(img), black="black", white="#f4ecd8")
+        
+        return img
+
+    # --- UI Layout ---
+    col_u, col_d, col_c = st.columns(3)
+    
+    uploaded_pdf = st.file_uploader("📂 Upload Fresh PDF", type=['pdf'], key="vintage_uploader")
+
+    if uploaded_pdf:
+        # Convert PDF to Images
+        pdf_bytes = uploaded_pdf.read()
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        processed_images = []
+
+        with st.spinner("⏳ Vintage magic apply hot aahe..."):
+            for page in doc:
+                pix = page.get_pixmap(matrix=fitz.Matrix(2, 2)) # Higher Quality
+                img = Image.open(io.BytesIO(pix.tobytes()))
+                
+                # Apply the effect
+                vintage_img = apply_vintage_effect(img)
+                processed_images.append(vintage_img)
+
+        # Convert back to PDF
+        output_pdf = io.BytesIO()
+        if processed_images:
+            processed_images[0].save(output_pdf, format="PDF", save_all=True, append_images=processed_images[1:])
+            
+        # --- Buttons ---
+        with col_u:
+            st.success("✅ PDF Processed!")
+            
+        with col_d:
+            st.download_button(
+                label="📥 DOWNLOAD VINTAGE PDF",
+                data=output_pdf.getvalue(),
+                file_name=f"Vintage_{uploaded_pdf.name}",
+                mime="application/pdf",
+                use_container_width=True
+            )
+            
+        with col_c:
+            if st.button("🧹 CLEAR ALL", use_container_width=True):
+                st.rerun()
+
+        # Preview
+        st.divider()
+        st.subheader("👀 Preview (First Page)")
+        st.image(processed_images[0], use_container_width=True)
