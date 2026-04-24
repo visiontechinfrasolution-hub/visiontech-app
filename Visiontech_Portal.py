@@ -1226,13 +1226,17 @@ elif st.session_state.current_page == "Indus":
                             st.toast(f"AI: {m}")
 
 # =====================================================================
-# 📜 TAB 10: VINTAGE PDF FORMATTER (PDF To Scanned Look)
+# 📜 TAB 10: VINTAGE PDF FORMATTER (Ye line ekdam left margin se shuru hogi)
 # =====================================================================
     elif st.session_state.current_page == "PDFFormat":
-        import fitz  # PyMuPDF (Install: pip install pymupdf)
-        
+        import fitz  # PyMuPDF (pip install pymupdf)
+        import random
+        import numpy as np
+        import io
+        from PIL import Image, ImageDraw, ImageOps, ImageFilter
+
         st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>📜 Vintage PDF Generator</h2>", unsafe_allow_html=True)
-        st.info("ℹ️ Fresh PDF upload kara, ti real-life scanned copy sarkhi (dhul, folds ani grains) disel.")
+        st.info("ℹ️ Fresh PDF upload kara, ti real-life scanned copy sarkhi disel.")
 
         # --- Vintage Brain (Logic) ---
         def apply_vintage_effect(image):
@@ -1251,7 +1255,7 @@ elif st.session_state.current_page == "Indus":
                 y_pos = random.randint(h//4, 3*h//4)
                 draw.line([(0, y_pos), (w, y_pos + random.randint(-15, 15))], fill=(200, 200, 200), width=1)
             
-            # 3. Vintage Paper Tint (Sepia/Old Look)
+            # 3. Vintage Paper Tint (Old Look)
             img = ImageOps.colorize(ImageOps.grayscale(img), black="#000000", white="#f4ecd8")
             
             # 4. Slight Blur
@@ -1260,6 +1264,8 @@ elif st.session_state.current_page == "Indus":
 
         # --- UI LAYOUT ---
         col_up, col_down, col_clr = st.columns(3)
+        
+        # Upload Button
         v_file = st.file_uploader("📂 Upload Fresh PDF", type=['pdf'], key="v_up_unique_vision")
 
         if v_file:
@@ -1268,7 +1274,7 @@ elif st.session_state.current_page == "Indus":
             doc = fitz.open(stream=pdf_bytes, filetype="pdf")
             processed_pages = []
 
-            with st.spinner("⏳ Vintage magic apply hot aahe..."):
+            with st.spinner("⏳ Processing..."):
                 for page in doc:
                     pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
                     img = Image.open(io.BytesIO(pix.tobytes()))
@@ -1282,6 +1288,8 @@ elif st.session_state.current_page == "Indus":
             # Step 3: Action Buttons
             with col_up:
                 st.success("✅ Success!")
+            
+            # Download Button
             with col_down:
                 st.download_button(
                     label="📥 DOWNLOAD PDF",
@@ -1290,11 +1298,13 @@ elif st.session_state.current_page == "Indus":
                     mime="application/pdf",
                     use_container_width=True
                 )
+            
+            # Clear Button
             with col_clr:
                 if st.button("🧹 CLEAR ALL", use_container_width=True):
                     st.rerun()
 
             # Preview
             st.divider()
-            st.subheader("👀 Preview (Page 1)")
+            st.subheader("👀 Preview")
             st.image(processed_pages[0], caption="Vintage Scanned Preview", use_container_width=True)
