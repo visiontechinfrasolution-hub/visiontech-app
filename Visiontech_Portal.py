@@ -1225,121 +1225,123 @@ elif st.session_state.current_page == "Indus":
                             st.toast(f"AI: {m}")
 
 # =====================================================================
-    # 📜 TAB 10: VINTAGE PDF FORMATTER - HIGH-LEVEL REALISM (FINAL FIXED)
-    # =====================================================================
-    if st.session_state.current_page == "PDFFormat":
-        import io
-        import random
-        import numpy as np
-        from PIL import Image, ImageDraw, ImageOps, ImageFilter
+# 📜 TAB 10: VINTAGE PDF FORMATTER - HIGH-LEVEL REALISM (ANTI-BLANK FIX)
+# =====================================================================
+if st.session_state.current_page == "PDFFormat":
+    import io
+    import random
+    import numpy as np
+    from PIL import Image, ImageDraw, ImageOps, ImageFilter
+    
+    # --- 1. BOOTSTRAP / INITIALIZATION (Blank screen rokne ke liye) ---
+    if "v_uploader_key" not in st.session_state:
+        st.session_state.v_uploader_key = 100
+
+    # Check PyMuPDF dependency
+    try:
+        import fitz 
+    except ImportError:
+        st.error("Terminal madhe run kara: pip install pymupdf")
+        st.stop()
+
+    st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>📜 High-Realism Vintage PDF Generator</h2>", unsafe_allow_html=True)
+    st.info("ℹ️ Fresh PDF upload kara, ti real-life scanned copy sarkhi (dhul, folds, fata-futa ani daag) disel.")
+    
+    # --- 2. UI BUTTONS ---
+    col_u, col_d, col_cl = st.columns(3)
+    
+    # Uploader with Dynamic Key
+    v_file = st.file_uploader("📂 Upload Fresh PDF", type=['pdf'], key=f"v_up_vtech_{st.session_state.v_uploader_key}")
+
+    # --- 3. HIGH-LEVEL VINTAGE LOGIC ---
+    def apply_vintage_effect(image):
+        w, h = image.size
+        # Canvas size thodi vaadhvun kada banvnya sathi (for torn edges)
+        canvas_w, canvas_h = w + 40, h + 40
+        torn_bg = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0)) 
         
-        # --- CLEAR LOGIC (Dynamic Key) ---
-        if "v_uploader_key" not in st.session_state:
-            st.session_state.v_uploader_key = 100
+        # Main paper mask
+        paper_mask = Image.new("L", (canvas_w, canvas_h), 0)
+        draw_mask = ImageDraw.Draw(paper_mask)
+        draw_mask.rectangle([20, 20, w+20, h+20], fill=255)
 
-        def clear_pdf_action():
-            st.session_state.v_uploader_key += 1
-            st.rerun()
+        # 🛑 Torn Edges (Fata wala look)
+        for _ in range(35):
+            # Left edge
+            lx, ly = random.randint(0, 15), random.randint(0, canvas_h)
+            draw_mask.ellipse([lx, ly, lx+25, ly+25], fill=0)
+            # Right edge
+            rx, ry = random.randint(canvas_w-15, canvas_w), random.randint(0, canvas_h)
+            draw_mask.ellipse([rx, ry, rx+25, ry+25], fill=0)
 
-        # Check PyMuPDF dependency
+        paper_mask = paper_mask.filter(ImageFilter.GaussianBlur(radius=random.uniform(1.2, 2.8)))
+        torn_bg.paste(image.convert("RGBA"), (20, 20), paper_mask.crop([20, 20, w+20, h+20]))
+        
+        # Base Paper Color (Old Sepia)
+        img = Image.new("RGB", torn_bg.size, (244, 236, 216)) 
+        img.paste(torn_bg, (0, 0), torn_bg)
+
+        # 🛑 Random Coffee/Dust Stains (Daag)
+        for _ in range(random.randint(2, 4)):
+            sx, sy = random.randint(50, canvas_w-150), random.randint(50, canvas_h-150)
+            stain_size = random.randint(100, 200)
+            splash = Image.new("L", (stain_size, stain_size), 0)
+            ImageDraw.Draw(splash).ellipse([stain_size//4, stain_size//4, 3*stain_size//4, 3*stain_size//4], fill=random.randint(20, 60))
+            splash = splash.filter(ImageFilter.GaussianBlur(radius=20))
+            coffee_color = (random.randint(110,160), random.randint(90,120), random.randint(60,80))
+            img.paste(Image.new("RGB", (stain_size, stain_size), coffee_color), (sx, sy), splash)
+
+        # 🛑 Fold Marks (Churgula)
+        draw = ImageDraw.Draw(img)
+        for _ in range(random.randint(1, 3)):
+            y_f = random.randint(canvas_h//4, 3*canvas_h//4)
+            # Shadow line
+            draw.line([(0, y_f), (canvas_w, y_f + random.randint(-15, 15))], fill=(190, 185, 165), width=1)
+            # Highlight line
+            draw.line([(0, y_f+1), (canvas_w, y_f+1 + random.randint(-15, 15))], fill=(245, 240, 225), width=1)
+
+        # 🛑 Crumple/Mesh Effect
+        mesh = Image.new("RGB", img.size, (200, 200, 200))
+        ImageDraw.Draw(mesh).rectangle([40, 40, canvas_w-40, canvas_h-40], fill=(0,0,0), outline=(255,255,255), width=30)
+        mesh = mesh.filter(ImageFilter.GaussianBlur(radius=random.uniform(10, 20)))
+        img = Image.blend(img, mesh, alpha=random.uniform(0.05, 0.12))
+
+        # Final Post-processing
+        img = ImageOps.colorize(ImageOps.grayscale(img), black="#221e16", white="#f0e6d6")
+        img = img.filter(ImageFilter.GaussianBlur(radius=0.2))
+        return img
+
+    # --- 4. EXECUTION ---
+    if v_file:
         try:
-            import fitz 
-        except ImportError:
-            st.error("Terminal madhe run kara: pip install pymupdf")
-            st.stop()
+            pdf_bytes = v_file.read()
+            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+            processed_pages = []
 
-        st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>📜 High-Realism Vintage PDF Generator</h2>", unsafe_allow_html=True)
-        st.info("ℹ️ Fresh PDF upload kara, ti real-life scanned copy sarkhi (dhul, folds, fata-futa ani daag) disel.")
-        
-        # --- UI Layout ---
-        col_u, col_d, col_cl = st.columns(3)
-        
-        # Uploader with Dynamic Key for 100% Clear Fix
-        v_file = st.file_uploader("📂 Upload Fresh PDF", type=['pdf'], key=f"v_up_vision_{st.session_state.v_uploader_key}")
+            with st.spinner("⏳ Visiontech High-Realism processing..."):
+                for page in doc:
+                    pix = page.get_pixmap(matrix=fitz.Matrix(2.0, 2.0))
+                    img = Image.open(io.BytesIO(pix.tobytes()))
+                    processed_pages.append(apply_vintage_effect(img))
 
-        if v_file:
-            # --- High-Level Vintage Brain Logic (Wahi asli wala logic) ---
-            def apply_vintage_effect(image):
-                w, h = image.size
-                canvas_w, canvas_h = w + 40, h + 40
-                torn_bg = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0)) 
-                
-                paper_mask = Image.new("L", (canvas_w, canvas_h), 0)
-                draw_mask = ImageDraw.Draw(paper_mask)
-                draw_mask.rectangle([20, 20, w+20, h+20], fill=255)
-
-                # 🛑 3. Fata Wala Look (Random Torn Edges)
-                for _ in range(35):
-                    x = random.randint(0, 15)
-                    y = random.randint(0, h + 30)
-                    draw_mask.ellipse([x, y, x+random.randint(15,30), y+random.randint(15,30)], fill=0)
-                    x = random.randint(w + 25, w + 40)
-                    y = random.randint(0, h + 30)
-                    draw_mask.ellipse([x, y, x+random.randint(15,30), y+random.randint(15,30)], fill=0)
-
-                paper_mask = paper_mask.filter(ImageFilter.GaussianBlur(radius=random.uniform(1.0, 2.5)))
-                torn_bg.paste(image.convert("RGBA"), (20, 20), paper_mask.crop([20, 20, w+20, h+20]))
-                
-                img = Image.new("RGB", torn_bg.size, (244, 236, 216)) 
-                img.paste(torn_bg, (0, 0), torn_bg)
-
-                # 🛑 4. Dhul Ani Daag (Random Dust/Coffee Stains)
-                for _ in range(random.randint(2, 5)):
-                    stain_x = random.randint(w // 6, w - 100)
-                    stain_y = random.randint(h // 6, h - 100)
-                    splash_mask = Image.new("L", (150, 150), 0)
-                    ImageDraw.Draw(splash_mask).ellipse([25, 25, 125, 125], fill=random.randint(30, 80))
-                    splash_mask = splash_mask.filter(ImageFilter.GaussianBlur(radius=15))
-                    coffee = Image.new("RGB", (150, 150), (random.randint(110,150), random.randint(90,110), random.randint(60,80)))
-                    img.paste(coffee, (stain_x, stain_y), splash_mask)
-
-                # 🛑 1. Fold Marks (Randomized)
-                num_folds = random.randint(1, 3)
-                draw = ImageDraw.Draw(img)
-                for _ in range(num_folds):
-                    y_pos = random.randint(h // 4, 3 * h // 4)
-                    draw.line([(0, y_pos), (canvas_w, y_pos + random.randint(-15, 15))], fill=(190, 180, 160), width=1)
-                    draw.line([(0, y_pos+1), (canvas_w, y_pos+1 + random.randint(-15, 15))], fill=(240, 230, 210), width=1)
-
-                # 🛑 2. Churgula Look
-                mesh_img = Image.new("RGB", img.size, (200, 200, 200))
-                ImageDraw.Draw(mesh_img).rectangle([40, 40, img.size[0]-40, img.size[1]-40], fill=(0,0,0), outline=(255,255,255), width=20)
-                mesh_img = mesh_img.filter(ImageFilter.GaussianBlur(radius=random.uniform(8.0, 18.0)))
-                img = Image.blend(img, mesh_img, alpha=random.uniform(0.06, 0.14))
-
-                # Final Scanned Scratches & Blur
-                img = ImageOps.colorize(ImageOps.grayscale(img), black="#221e16", white="#f0e6d6")
-                img = img.filter(ImageFilter.GaussianBlur(radius=0.2))
-                return img
-
-            # Processing
-            try:
-                pdf_bytes = v_file.read()
-                doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-                processed_pages = []
-
-                with st.spinner("⏳ High-Realism magic suru aahe... Thamba Malak!"):
-                    for page in doc:
-                        pix = page.get_pixmap(matrix=fitz.Matrix(2.0, 2.0))
-                        img = Image.open(io.BytesIO(pix.tobytes()))
-                        processed_pages.append(apply_vintage_effect(img))
-
-                output_pdf = io.BytesIO()
-                if processed_pages:
-                    processed_pages[0].save(output_pdf, format="PDF", save_all=True, append_images=processed_pages[1:], quality=100)
-                
-                with col_u: st.success("✅ SNC High-Realism Done!")
-                with col_d:
-                    st.download_button("📥 DOWNLOAD REAL-VINTAGE PDF", output_pdf.getvalue(), f"RealVintage_{v_file.name}", "application/pdf", use_container_width=True, key="v_dl_btn_final")
-            except Exception as e:
-                st.error(f"Error: {e}")
-
-        # Clear All Button - Ab ye 100% kaam karega
-        with col_cl:
-            if st.button("🧹 CLEAR ALL", use_container_width=True, key="v_clr_btn_final"):
-                clear_pdf_action()
-
-        if v_file and 'processed_pages' in locals():
+            # Build Output PDF
+            output_pdf = io.BytesIO()
+            if processed_pages:
+                processed_pages[0].save(output_pdf, format="PDF", save_all=True, append_images=processed_pages[1:], quality=95)
+            
+            with col_u: st.success("✅ Magic Done!")
+            with col_d:
+                st.download_button("📥 DOWNLOAD PDF", output_pdf.getvalue(), f"RealVintage_{v_file.name}", "application/pdf", use_container_width=True, key="dl_v_final")
+            
             st.divider()
             st.subheader("👀 Preview (Page 1)")
-            st.image(processed_pages[0], caption="Highly Realistic Scanned Preview", use_container_width=True)
+            st.image(processed_pages[0], caption="Highly Realistic Scan Preview", use_container_width=True)
+
+        except Exception as e:
+            st.error(f"Error: {e}")
+
+    # --- 5. CLEAR ALL BUTTON (Always at bottom of the logic) ---
+    with col_cl:
+        if st.button("🧹 CLEAR ALL", use_container_width=True, key="clr_v_final"):
+            st.session_state.v_uploader_key += 1
+            st.rerun()
