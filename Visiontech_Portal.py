@@ -564,7 +564,7 @@ elif st.session_state.current_page == "Indus":
                     st.markdown(f'<a href="{gmaps_route}" target="_blank"><button style="width:100%; background-color:#4285F4; color:white; border:none; padding:12px; border-radius:5px; font-weight:bold; cursor:pointer;">🗺️ Open Sequential Route (1-2-3-4)</button></a>', unsafe_allow_html=True)
             except Exception as e: st.error(f"Error: {e}")
   # =====================================================================
-# 📡 TAB 5: WCC STATUS (ORIGINAL LOGIC - 0% CHANGE)
+# 📡 TAB 5: WCC STATUS (RESTORED ALIGNMENT - 0% LOGIC CHANGE)
 # =====================================================================
     elif st.session_state.current_page == "WCC":
         st.markdown("""
@@ -631,9 +631,11 @@ elif st.session_state.current_page == "Indus":
                     st.info("No records found in WCC table.")
             except Exception as e:
                 st.error(f"Supabase Error: {e}")
-    # =====================================================================
-    # 🏗️ TAB 6: DATA ENTRY (Document Center & Tracker) - FINAL MASTER
-    # =====================================================================
+
+# =====================================================================
+# 🏗️ TAB 6: DATA ENTRY (Pudhe tumcha aslella code continuation madhe...)
+# =====================================================================
+    elif "Data" in str(st.session_state.current_page) or "Entry" in str(st.session_state.current_page):
     
     # Debug line: Isse screen par dikhega ki sidebar mein kya select hai
     # st.sidebar.write(f"DEBUG: Current Page is '{st.session_state.current_page}'")
