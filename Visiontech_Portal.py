@@ -1227,17 +1227,12 @@ elif st.session_state.current_page == "Indus":
 # =====================================================================
 # 📜 TAB 10: VINTAGE PDF FORMATTER (SNC PROTECTED)
 # =====================================================================
-# Khali dileli line ekdam left margin pasun 4 spaces sodun asavi (Dashboard chya barobar khali)
 if st.session_state.current_page == "PDFFormat":
     import io
     import random
     import numpy as np
     from PIL import Image, ImageDraw, ImageOps, ImageFilter
-    try:
-        import fitz # PyMuPDF
-    except ImportError:
-        st.error("Terminal madhe run kara: pip install pymupdf")
-        st.stop()
+    import fitz # PyMuPDF
 
     st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>📜 Vintage PDF Generator</h2>", unsafe_allow_html=True)
     st.info("ℹ️ Fresh PDF upload kara, ti real-life scanned copy sarkhi (dhul, folds ani grains) disel.")
@@ -1251,29 +1246,32 @@ if st.session_state.current_page == "PDFFormat":
         def apply_vintage_effect(image):
             img = image.convert("RGB")
             img_array = np.array(img)
+            # Dust & Noise
             noise = np.random.normal(0, 15, img_array.shape)
             img_noised = np.clip(img_array + noise, 0, 255).astype(np.uint8)
             img = Image.fromarray(img_noised)
+            # Random Folds
             draw = ImageDraw.Draw(img)
             w, h = img.size
             for _ in range(2):
                 y_pos = random.randint(h//4, 3*h//4)
                 draw.line([(0, y_pos), (w, y_pos + random.randint(-15, 15))], fill=(200, 200, 200), width=1)
+            # Old Paper Tint
             img = ImageOps.colorize(ImageOps.grayscale(img), black="#000000", white="#f4ecd8")
             return img
 
-        # Processing PDF
+        # PDF Processing
         pdf_bytes = v_file.read()
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
         processed_pages = []
 
-        with st.spinner("⏳ Processing..."):
+        with st.spinner("⏳ Vintage Effect Apply Hot Aahe..."):
             for page in doc:
                 pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
                 img = Image.open(io.BytesIO(pix.tobytes()))
                 processed_pages.append(apply_vintage_effect(img))
 
-        # Output
+        # Build Output PDF
         out_pdf = io.BytesIO()
         processed_pages[0].save(out_pdf, format="PDF", save_all=True, append_images=processed_pages[1:])
         
