@@ -1225,64 +1225,71 @@ elif st.session_state.current_page == "Indus":
                             st.toast(f"AI: {m}")
 
 # =====================================================================
-# 📜 TAB 10: VINTAGE PDF FORMATTER (ERROR-FREE BLOCK)
+# 📜 TAB 10: VINTAGE PDF FORMATTER (100% VISIBLE)
 # =====================================================================
-    elif st.session_state.current_page == "PDFFormat":
+# Khali dileli line ekdam left margin la asavi (Dashboard chya line madhe)
+if st.session_state.current_page == "PDFFormat":
+    import io
+    import random
+    import numpy as np
+    from PIL import Image, ImageDraw, ImageOps, ImageFilter
+    
+    # Check PyMuPDF
+    try:
+        import fitz
+    except ImportError:
+        st.error("🚨 PyMuPDF library missing! GitHub madhe requirements.txt madhe 'pymupdf' liha.")
+        st.stop()
+
+    st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>📜 Vintage PDF Generator</h2>", unsafe_allow_html=True)
+    st.info("ℹ️ Fresh PDF upload kara, ti real-life scanned copy sarkhi disel.")
+    
+    # --- UI Layout ---
+    col_u, col_d, col_cl = st.columns(3)
+    v_file = st.file_uploader("📂 Upload Fresh PDF", type=['pdf'], key="v_up_vision_protected")
+
+    if v_file:
+        def apply_vintage_effect(image):
+            img = image.convert("RGB")
+            img_array = np.array(img)
+            # 1. Noise/Dust
+            noise = np.random.normal(0, 15, img_array.shape)
+            img_noised = np.clip(img_array + noise, 0, 255).astype(np.uint8)
+            img = Image.fromarray(img_noised)
+            # 2. Fold Lines
+            draw = ImageDraw.Draw(img)
+            w, h = img.size
+            for _ in range(2):
+                y = random.randint(h//4, 3*h//4)
+                draw.line([(0, y), (w, y+random.randint(-15,15))], fill=(200,200,200), width=1)
+            # 3. Tint & Blur
+            img = ImageOps.colorize(ImageOps.grayscale(img), black="#000000", white="#f4ecd8")
+            img = img.filter(ImageFilter.GaussianBlur(radius=0.3))
+            return img
+
+        # Processing
         try:
-            import fitz  # PyMuPDF
-        except ImportError:
-            st.error("🚨 PyMuPDF library missing! GitHub madhe 'requirements.txt' file banva ani tyat 'pymupdf' liha.")
-            st.stop()
+            pdf_bytes = v_file.read()
+            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+            processed_pages = []
 
-        import io
-        import random
-        st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>📜 Vintage PDF Generator</h2>", unsafe_allow_html=True)
-        
-        # --- UI Layout ---
-        col_u, col_d, col_cl = st.columns(3)
-        v_file = st.file_uploader("📂 Upload Fresh PDF", type=['pdf'], key="v_up_unique_vision_final")
+            with st.spinner("⏳ Vintage magic apply hot aahe..."):
+                for page in doc:
+                    pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
+                    img = Image.open(io.BytesIO(pix.tobytes()))
+                    processed_pages.append(apply_vintage_effect(img))
 
-        if v_file:
-            def apply_vintage_effect(image):
-                img = image.convert("RGB")
-                img_array = np.array(img)
-                # Dust & Noise
-                noise = np.random.normal(0, 15, img_array.shape)
-                img_noised = np.clip(img_array + noise, 0, 255).astype(np.uint8)
-                img = Image.fromarray(img_noised)
-                # Folds
-                draw = ImageDraw.Draw(img)
-                w, h = img.size
-                for _ in range(2):
-                    y_pos = random.randint(h//4, 3*h//4)
-                    draw.line([(0, y_pos), (w, y_pos + random.randint(-15, 15))], fill=(200, 200, 200), width=1)
-                # Old Paper Color
-                img = ImageOps.colorize(ImageOps.grayscale(img), black="#000000", white="#f4ecd8")
-                return img
+            # Build Output
+            output_pdf = io.BytesIO()
+            processed_pages[0].save(output_pdf, format="PDF", save_all=True, append_images=processed_pages[1:])
+            
+            with col_u: st.success("Success! ✅")
+            with col_d:
+                st.download_button("📥 DOWNLOAD PDF", output_pdf.getvalue(), f"Vintage_{v_file.name}", "application/pdf", key="v_dl_vision_btn")
+            with col_cl:
+                if st.button("🧹 CLEAR ALL", key="v_clr_vision_btn"): st.rerun()
 
-            # Processing
-            try:
-                pdf_bytes = v_file.read()
-                doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-                processed_pages = []
-
-                with st.spinner("⏳ Vintage magic suru aahe..."):
-                    for page in doc:
-                        pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
-                        img = Image.open(io.BytesIO(pix.tobytes()))
-                        processed_pages.append(apply_vintage_effect(img))
-
-                # Build Output PDF
-                output_pdf = io.BytesIO()
-                processed_pages[0].save(output_pdf, format="PDF", save_all=True, append_images=processed_pages[1:])
-                
-                with col_u: st.success("Success! ✅")
-                with col_d:
-                    st.download_button("📥 DOWNLOAD PDF", output_pdf.getvalue(), f"Vintage_{v_file.name}", "application/pdf", key="v_dl_btn")
-                with col_cl:
-                    if st.button("🧹 CLEAR ALL", key="v_clr_btn"): st.rerun()
-
-                st.divider()
-                st.image(processed_pages[0], caption="Vintage Preview", use_container_width=True)
-            except Exception as e:
-                st.error(f"Processing Error: {e}")
+            st.divider()
+            st.image(processed_pages[0], caption="Vintage Preview", use_container_width=True)
+        except Exception as e:
+            st.error(f"Processing Error: {e}")
