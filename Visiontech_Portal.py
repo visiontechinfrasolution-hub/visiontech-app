@@ -1225,7 +1225,7 @@ elif st.session_state.current_page == "Indus":
                             st.toast(f"AI: {m}")
 
 # =====================================================================
-# 📜 TAB 10: VINTAGE PDF FORMATTER - REAL CREASE EFFECT (NO LINES)
+# 📜 TAB 10: VINTAGE PDF FORMATTER - FINAL MASTER (NO CONTENT CUT)
 # =====================================================================
 if st.session_state.current_page == "PDFFormat":
     import io
@@ -1238,77 +1238,68 @@ if st.session_state.current_page == "PDFFormat":
 
     try:
         import fitz 
-    except ImportError:
-        st.error("Terminal madhe pymupdf install kara")
+    except:
+        st.error("Terminal madhe 'pip install pymupdf' run kara")
         st.stop()
 
-    st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>📜 Professional Folded Scan</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>📜 Professional Vintage Fold</h2>", unsafe_allow_html=True)
     
     col_u, col_d, col_cl = st.columns(3)
-    v_file = st.file_uploader("📂 Upload PDF", type=['pdf'], key=f"v_up_realfold_{st.session_state.v_uploader_key}")
+    v_file = st.file_uploader("📂 Upload PDF", type=['pdf'], key=f"v_up_v3_{st.session_state.v_uploader_key}")
 
-    def apply_realistic_fold(image):
+    def apply_perfect_vintage(image):
         image = image.convert("RGBA")
         w, h = image.size
         
-        # 1. Base Setup (Off-White Paper)
-        base_paper = (248, 247, 242)
-        canvas = Image.new("RGBA", (w, h), base_paper + (255,))
+        # 1. Base Setup (Off-White / Eggshell Color)
+        # Tumhala ganda pivla nako hota, mhanun ekdum light off-white set kela ahe.
+        canvas = Image.new("RGBA", (w, h), (248, 247, 242, 255))
         canvas.paste(image, (0, 0), image)
 
-        # 2. 🛑 REAL CREASE LOGIC (Shadow & Highlight Gradients)
-        # Ithe mi line nahi tar 'Soft Gradients' vaprtoy
-        def draw_soft_crease(draw_obj, pos, orientation='h'):
-            for i in range(15): # 15 pixel cha gradient jyamule fold natural vatel
-                alpha = int(35 * (1 - i/15)) # Kadela faint hot janari shadow
-                shadow_color = (80, 75, 60, alpha)
-                light_color = (255, 255, 255, alpha)
-                
-                if orientation == 'h':
-                    # Shadow side
-                    draw_obj.line([(0, pos+i), (w, pos+i)], fill=shadow_color, width=1)
-                    # Light side (Reflection)
-                    draw_obj.line([(0, pos-i), (w, pos-i)], fill=light_color, width=1)
-                else:
-                    draw_obj.line([(pos+i, 0), (pos+i, h)], fill=shadow_color, width=1)
-                    draw_obj.line([(pos-i, 0), (pos-i, h)], fill=light_color, width=1)
-
+        # 2. REAL 4-FOLD CREASE (No Lines - Only Depth)
+        # Kagad 4 vela modun parat ughadlya sarkha vatel
         draw = ImageDraw.Draw(canvas)
         
-        # 4 Horizontal Folds (Kagad 4 vela modlyasarkha)
-        h_points = [h//5, 2*h//5, 3*h//5, 4*h//5]
-        for py in h_points:
-            draw_soft_crease(draw, py + random.randint(-10, 10), 'h')
-            
-        # 1 Vertical Middle Fold
-        draw_soft_crease(draw, w//2 + random.randint(-5, 5), 'v')
+        def add_soft_crease(draw_obj, y_pos):
+            # Multiple faint shadows for depth (10px wide shadow)
+            for i in range(12):
+                strength = int(30 * (1 - i/12))
+                # Shadow (Darker)
+                draw_obj.line([(0, y_pos + i), (w, y_pos + i)], fill=(110, 105, 90, strength), width=1)
+                # Highlight (Lighter)
+                draw_obj.line([(0, y_pos - i), (w, y_pos - i)], fill=(255, 255, 255, strength), width=1)
 
-        # 3. INTERNAL BOTTOM TEAR (Niche se fata hua - Internal Only)
+        # 4 Horizontal Folds precisely
+        fold_locations = [h//5, 2*h//5, 3*h//5, 4*h//5]
+        for fy in fold_locations:
+            add_soft_crease(draw, fy + random.randint(-10, 10))
+
+        # 3. INTERNAL TORN EFFECT (Page chya aatun fadla ahe)
+        # Content cut honar nahi yachi kaalji ghetli ahe.
         mask = Image.new("L", (w, h), 255)
         d_mask = ImageDraw.Draw(mask)
         tear_y = h - random.randint(40, 70)
         
         points = [(0, tear_y)]
-        for x in range(0, w, 15):
-            ty = tear_y + random.randint(-15, 30)
-            if x > w//4 and x < 3*w//4: # Middle deep cut
-                ty -= random.randint(20, 45)
+        for x in range(0, w + 10, 20):
+            # Randomized 'V' and 'U' cuts
+            ty = tear_y + random.randint(-10, 30)
+            if x > w//4 and x < 3*w//4: ty -= random.randint(20, 40)
             points.append((x, ty))
         points.extend([(w, h), (0, h)])
         d_mask.polygon(points, fill=0)
         
-        canvas.putalpha(mask.filter(ImageFilter.GaussianBlur(radius=0.6)))
-        
-        # 4. FINAL TEXTURE (Slight Noise for Scan Feel)
+        canvas.putalpha(mask.filter(ImageFilter.GaussianBlur(radius=0.5)))
+
+        # 4. FINAL POLISH
         final = Image.new("RGB", (w, h), (255, 255, 255))
         final.paste(canvas, (0, 0), canvas)
         
-        img_array = np.array(final)
-        noise = np.random.normal(0, 4, img_array.shape) # Very subtle noise
-        final = Image.fromarray(np.clip(img_array + noise, 0, 255).astype(np.uint8))
-
-        # Final Color Polish
-        final = ImageOps.colorize(ImageOps.grayscale(final), black="#1a1a1a", white="#fcfaf5")
+        # Subtle Noise for Scan feel
+        img_arr = np.array(final)
+        noise = np.random.normal(0, 5, img_arr.shape)
+        final = Image.fromarray(np.clip(img_arr + noise, 0, 255).astype(np.uint8))
+        
         return final
 
     if v_file:
@@ -1317,23 +1308,23 @@ if st.session_state.current_page == "PDFFormat":
             doc = fitz.open(stream=pdf_bytes, filetype="pdf")
             processed_pages = []
 
-            with st.spinner("⏳ Crease apply hot aahe... (Line nahi, asli fold distil)"):
+            with st.spinner("⏳ High Quality Fold Processing..."):
                 for page in doc:
-                    pix = page.get_pixmap(matrix=fitz.Matrix(2.0, 2.0))
+                    # Rendering matrix 1.5 kela ahe taaki content cut hou naye
+                    pix = page.get_pixmap(matrix=fitz.Matrix(1.8, 1.8)) 
                     img = Image.open(io.BytesIO(pix.tobytes()))
-                    processed_pages.append(apply_realistic_fold(img))
+                    processed_pages.append(apply_perfect_vintage(img))
 
             output_pdf = io.BytesIO()
             if processed_pages:
-                processed_pages[0].save(output_pdf, format="PDF", save_all=True, append_images=processed_pages[1:], quality=95)
+                processed_pages[0].save(output_pdf, format="PDF", save_all=True, append_images=processed_pages[1:], quality=100)
             
-            with col_u: st.success("✅ Real Crease Magic Done!")
+            with col_u: st.success("✅ SNC Master Done!")
             with col_d:
-                st.download_button("📥 DOWNLOAD PDF", output_pdf.getvalue(), f"RealFold_{v_file.name}", "application/pdf", use_container_width=True)
+                st.download_button("📥 DOWNLOAD VINTAGE PDF", output_pdf.getvalue(), f"Vintage_{v_file.name}", "application/pdf", use_container_width=True)
             
             st.divider()
-            st.subheader("👀 Preview (No Lines - Only Real Creases)")
-            st.image(processed_pages[0], use_container_width=True)
+            st.image(processed_pages[0], caption="No Content Cut - Real 4-Folds", use_container_width=True)
 
         except Exception as e:
             st.error(f"Error: {e}")
