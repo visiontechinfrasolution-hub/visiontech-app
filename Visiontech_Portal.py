@@ -453,7 +453,7 @@ import pandas as pd
 import urllib.parse
 from geopy.distance import geodesic
 
-# --- यह सुनिश्चित करने के लिए कि 'elif' एरर न दे, पिछला ब्लॉक यहाँ है ---
+# --- Syntax Error से बचने के लिए पिछला ब्लॉक अलाइन किया गया है ---
 if st.session_state.current_page == "Home":
     st.markdown("<h2 style='text-align: center;'>🏠 Visiontech Portal Home</h2>", unsafe_allow_html=True)
 
@@ -499,12 +499,11 @@ elif st.session_state.current_page == "Indus":
                 st.markdown(call_html("👨‍💼 **AOM Name**", row_in.get('AOM Name','-'), row_in.get('AOM Number','-')), unsafe_allow_html=True)
                 lat, lon = row_in.get('Lat', ''), row_in.get('Long', '')
                 if lat and lon and str(lat).strip() not in ['-', '', 'None', 'nan']:
-                    # Road Direction link
                     maps_url = f"https://www.google.com/maps/dir/{base_lat},{base_lon}/{lat},{lon}"
                     st.markdown(f"📍 **Lat/Long** :- {lat} / {lon} <a href='{maps_url}' target='_blank'><button style='background-color:#EA4335;color:white;border:none;padding:2px 10px;border-radius:5px;cursor:pointer;font-weight:bold;'>📍 Direction</button></a>", unsafe_allow_html=True)
                 else: st.markdown(f"📍 **Lat/Long** :- {lat if lat else '-'} / {lon if lon else '-'}")
             
-            # --- WhatsApp Format & Direct App Trigger ---
+            # --- WhatsApp Format & Universal Link ---
             maps_dir = f"https://www.google.com/maps/dir/{base_lat},{base_lon}/{lat},{lon}"
             
             msg_body = (
@@ -520,10 +519,17 @@ elif st.session_state.current_page == "Indus":
             )
             
             wa_encoded = urllib.parse.quote_plus(msg_body)
-            # whatsapp:// protocol opens the local app directly, skipping Web WhatsApp loading
-            app_link = f"whatsapp://send?text={wa_encoded}"
+            # api.whatsapp.com सबसे बेस्ट है, यह ऐप और वेब दोनों पर काम करता है
+            universal_link = f"https://api.whatsapp.com/send?text={wa_encoded}"
             
-            st.link_button("🚀 Send Details via WhatsApp (Fast)", app_link, use_container_width=True)
+            # target='_self' इस्तेमाल करने से नया टैब खुलने की समस्या कम होगी
+            st.markdown(f'''
+                <a href="{universal_link}" target="_self">
+                    <button style="width:100%; background-color:#25D366; color:white; border:none; padding:12px; border-radius:8px; font-weight:bold; cursor:pointer; font-size:16px;">
+                        💬 Select Contact & Send (WhatsApp)
+                    </button>
+                </a>
+                ''', unsafe_allow_html=True)
 
         else: st.info("No Indus data found.")
 
