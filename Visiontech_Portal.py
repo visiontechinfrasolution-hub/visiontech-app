@@ -1225,43 +1225,66 @@ elif st.session_state.current_page == "Indus":
                             st.toast(f"AI: {m}")
 
 # =====================================================================
-    # 📜 TAB: PDF FORMATTER (AB YEH CHALEGA)
-    # =====================================================================
+# 📜 TAB 10: VINTAGE PDF FORMATTER (ONLY PDF LOGIC)
+# =====================================================================
     elif st.session_state.current_page == "PDFFormat":
-        import fitz
+        import io
+        import random
+        import numpy as np
+        from PIL import Image, ImageDraw, ImageOps, ImageFilter
+        try:
+            import fitz # PyMuPDF (pip install pymupdf)
+        except ImportError:
+            st.error("Terminal madhe run kara: pip install pymupdf")
+            st.stop()
+
         st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>📜 Vintage PDF Generator</h2>", unsafe_allow_html=True)
-        v_file = st.file_uploader("📂 Upload Fresh PDF", type=['pdf'], key="v_up_99")
         
+        # --- UI Buttons ---
+        c_up, c_dn, c_cl = st.columns(3)
+        v_file = st.file_uploader("📂 Upload Fresh PDF", type=['pdf'], key="v_up_unique_vision_final")
+
         if v_file:
+            # 1. Vintage Effect Function
             def apply_vintage_effect(image):
                 img = image.convert("RGB")
                 img_array = np.array(img)
+                # Dust/Noise
                 noise = np.random.normal(0, 15, img_array.shape)
                 img_noised = np.clip(img_array + noise, 0, 255).astype(np.uint8)
                 img = Image.fromarray(img_noised)
+                # Paper Folds
                 draw = ImageDraw.Draw(img)
+                w, h = img.size
                 for _ in range(2):
-                    y_pos = random.randint(img.size[1]//4, 3*img.size[1]//4)
-                    draw.line([(0, y_pos), (img.size[0], y_pos + random.randint(-15, 15))], fill=(200, 200, 200), width=1)
+                    y_pos = random.randint(h//4, 3*h//4)
+                    draw.line([(0, y_pos), (w, y_pos + random.randint(-15, 15))], fill=(200, 200, 200), width=1)
+                # Tint & Blur
                 img = ImageOps.colorize(ImageOps.grayscale(img), black="#000000", white="#f4ecd8")
+                img = img.filter(ImageFilter.GaussianBlur(radius=0.3))
                 return img
 
-            doc = fitz.open(stream=v_file.read(), filetype="pdf")
+            # 2. PDF Processing
+            pdf_bytes = v_file.read()
+            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
             processed_pages = []
-            with st.spinner("⏳ Vintage magic..."):
+
+            with st.spinner("⏳ Vintage Effect Apply Hot Aahe..."):
                 for page in doc:
                     pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
                     img = Image.open(io.BytesIO(pix.tobytes()))
                     processed_pages.append(apply_vintage_effect(img))
 
-            out_pdf = io.BytesIO()
-            processed_pages[0].save(out_pdf, format="PDF", save_all=True, append_images=processed_pages[1:])
+            # 3. Save & Download
+            output_pdf = io.BytesIO()
+            processed_pages[0].save(output_pdf, format="PDF", save_all=True, append_images=processed_pages[1:])
             
-            c1, c2, c3 = st.columns(3)
-            with c1: st.success("Success!")
-            with c2: st.download_button("📥 DOWNLOAD PDF", out_pdf.getvalue(), f"Vintage_{v_file.name}", "application/pdf", key="v_down_final")
-            with c3: 
-                if st.button("🧹 CLEAR"): st.rerun()
-            st.image(processed_pages[0], use_container_width=True)
+            with c_up: st.success("✅ Success!")
+            with c_dn:
+                st.download_button("📥 DOWNLOAD PDF", output_pdf.getvalue(), f"Vintage_{v_file.name}", "application/pdf", use_container_width=True, key="v_dl_btn")
+            with c_cl:
+                if st.button("🧹 CLEAR ALL", key="v_clr_btn"): st.rerun()
 
+            st.divider()
+            st.image(processed_pages[0], caption="Vintage Preview", use_container_width=True)
 # =====================================================================
