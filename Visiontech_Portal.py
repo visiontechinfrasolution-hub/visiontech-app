@@ -574,7 +574,7 @@ elif st.session_state.current_page == "Indus":
             </style>
         """, unsafe_allow_html=True)
 
-        # --- 0% Change: Original WhatsApp Logic  ---
+        # --- 0% Change: Original WhatsApp Logic ---
         def send_interakt_whatsapp(row_data):
             import requests
             api_key = "S2pFcE5ETjE2NDhiQ1VIMEFjMVA5a3ZwdHB6X0diYXpRM2I2SWRxbGJWYzo="
@@ -582,17 +582,22 @@ elif st.session_state.current_page == "Indus":
             url = "https://api.interakt.ai/v1/public/message/"
             headers = {"Authorization": f"Basic {api_key}", "Content-Type": "application/json"}
             
-            # Variables {{1}} to {{8}} 
             body_values = [
-                str(row_data.get("Project", "")), str(row_data.get("Project ID", "")),
-                str(row_data.get("Site ID", "")), str(row_data.get("Site Name", "")),
-                str(row_data.get("PO Number", "")), str(row_data.get("Reqeust Date", "")),
-                str(row_data.get("WCC Number", "")), str(row_data.get("WCC Status", ""))
+                str(row_data.get("Project", "")),        # {{1}}
+                str(row_data.get("Project ID", "")),     # {{2}}
+                str(row_data.get("Site ID", "")),        # {{3}}
+                str(row_data.get("Site Name", "")),      # {{4}}
+                str(row_data.get("PO Number", "")),      # {{5}}
+                str(row_data.get("Reqeust Date", "")),   # {{6}}
+                str(row_data.get("WCC Number", "")),     # {{7}}
+                str(row_data.get("WCC Status", ""))      # {{8}}
             ]
 
             for num in numbers:
                 payload = {
-                    "countryCode": "+91", "phoneNumber": num[2:], "type": "Template",
+                    "countryCode": "+91",
+                    "phoneNumber": num[2:], 
+                    "type": "Template",
                     "template": {"name": "wccrequest", "languageCode": "en", "bodyValues": body_values}
                 }
                 try: requests.post(url, headers=headers, json=payload, timeout=5)
@@ -600,25 +605,30 @@ elif st.session_state.current_page == "Indus":
 
         st.title("📡 WCC Status Tracker")
         
-        # --- 0% Change: Original Password System  ---
-        if "wcc_role" not in st.session_state: st.session_state.wcc_role = None
+        # --- 0% Change: Original Password System ---
+        if "wcc_role" not in st.session_state: 
+            st.session_state.wcc_role = None
         
         if not st.session_state.wcc_role:
             pwd_input = st.text_input("Enter Password:", type="password", key="wcc_pwd_final_fix")
             if st.button("🔓 Unlock Tracker"):
-                if pwd_input == "Vision@321": st.session_state.wcc_role = "requester"
-                elif pwd_input == "Account@321": st.session_state.wcc_role = "accountant"
-                else: st.error("❌ Wrong Password!")
-                st.rerun()
+                if pwd_input == "Vision@321": 
+                    st.session_state.wcc_role = "requester"
+                    st.rerun()
+                elif pwd_input == "Account@321": 
+                    st.session_state.wcc_role = "accountant"
+                    st.rerun()
+                else: 
+                    st.error("❌ Wrong Password!")
         else:
-            # Purna table logic jase tumche hote 
+            # Full table display (0% Change)
             try:
                 res = supabase.table("WCC Status").select("*").execute()
                 df_wcc = pd.DataFrame(res.data)[::-1] if res.data else pd.DataFrame()
                 if not df_wcc.empty:
                     st.dataframe(df_wcc, use_container_width=True)
             except Exception as e:
-                st.error(f"Supabase Error: {e}")
+                st.error(f"Error: {e}")
     # =====================================================================
     # 🏗️ TAB 6: DATA ENTRY (Document Center & Tracker) - FINAL MASTER
     # =====================================================================
