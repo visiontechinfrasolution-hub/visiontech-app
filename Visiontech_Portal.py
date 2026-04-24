@@ -453,10 +453,7 @@ import pandas as pd
 import urllib.parse
 from geopy.distance import geodesic
 
-# ... (बाकी के पन्ने और supabase initialization ऊपर रहेंगे) ...
-
-if st.session_state.current_page == "Home":
-    st.markdown("<h2 style='text-align: center;'>🏠 Welcome to Visiontech Portal</h2>", unsafe_allow_html=True)
+# ... (Supabase initialization और बाकी के पन्ने ऊपर रहेंगे) ...
 
 elif st.session_state.current_page == "Indus":
     st.markdown("<h3 style='text-align: center;'>📊 Indus Basic Data</h3>", unsafe_allow_html=True)
@@ -502,10 +499,9 @@ elif st.session_state.current_page == "Indus":
                 if lat and lon and str(lat).strip() not in ['-', '', 'None', 'nan']:
                     maps_url = f"https://www.google.com/maps/dir/{base_lat},{base_lon}/{lat},{lon}"
                     st.markdown(f"📍 **Lat/Long** :- {lat} / {lon} <a href='{maps_url}' target='_blank'><button style='background-color:#EA4335;color:white;border:none;padding:2px 10px;border-radius:5px;cursor:pointer;font-weight:bold;'>📍 Direction</button></a>", unsafe_allow_html=True)
-                else: 
-                    st.markdown(f"📍 **Lat/Long** :- {lat if lat else '-'} / {lon if lon else '-'}")
+                else: st.markdown(f"📍 **Lat/Long** :- {lat if lat else '-'} / {lon if lon else '-'}")
             
-            # --- WhatsApp Logic: Fixed Encoding & New Tab Issue ---
+            # --- Updated WhatsApp Logic: Using st.link_button for Tab Control ---
             maps_dir = f"https://www.google.com/maps/dir/{base_lat},{base_lon}/{lat},{lon}"
             
             msg_body = (
@@ -517,23 +513,18 @@ elif st.session_state.current_page == "Indus":
                 f"👷 *FSE* : {row_in.get('FSE','-')} ({row_in.get('FSE Number','-')}) 📞 Call\n"
                 f"👨‍💼 *AOM Name* : {row_in.get('AOM Name','-')} ({row_in.get('AOM Number','-')}) 📞 Call\n"
                 f"📍 *Lat/Long* :- {lat} / {lon}\n\n"
-                f"🗺️ *Road Route Link*:\n{maps_dir}"
+                f"🗺️ *Route Map Link*:\n{maps_dir}"
             )
             
-            wa_encoded = urllib.parse.quote(msg_body)
-            # 'wa.me' लिंक ब्राउज़र में WhatsApp App या पहले से खुले टैब को ट्रिगर करने की कोशिश करता है
-            wa_link = f"https://wa.me/?text={wa_encoded}"
+            # Using quote_plus to ensure Emojis pass correctly
+            wa_encoded = urllib.parse.quote_plus(msg_body)
+            # api.whatsapp.com is more robust for cross-device support
+            wa_link = f"https://api.whatsapp.com/send?text={wa_encoded}"
             
-            # यहाँ हमने target='_blank' की जगह सीधा लिंक इस्तेमाल किया है
-            st.markdown(f'''
-                <a href="{wa_link}">
-                    <button style="width:100%; background-color:#25D366; color:white; border:none; padding:10px; border-radius:5px; font-weight:bold; cursor:pointer;">
-                        💬 Select Contact & Send (WhatsApp)
-                    </button>
-                </a>
-                ''', unsafe_allow_html=True)
-        else: 
-            st.info("No Indus data found.")
+            # Streamlit native link_button avoids some 'new tab' overhead and fixes formatting
+            st.link_button("💬 Select Contact & Send on WhatsApp", wa_link, use_container_width=True)
+
+        else: st.info("No Indus data found.")
 
     st.divider()
     st.subheader("🧭 Route Plan")
