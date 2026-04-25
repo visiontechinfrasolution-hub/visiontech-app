@@ -35,6 +35,8 @@ st.markdown("""
     header { visibility: hidden; }
     footer { visibility: hidden; }
     .stApp { background-color: #F8FAFC; }
+    
+    /* Desktop Buttons */
     div.stButton > button {
         width: 100%; height: 120px; border-radius: 20px; border: none;
         background-color: white; color: #1E293B; font-size: 18px; font-weight: bold;
@@ -45,6 +47,21 @@ st.markdown("""
     div.stButton > button:hover {
         transform: translateY(-5px); background-color: #1E3A8A; color: white;
     }
+
+    /* Mobile Responsiveness */
+    @media (max-width: 768px) {
+        div[data-testid="stHorizontalBlock"] {
+            flex-direction: row !important; flex-wrap: wrap !important;
+            justify-content: center !important; gap: 10px !important;
+        }
+        div[data-testid="column"] {
+            min-width: 45% !important; max-width: 45% !important; padding: 0 !important;
+        }
+        div.stButton > button {
+            height: 100px !important; font-size: 14px !important;
+        }
+    }
+
     .back-btn button {
         height: 50px !important; width: 160px !important;
         background-color: #64748B !important; color: white !important;
@@ -59,7 +76,7 @@ if 'current_page' not in st.session_state:
 if st.session_state.current_page == "Dashboard":
     st.markdown("<h1 style='text-align: center; color: #1E3A8A;'>🚀 Visiontech Portal</h1>", unsafe_allow_html=True)
     
-    spacer1, c1, c2, c3, spacer2 = st.columns([1.5, 2, 2, 2, 1.5])
+    spacer1, c1, c2, c3, spacer2 = st.columns([1, 2, 2, 2, 1])
     
     with c1:
         if st.button("📦\nBOQ Report"): st.switch_page("pages/boq_report.py")
@@ -87,7 +104,7 @@ elif st.session_state.current_page == "Jajupro":
     
     st.title("🚀 Jajupro Management")
 
-    # 1. Fetch Data from Supabase (Lowercase table names)
+    # 1. Fetch Data
     try:
         site_res = supabase.table("nr_calculation").select("*").execute()
         fin_res = supabase.table("nr_finance").select("*").execute()
@@ -115,8 +132,21 @@ elif st.session_state.current_page == "Jajupro":
         col1, col2, col3 = st.columns([1, 1, 1])
         with col1:
             if st.button("➕ New Entry"): st.session_state.show_site_form = not st.session_state.get('show_site_form', False)
+        
         with col2:
             up_file = st.file_uploader("📂 Bulk Upload", type=['xlsx', 'csv'], label_visibility="collapsed")
+            if up_file:
+                try:
+                    bulk_df = pd.read_excel(up_file) if up_file.name.endswith('xlsx') else pd.read_csv(up_file)
+                    # Convert column names to lowercase to match DB
+                    bulk_df.columns = [c.lower().replace(' ', '_') for c in bulk_df.columns]
+                    data_to_save = bulk_df.to_dict(orient='records')
+                    supabase.table("nr_calculation").insert(data_to_save).execute()
+                    st.success(f"Successfully uploaded {len(data_to_save)} records!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Bulk Upload Error: {e}")
+
         with col3:
             if not df_site.empty:
                 st.download_button("📥 Download Excel", data=df_site.to_csv(index=False), file_name="NR_Report.csv")
@@ -171,7 +201,7 @@ elif st.session_state.current_page != "Dashboard":
     elif cur_p == "PDFFormat":
         st.title("📜 Vintage PDF")
     else:
-        st.write(f"Welcome to {cur_p}")
+        st.write(f"Section {cur_p} is active.")
 # =====================================================================
     # 🟩 TAB 1: BOQ REPORT (3 Dedicated Sections - 0% Logic Change)
     # =====================================================================
