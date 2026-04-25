@@ -99,7 +99,7 @@ def open_entry_popup():
                 "wcc_number": wcc_no, "wcc_status": wcc_st
             }
             try:
-                # Using upsert to handle duplicate keys if necessary
+                # Using upsert as requested to handle conflicts automatically
                 supabase.table("nr_calculation").upsert(new_data, on_conflict="project_id").execute()
                 st.success("✅ Record Added Successfully!")
                 time.sleep(1)
@@ -145,11 +145,14 @@ elif st.session_state.current_page == "Jajupro":
         fin_res = supabase.table("nr_finance").select("*").execute()
         df_site = pd.DataFrame(site_res.data) if site_res.data else pd.DataFrame()
         df_fin = pd.DataFrame(fin_res.data) if fin_res.data else pd.DataFrame()
+        
+        # Ensure all column names are lowercase to prevent display issues
+        if not df_site.empty:
+            df_site.columns = [c.lower() for c in df_site.columns]
     except:
         df_site, df_fin = pd.DataFrame(), pd.DataFrame()
 
     # Metrics (3 Boxes)
-    # Using case-insensitive get for metrics calculation
     t_site = df_site['po_amt'].sum() if not df_site.empty and 'po_amt' in df_site.columns else 0
     t_paid = df_fin['payment_amt'].sum() if not df_fin.empty and 'payment_amt' in df_fin.columns else 0
     balance = t_site - t_paid
