@@ -17,7 +17,9 @@ if st.button("⬅️ Dashboard"):
 st.markdown("</div>", unsafe_allow_html=True)
 st.divider()
 
-# --- WCC TRACKER LOGIC ---
+# =====================================================================
+# 📡 WCC STATUS TRACKER (STANDALONE PAGE)
+# =====================================================================
 st.markdown("""
     <style>
         .site-badge { background-color: #E0F2FE; color: #0369A1; padding: 2px 8px; border-radius: 12px; font-weight: 600; font-size: 11px; border: 1px solid #BAE6FD; }
@@ -31,12 +33,14 @@ def send_interakt_whatsapp(row_data):
     numbers = ["919960843473", "919552273181", "917498984373"]
     url = "https://api.interakt.ai/v1/public/message/"
     headers = {"Authorization": f"Basic {api_key}", "Content-Type": "application/json"}
+    
     body_values = [
         str(row_data.get("Project", "")), str(row_data.get("Project ID", "")),
         str(row_data.get("Site ID", "")), str(row_data.get("Site Name", "")),
         str(row_data.get("PO Number", "")), str(row_data.get("Reqeust Date", "")),
         str(row_data.get("WCC Number", "")), str(row_data.get("WCC Status", ""))
     ]
+
     for num in numbers:
         payload = {
             "countryCode": "+91", "phoneNumber": num[2:], 
@@ -47,20 +51,25 @@ def send_interakt_whatsapp(row_data):
         except: pass
 
 def fetch_wcc_data_simple():
-    try: return supabase.table("WCC Status").select("*").execute().data
+    try: 
+        res = supabase.table("WCC Status").select("*").execute()
+        return res.data
     except Exception as e:
         st.error(f"Fetch Error: {e}")
         return []
 
 def update_wcc_record(payload):
-    try: return supabase.table("WCC Status").upsert(payload).execute()
+    try: 
+        res = supabase.table("WCC Status").upsert(payload).execute()
+        return res
     except Exception as e:
         st.error(f"SUPABASE ERROR: {str(e)}")
         return None
 
 st.title("📡 WCC Status Tracker")
 
-if "wcc_role" not in st.session_state: st.session_state.wcc_role = None
+if "wcc_role" not in st.session_state: 
+    st.session_state.wcc_role = None
 
 if not st.session_state.wcc_role:
     pwd_input = st.text_input("Enter Password:", type="password", key="wcc_login_pwd_v2")
@@ -167,7 +176,22 @@ else:
                 b1, b2 = st.columns(2)
                 if b1.button("✏️", key=f"edit_{row['Project ID']}_{i}"): wcc_edit_modal(row)
                 if role == 'requester':
-                    msg = (f"*Hello Prakash Ji,*\nRaise WCC urgently...\n\n*Project* :- {clean_none(row.get('Project'))}\n*Project ID* :- {clean_none(row.get('Project ID'))}\n*Site ID* :- {clean_none(row.get('Site ID'))}\n*PO Number* :- {clean_none(row.get('PO Number'))}\n\nThanks,\n*Mayur Patil*")
+                    msg = (
+                        f"*Hello Prkash Ji,*\n"
+                        f"As per your requirement of pending Wcc please find below detail.\n"
+                        f"Raise WCC urgently\n\n"
+                        f"*Project* :- {clean_none(row.get('Project'))}\n"
+                        f"*Project ID* :- {clean_none(row.get('Project ID'))}\n"
+                        f"*Site ID* :- {clean_none(row.get('Site ID'))}\n"
+                        f"*Site Name* :- {clean_none(row.get('Site Name'))}\n"
+                        f"*PO Number* :- {clean_none(row.get('PO Number'))}\n"
+                        f"*Reqeust Date* :- {clean_none(row.get('Reqeust Date'))}\n"
+                        f"*WCC Number* :- {clean_none(row.get('WCC Number'))}\n"
+                        f"*WCC Status* :- {clean_none(row.get('WCC Status'))}\n\n"
+                        f"Thanks,\n"
+                        f"Mayur Patil\n"
+                        f"7350533473"
+                    )
                     wa_url = f"whatsapp://send?text={urllib.parse.quote(msg)}"
                     b2.markdown(f'<a href="{wa_url}" class="wa-btn" style="text-align:center; display:block; text-decoration:none;">💬</a>', unsafe_allow_html=True)
             r_cols[1].markdown(f"<p style='font-size:11px; text-align:center;'>{i+1}</p>", unsafe_allow_html=True)
