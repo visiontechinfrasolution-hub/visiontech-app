@@ -158,22 +158,22 @@ if st.session_state.current_page == "Dashboard":
     spacer1, c1, c2, c3, spacer2 = st.columns([1.5, 2, 2, 2, 1.5])
     
     with c1:
-        if st.button("📦\nBOQ Report"): st.switch_page("pages/boq_report.py")
-        if st.button("📊\nIndus Data"): st.switch_page("pages/indus_data.py")
-        if st.button("💰\nFinance"): navigate_to("Finance")
-        if st.button("🚨\nSTN Manager"): navigate_to("STN Manager")
+    if st.button("📦\nBOQ Report"): st.switch_page("pages/boq_report.py")
+    if st.button("📊\nIndus Data"): st.switch_page("pages/indus_data.py")
+    if st.button("🚨\nSTN Manager"): navigate_to("STN Manager")
+    # Yahan "Finance" button ki jagah khali chhod sakte hain ya koi aur feature add kar sakte hain
         
-    with c2:
-        if st.button("🧾\nPO Report"): navigate_to("PO")
-        if st.button("📡\nWCC Tracker"): st.switch_page("pages/wcc_tracker.py")
-        if st.button("📝\nAudit Portal"): navigate_to("Audit")
-        if st.button("🛰️\nSite Tracking"): navigate_to("Tracking")
-               
-    with c3:
-        if st.button("🏗️\nSite Detail"): navigate_to("Site")
-        if st.button("📁\nData Entry"): st.switch_page("pages/data_entry.py")
-        if st.button("📢\nRFAI Billing"): navigate_to("RFAI")
-        if st.button("🚀\nJajupro"): navigate_to("Jajupro")
+with c2:
+    if st.button("🧾\nPO Report"): navigate_to("PO")
+    if st.button("📡\nWCC Tracker"): st.switch_page("pages/wcc_tracker.py")
+    if st.button("📝\nAudit Portal"): navigate_to("Audit")
+    if st.button("🛰️\nSite Tracking"): navigate_to("Tracking")
+                
+with c3:
+    if st.button("🚀\nJajupro"): navigate_to("Jajupro") # Ye main button hai
+    if st.button("📁\nData Entry"): st.switch_page("pages/data_entry.py")
+    if st.button("📢\nRFAI Billing"): navigate_to("RFAI")
+    if st.button("📜\nVintage PDF"): navigate_to("PDFFormat")
        
 # --- PAGES LOGIC ---
 elif st.session_state.current_page != "Dashboard":
