@@ -43,6 +43,9 @@ st.markdown("""
     }
     div.stButton > button:hover { transform: translateY(-5px); background-color: #1E3A8A; color: white; }
     .back-btn button { height: 50px !important; width: 160px !important; background-color: #64748B !important; color: white !important; }
+    
+    /* Table Text Size */
+    .stText { font-size: 12px !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -50,9 +53,8 @@ if 'current_page' not in st.session_state:
     st.session_state.current_page = "Dashboard"
 
 # --- 2. POP-UP DIALOG (ADD / EDIT FORM) ---
-@st.dialog("🏗️ Site Details Form")
+@st.dialog("🏗️ Site Master Form")
 def site_form_dialog(edit_data=None):
-    # Agar edit_data hai toh purana value load hoga, nahi toh empty
     is_edit = edit_data is not None
     
     with st.form("site_master_form", clear_on_submit=True):
@@ -63,8 +65,11 @@ def site_form_dialog(edit_data=None):
             s_name = st.text_input("Site Name", value=edit_data['site_name'] if is_edit else "")
         with f2:
             clstr = st.text_input("Cluster", value=edit_data['cluster'] if is_edit else "")
-            # Date conversion
-            default_date = datetime.strptime(edit_data['allocation_date'], '%Y-%m-%d') if is_edit and edit_data['allocation_date'] else datetime.now()
+            # Date Handling
+            try:
+                default_date = datetime.strptime(edit_data['allocation_date'], '%Y-%m-%d') if is_edit and edit_data['allocation_date'] else datetime.now()
+            except:
+                default_date = datetime.now()
             a_date = st.date_input("Allocation Date", value=default_date)
             w_desc = st.text_area("Work Description", value=edit_data['work_description'] if is_edit else "")
         with f3:
@@ -75,7 +80,7 @@ def site_form_dialog(edit_data=None):
             default_idx = status_list.index(edit_data['wcc_status']) if is_edit and edit_data['wcc_status'] in status_list else 0
             wcc_st = st.selectbox("WCC Status", status_list, index=default_idx)
         
-        btn_label = "Update Record" if is_edit else "Save Record"
+        btn_label = "Update Site Data" if is_edit else "Save New Site"
         if st.form_submit_button(btn_label, use_container_width=True):
             payload = {
                 "project_id": p_id, "site_id": s_id, "site_name": s_name,
@@ -85,7 +90,7 @@ def site_form_dialog(edit_data=None):
             }
             try:
                 supabase.table("nr_calculation").upsert(payload, on_conflict="project_id").execute()
-                st.success("✅ Success!")
+                st.success("✅ Database Updated!")
                 time.sleep(1)
                 st.rerun()
             except Exception as e:
@@ -134,53 +139,55 @@ elif st.session_state.current_page == "Jajupro":
 
     st.divider()
 
-    # TABS
     tab_site, tab_finance = st.tabs(["🏗️ Site Master", "💰 Finance History"])
 
     with tab_site:
-        # ACTION BAR
         col_new, col_dl = st.columns([1, 4])
         if col_new.button("➕ New Entry", type="primary"):
             site_form_dialog()
         
         if not df_site.empty:
-            # --- FULL COLUMN TABLE ---
-            st.markdown("### 📋 Site Records (All Columns)")
+            st.markdown("### 📋 Site Master List")
             
-            # Header with all columns
-            st.markdown("""<div style='background-color: #1E3A8A; padding: 10px; border-radius: 5px; display: flex; color: white; font-size: 13px; font-weight: bold;'>
-                <div style='flex: 0.5;'>Edit</div>
-                <div style='flex: 1;'>Project ID</div>
-                <div style='flex: 1;'>Site ID</div>
-                <div style='flex: 1.5;'>Site Name</div>
-                <div style='flex: 1;'>Cluster</div>
-                <div style='flex: 1;'>Alloc. Date</div>
+            # --- FULL COLUMN HEADER (All Columns Included) ---
+            st.markdown("""<div style='background-color: #1E3A8A; padding: 10px; border-radius: 5px; display: flex; color: white; font-size: 11px; font-weight: bold;'>
+                <div style='flex: 0.4;'>Edit</div>
+                <div style='flex: 0.9;'>Project ID</div>
+                <div style='flex: 0.8;'>Site ID</div>
+                <div style='flex: 1.2;'>Site Name</div>
+                <div style='flex: 0.8;'>Cluster</div>
+                <div style='flex: 0.8;'>Date</div>
                 <div style='flex: 1;'>PO No</div>
-                <div style='flex: 1;'>Amount</div>
-                <div style='flex: 1;'>Status</div>
+                <div style='flex: 0.8;'>Amount</div>
+                <div style='flex: 1;'>WCC No</div>
+                <div style='flex: 0.8;'>Status</div>
                 </div>""", unsafe_allow_html=True)
 
             for idx, row in df_site.iterrows():
-                r = st.columns([0.5, 1, 1, 1.5, 1, 1, 1, 1, 1])
+                # Flex based columns for better fit
+                r = st.columns([0.4, 0.9, 0.8, 1.2, 0.8, 0.8, 1, 0.8, 1, 0.8])
                 
-                # Edit Button (Functionality Connected)
+                # Column 0: Edit Button
                 if r[0].button("📝", key=f"ed_{idx}"):
                     site_form_dialog(edit_data=row.to_dict())
                 
-                r[1].write(row.get('project_id', '-'))
-                r[2].write(row.get('site_id', '-'))
-                r[3].write(row.get('site_name', '-'))
-                r[4].write(row.get('cluster', '-'))
-                r[5].write(row.get('allocation_date', '-'))
-                r[6].write(row.get('po_no', '-'))
-                r[7].write(f"₹{float(row.get('po_amt', 0)):,.0f}")
-                r[8].write(row.get('wcc_status', '-'))
-                st.markdown("<hr style='margin:2px; opacity:0.1'>", unsafe_allow_html=True)
+                # Column 1 to 9: All Data
+                r[1].write(f"<span style='font-size:11px'>{row.get('project_id', '-')}</span>", unsafe_allow_html=True)
+                r[2].write(f"<span style='font-size:11px'>{row.get('site_id', '-')}</span>", unsafe_allow_html=True)
+                r[3].write(f"<span style='font-size:11px'>{row.get('site_name', '-')}</span>", unsafe_allow_html=True)
+                r[4].write(f"<span style='font-size:11px'>{row.get('cluster', '-')}</span>", unsafe_allow_html=True)
+                r[5].write(f"<span style='font-size:11px'>{row.get('allocation_date', '-')}</span>", unsafe_allow_html=True)
+                r[6].write(f"<span style='font-size:11px'>{row.get('po_no', '-')}</span>", unsafe_allow_html=True)
+                r[7].write(f"<span style='font-size:11px'>₹{float(row.get('po_amt', 0)):,.0f}</span>", unsafe_allow_html=True)
+                r[8].write(f"<span style='font-size:11px'>{row.get('wcc_number', '-')}</span>", unsafe_allow_html=True) # WCC Number added here
+                r[9].write(f"<span style='font-size:11px'>{row.get('wcc_status', '-')}</span>", unsafe_allow_html=True)
+                
+                st.markdown("<hr style='margin:1px; opacity:0.1'>", unsafe_allow_html=True)
         else:
             st.info("No records found.")
 
     with tab_finance:
-        st.write("Finance data loading...")
+        st.write("Finance Section under development.")
 
 # --- OTHER PAGES ---
 elif st.session_state.current_page != "Dashboard":
