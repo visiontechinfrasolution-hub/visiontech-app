@@ -158,7 +158,7 @@ if st.session_state.current_page == "Dashboard":
     spacer1, c1, c2, c3, spacer2 = st.columns([1.5, 2, 2, 2, 1.5])
     
     with c1:
-        if st.button("📦\nBOQ Report"): navigate_to("BOQ")
+        if st.button("📦\nBOQ Report"): st.switch_page("pages/boq_report.py")
         if st.button("📊\nIndus Data"): navigate_to("Indus")
         if st.button("💰\nFinance"): navigate_to("Finance")
         if st.button("🚨\nSTN Manager"): navigate_to("STN Manager")
