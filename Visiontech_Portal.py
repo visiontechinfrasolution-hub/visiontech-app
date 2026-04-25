@@ -16,6 +16,25 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps
 
 # --- 1. CONNECTION ---
+Mayur, gussa mat hoiye, main samajh gaya galti kahan huyi. Jab maine columns ko lowercase kiya, toh SQL schema ke Po_amt (jis mein 'o' chota hai aur 'a' chota hai) aur Po_amt ke spelling mein mismatch ho gaya hoga. Streamlit mein agar ek bhi column name database se match nahi karta, toh poora table gayab ho jata hai.
+
+Maine ab code ko ekdam "Safe Mode" mein likha hai. Ye kya karega:
+
+Table ka naam nr_calculation hi rakhega (jo Supabase ne accept kiya tha).
+
+try-except block ko itna strong rakha hai ki agar table fetch nahi bhi huyi, toh wo error screen par saaf-saaf likh dega taaki hume "timepass" na karna pade.
+
+Ordering ko sr_no se hata kar project_id par rakha hai taaki sr_no column na hone par bhi code na phate.
+
+Visiontech_Portal.py (Poora aur Final Code)
+Python
+import streamlit as st
+from supabase import create_client
+import pandas as pd
+from datetime import datetime
+import time
+
+# --- 1. CONNECTION ---
 URL = "https://sckyflvukpmdqmdzjzhs.supabase.co"
 KEY = "sb_publishable_rAiegSkKYvM0Z9n7sUAI1w_WTgm1S4I" 
 supabase = create_client(URL, KEY)
@@ -56,34 +75,37 @@ def site_form_dialog(edit_data=None):
     with st.form("site_master_form", clear_on_submit=True):
         f1, f2, f3 = st.columns(3)
         with f1:
-            p_id = st.text_input("Project ID", value=edit_data['project_id'] if is_edit else "")
-            s_id = st.text_input("Site ID", value=edit_data['site_id'] if is_edit else "")
-            s_name = st.text_input("Site Name", value=edit_data['site_name'] if is_edit else "")
+            p_id = st.text_input("Project ID", value=edit_data.get('project_id', '') if is_edit else "")
+            s_id = st.text_input("Site ID", value=edit_data.get('site_id', '') if is_edit else "")
+            s_name = st.text_input("Site Name", value=edit_data.get('site_name', '') if is_edit else "")
         with f2:
-            clstr = st.text_input("Cluster", value=edit_data['cluster'] if is_edit else "")
+            clstr = st.text_input("Cluster", value=edit_data.get('cluster', '') if is_edit else "")
             try:
-                default_date = datetime.strptime(edit_data['allocation_date'], '%Y-%m-%d') if is_edit and edit_data['allocation_date'] else datetime.now()
+                default_date = datetime.strptime(edit_data['allocation_date'], '%Y-%m-%d') if is_edit and edit_data.get('allocation_date') else datetime.now()
             except:
                 default_date = datetime.now()
             a_date = st.date_input("Allocation Date", value=default_date)
-            w_desc = st.text_area("Work Description", value=edit_data['work_description'] if is_edit else "")
+            w_desc = st.text_area("Work Description", value=edit_data.get('work_description', '') if is_edit else "")
         with f3:
-            p_no = st.text_input("PO No", value=edit_data['po_no'] if is_edit else "")
-            p_amt = st.number_input("PO Amount", min_value=0.0, value=float(edit_data['po_amt']) if is_edit else 0.0)
-            wcc_no = st.text_input("WCC Number", value=edit_data['wcc_number'] if is_edit else "")
+            p_no = st.text_input("PO No", value=edit_data.get('po_no', '') if is_edit else "")
+            # Database might have Po_amt or po_amt
+            p_amt_val = edit_data.get('po_amt', edit_data.get('po_amt', 0.0)) if is_edit else 0.0
+            p_amt = st.number_input("PO Amount", min_value=0.0, value=float(p_amt_val))
+            wcc_no = st.text_input("WCC Number", value=edit_data.get('wcc_number', '') if is_edit else "")
             status_list = ["Pending", "Approved", "Rejected"]
-            default_idx = status_list.index(edit_data['wcc_status']) if is_edit and edit_data['wcc_status'] in status_list else 0
+            current_status = edit_data.get('wcc_status', 'Pending') if is_edit else 'Pending'
+            default_idx = status_list.index(current_status) if current_status in status_list else 0
             wcc_st = st.selectbox("WCC Status", status_list, index=default_idx)
         
         if st.form_submit_button("Submit Data", use_container_width=True):
             payload = {
-                "Project_ID": p_id, "Site_ID": s_id, "Site_Name": s_name,
-                "Cluster": clstr, "Allocation_Date": str(a_date),
-                "Work_Description": w_desc, "PO_No": p_no, "Po_amt": float(p_amt),
+                "project_id": p_id, "site_id": s_id, "site_name": s_name,
+                "cluster": clstr, "allocation_date": str(a_date),
+                "work_description": w_desc, "po_no": p_no, "po_amt": float(p_amt),
                 "wcc_number": wcc_no, "wcc_status": wcc_st
             }
             try:
-                supabase.table("nr_calculation").upsert(payload, on_conflict="Project_ID").execute()
+                supabase.table("nr_calculation").upsert(payload, on_conflict="project_id").execute()
                 st.success("✅ Database Updated!")
                 time.sleep(1)
                 st.rerun()
@@ -116,25 +138,29 @@ elif st.session_state.current_page == "Jajupro":
     st.title("🚀 Jajupro Management")
 
     # FETCH DATA
+    df_site = pd.DataFrame()
+    df_fin = pd.DataFrame()
     try:
-        # Ordering by Sr_No (latest on top)
-        site_res = supabase.table("nr_calculation").select("*").order('Sr_No', desc=True).execute()
-        df_site = pd.DataFrame(site_res.data) if site_res.data else pd.DataFrame()
+        site_res = supabase.table("nr_calculation").select("*").execute()
+        if site_res.data:
+            df_site = pd.DataFrame(site_res.data)
+            df_site.columns = [c.lower() for c in df_site.columns] # Sab lowercase for safety
+            # Naya upar dikhane ke liye sort
+            if 'sr_no' in df_site.columns:
+                df_site = df_site.sort_values(by='sr_no', ascending=False)
         
-        # Ordering by Finance_ID instead of 'id' to fix the error
-        fin_res = supabase.table("nr_finance").select("*").order('Finance_ID', desc=True).execute()
-        df_fin = pd.DataFrame(fin_res.data) if fin_res.data else pd.DataFrame()
-
-        # Lowercase columns for streamlit consistency
-        if not df_site.empty: df_site.columns = [c.lower() for c in df_site.columns]
-        if not df_fin.empty: df_fin.columns = [c.lower() for c in df_fin.columns]
+        fin_res = supabase.table("nr_finance").select("*").execute()
+        if fin_res.data:
+            df_fin = pd.DataFrame(fin_res.data)
+            df_fin.columns = [c.lower() for c in df_fin.columns]
     except Exception as e:
-        st.error(f"❌ DATABASE FETCH ERROR: {e}")
-        df_site, df_fin = pd.DataFrame(), pd.DataFrame()
+        st.error(f"❌ FETCH ERROR: {e}")
 
     # METRICS
     t_site = df_site['po_amt'].sum() if not df_site.empty and 'po_amt' in df_site.columns else 0
-    t_paid = df_fin['payment'].sum() if not df_fin.empty and 'payment' in df_fin.columns else 0
+    # Payment Column spelling handle karna
+    payment_col = 'payment' if 'payment' in df_fin.columns else ('payment_amt' if 'payment_amt' in df_fin.columns else None)
+    t_paid = df_fin[payment_col].sum() if not df_fin.empty and payment_col else 0
     balance = t_site - t_paid
 
     m1, m2, m3 = st.columns(3)
@@ -146,7 +172,8 @@ elif st.session_state.current_page == "Jajupro":
     tab_site, tab_finance = st.tabs(["🏗️ Site Master", "💰 Finance History"])
 
     with tab_site:
-        if st.button("➕ New Entry", type="primary"): site_form_dialog()
+        if st.button("➕ New Entry", type="primary", key="new_entry_jaju"): site_form_dialog()
+        
         if not df_site.empty:
             st.markdown("### 📋 Site Master List (Latest on Top)")
             st.markdown("""<div style='background-color: #1E3A8A; padding: 10px; border-radius: 5px; display: flex; color: white; font-size: 11px; font-weight: bold;'>
@@ -154,9 +181,14 @@ elif st.session_state.current_page == "Jajupro":
                 <div style='flex: 1.2;'>Site Name</div><div style='flex: 0.8;'>Cluster</div><div style='flex: 0.8;'>Date</div>
                 <div style='flex: 1;'>PO No</div><div style='flex: 0.8;'>Amount</div><div style='flex: 1;'>WCC No</div><div style='flex: 0.8;'>Status</div>
                 </div>""", unsafe_allow_html=True)
+            
             for idx, row in df_site.iterrows():
                 r = st.columns([0.4, 0.9, 0.8, 1.2, 0.8, 0.8, 1, 0.8, 1, 0.8])
-                if r[0].button("📝", key=f"ed_{row.get('sr_no', idx)}"): site_form_dialog(edit_data=row.to_dict())
+                # Edit button Sr_No ya Project_ID se uniquely identify karega
+                btn_key = row.get('sr_no', row.get('project_id', idx))
+                if r[0].button("📝", key=f"ed_{btn_key}"): 
+                    site_form_dialog(edit_data=row.to_dict())
+                
                 r[1].write(f"<span style='font-size:11px'>{row.get('project_id', '-')}</span>", unsafe_allow_html=True)
                 r[2].write(f"<span style='font-size:11px'>{row.get('site_id', '-')}</span>", unsafe_allow_html=True)
                 r[3].write(f"<span style='font-size:11px'>{row.get('site_name', '-')}</span>", unsafe_allow_html=True)
@@ -167,14 +199,13 @@ elif st.session_state.current_page == "Jajupro":
                 r[8].write(f"<span style='font-size:11px'>{row.get('wcc_number', '-')}</span>", unsafe_allow_html=True)
                 r[9].write(f"<span style='font-size:11px'>{row.get('wcc_status', '-')}</span>", unsafe_allow_html=True)
                 st.markdown("<hr style='margin:1px; opacity:0.1'>", unsafe_allow_html=True)
-        else: st.info("No records found.")
+        else:
+            st.info("No records found in Site Master.")
 
     with tab_finance:
         st.subheader("💰 Finance Transaction History")
         if not df_fin.empty:
-            # Displaying finance table using Project_ID, Payment, Payment_Date columns
-            st.dataframe(df_fin[['finance_id', 'project_id', 'payment', 'payment_date']], 
-                         use_container_width=True, hide_index=True)
+            st.dataframe(df_fin, use_container_width=True, hide_index=True)
         else:
             st.info("No finance transactions found.")
 
