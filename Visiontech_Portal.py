@@ -34,6 +34,17 @@ st.markdown("""
     header { visibility: hidden; }
     footer { visibility: hidden; }
     .stApp { background-color: #F8FAFC; }
+    
+    /* Metrics Styling */
+    [data-testid="stMetricValue"] {
+        font-size: 32px !important;
+        font-weight: 800 !important;
+    }
+    [data-testid="stMetricLabel"] {
+        font-size: 18px !important;
+        font-weight: 700 !important;
+    }
+
     div.stButton > button {
         width: 100%; height: 120px; border-radius: 20px; border: none;
         background-color: white; color: #1E293B; font-size: 18px; font-weight: bold;
@@ -43,15 +54,18 @@ st.markdown("""
     }
     div.stButton > button:hover { transform: translateY(-5px); background-color: #1E3A8A; color: white; }
     .back-btn button { height: 50px !important; width: 160px !important; background-color: #64748B !important; color: white !important; }
+    
+    /* Custom Table Row Text */
+    .row-text { font-size: 13px !important; font-weight: 600 !important; color: #1E293B; }
     </style>
     """, unsafe_allow_html=True)
 
 if 'current_page' not in st.session_state:
     st.session_state.current_page = "Dashboard"
+if 'jaju_locked' not in st.session_state:
+    st.session_state.jaju_locked = True
 
 # --- 2. POP-UP DIALOGS ---
-
-# --- Site Master Form ---
 @st.dialog("🏗️ Site Master Form")
 def site_form_dialog(edit_data=None):
     is_edit = edit_data is not None
@@ -89,18 +103,13 @@ def site_form_dialog(edit_data=None):
                 time.sleep(1); st.rerun()
             except Exception as e: st.error(f"⚠️ Error: {e}")
 
-# --- Finance Entry Form (Matching Supabase columns) ---
 @st.dialog("💰 Add Payment Entry")
 def finance_form_dialog():
     with st.form("finance_form", clear_on_submit=True):
         p_amt = st.number_input("Payment Amount", min_value=0.0)
         p_date = st.date_input("Payment Date", value=datetime.now())
-        
         if st.form_submit_button("Submit Payment", use_container_width=True):
-            payload = {
-                "payment_amt": float(p_amt),  # Matching screenshot
-                "payment_date": str(p_date)   # Matching screenshot
-            }
+            payload = {"payment_amt": float(p_amt), "payment_date": str(p_date)}
             try:
                 supabase.table("nr_finance").insert(payload).execute()
                 st.success("✅ Payment Added!")
@@ -127,16 +136,28 @@ if st.session_state.current_page == "Dashboard":
 # --- 4. JAJUPRO MANAGEMENT ---
 elif st.session_state.current_page == "Jajupro":
     st.markdown("<div class='back-btn'>", unsafe_allow_html=True)
-    if st.button("⬅️ Dashboard"): navigate_to("Dashboard")
+    if st.button("⬅️ Dashboard"): 
+        st.session_state.jaju_locked = True
+        navigate_to("Dashboard")
     st.markdown("</div>", unsafe_allow_html=True)
     st.divider()
+
+    if st.session_state.jaju_locked:
+        st.subheader("🔐 Jajupro is Locked")
+        pwd = st.text_input("Enter Password to Unlock", type="password")
+        if st.button("Unlock"):
+            if pwd == "Mayur@123":
+                st.session_state.jaju_locked = False
+                st.rerun()
+            else: st.error("❌ Wrong Password!")
+        st.stop()
+
     st.title("🚀 Jajupro Management")
 
+    # FETCH DATA
     try:
         site_res = supabase.table("nr_calculation").select("*").order('sr_no', desc=True).execute()
         df_site = pd.DataFrame(site_res.data) if site_res.data else pd.DataFrame()
-        
-        # Fetching from nr_finance
         fin_res = supabase.table("nr_finance").select("*").order('finance_id', desc=True).execute()
         df_fin = pd.DataFrame(fin_res.data) if fin_res.data else pd.DataFrame()
 
@@ -146,7 +167,7 @@ elif st.session_state.current_page == "Jajupro":
         st.error(f"Fetch Error: {e}")
         df_site, df_fin = pd.DataFrame(), pd.DataFrame()
 
-    # METRICS - Using payment_amt for calculation
+    # METRICS CALCULATION
     t_site = df_site['po_amt'].sum() if not df_site.empty else 0
     t_paid = df_fin['payment_amt'].sum() if not df_fin.empty else 0
     balance = t_site - t_paid
@@ -154,16 +175,42 @@ elif st.session_state.current_page == "Jajupro":
     m1, m2, m3 = st.columns(3)
     m1.metric("Total Site Amount", f"₹ {t_site:,.2f}")
     m2.metric("Total Paid Amount", f"₹ {t_paid:,.2f}")
-    m3.metric("Pending Balance", f"₹ {balance:,.2f}")
+    
+    # --- CONDITIONAL COLOR FOR PENDING BALANCE ---
+    balance_color = "red" if balance < 0 else "black"
+    st.markdown(f"""
+        <div style="background-color: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border-left: 5px solid {balance_color};">
+            <p style="color: grey; font-size: 18px; font-weight: bold; margin-bottom: 0;">Pending Balance</p>
+            <h2 style="color: {balance_color}; font-size: 32px; font-weight: 800; margin-top: 0;">₹ {balance:,.2f}</h2>
+        </div>
+    """, unsafe_allow_html=True)
 
     st.divider()
     tab_site, tab_finance = st.tabs(["🏗️ Site Master", "💰 Finance History"])
 
     with tab_site:
-        if st.button("➕ New Site Entry", type="primary"): site_form_dialog()
+        c_act1, c_act2, c_act3 = st.columns([1, 1.5, 1])
+        if c_act1.button("➕ New Entry", type="primary"): site_form_dialog()
+        
+        up_site = c_act2.file_uploader("📂 Bulk Upload", type=['xlsx', 'csv'], label_visibility="collapsed")
+        if up_site:
+            try:
+                b_df = pd.read_excel(up_site) if up_site.name.endswith('xlsx') else pd.read_csv(up_site)
+                b_df.columns = [c.lower().replace(' ', '_') for c in b_df.columns]
+                supabase.table("nr_calculation").upsert(b_df.to_dict(orient='records'), on_conflict="project_id").execute()
+                st.success("✅ Success!"); time.sleep(1); st.rerun()
+            except Exception as e: st.error(f"Error: {e}")
+            
         if not df_site.empty:
-            st.markdown("### 📋 Site Master List")
-            st.markdown("""<div style='background-color: #1E3A8A; padding: 10px; border-radius: 5px; display: flex; color: white; font-size: 11px; font-weight: bold;'>
+            c_act3.download_button("📥 Download", data=df_site.to_csv(index=False), file_name="Site_Master.csv")
+
+        search_site = st.text_input("🔍 Search Site...")
+        if search_site:
+            df_site = df_site[df_site.astype(str).apply(lambda x: x.str.contains(search_site, case=False)).any(axis=1)]
+
+        if not df_site.empty:
+            # Header Bold & Bigger
+            st.markdown("""<div style='background-color: #1E3A8A; padding: 12px; border-radius: 5px; display: flex; color: white; font-size: 14px; font-weight: 800;'>
                 <div style='flex: 0.4;'>Edit</div><div style='flex: 0.9;'>Project ID</div><div style='flex: 0.8;'>Site ID</div>
                 <div style='flex: 1.2;'>Site Name</div><div style='flex: 0.8;'>Cluster</div><div style='flex: 0.8;'>Date</div>
                 <div style='flex: 1;'>PO No</div><div style='flex: 0.8;'>Amount</div><div style='flex: 1;'>WCC No</div><div style='flex: 0.8;'>Status</div>
@@ -171,34 +218,41 @@ elif st.session_state.current_page == "Jajupro":
             for idx, row in df_site.iterrows():
                 r = st.columns([0.4, 0.9, 0.8, 1.2, 0.8, 0.8, 1, 0.8, 1, 0.8])
                 if r[0].button("📝", key=f"ed_{row.get('sr_no', idx)}"): site_form_dialog(row.to_dict())
-                r[1].write(f"<span style='font-size:11px'>{row.get('project_id', '-')}</span>", unsafe_allow_html=True)
-                r[2].write(f"<span style='font-size:11px'>{row.get('site_id', '-')}</span>", unsafe_allow_html=True)
-                r[3].write(f"<span style='font-size:11px'>{row.get('site_name', '-')}</span>", unsafe_allow_html=True)
-                r[4].write(f"<span style='font-size:11px'>{row.get('cluster', '-')}</span>", unsafe_allow_html=True)
-                r[5].write(f"<span style='font-size:11px'>{row.get('allocation_date', '-')}</span>", unsafe_allow_html=True)
-                r[6].write(f"<span style='font-size:11px'>{row.get('po_no', '-')}</span>", unsafe_allow_html=True)
-                r[7].write(f"<span style='font-size:11px'>₹{float(row.get('po_amt', 0)):,.0f}</span>", unsafe_allow_html=True)
-                r[8].write(f"<span style='font-size:11px'>{row.get('wcc_number', '-')}</span>", unsafe_allow_html=True)
-                r[9].write(f"<span style='font-size:11px'>{row.get('wcc_status', '-')}</span>", unsafe_allow_html=True)
-                st.markdown("<hr style='margin:1px; opacity:0.1'>", unsafe_allow_html=True)
-
-    with tab_finance:
-        if st.button("➕ Add Payment", type="primary"):
-            finance_form_dialog()
-        
-        if not df_fin.empty:
-            st.markdown("### 🧾 Payment Transactions")
-            st.markdown("""<div style='background-color: #334155; padding: 10px; border-radius: 5px; display: flex; color: white; font-size: 13px; font-weight: bold;'>
-                <div style='flex: 1;'>Finance ID</div>
-                <div style='flex: 2;'>Amount Paid</div><div style='flex: 2;'>Date Paid</div>
-                </div>""", unsafe_allow_html=True)
-            for _, row in df_fin.iterrows():
-                fr = st.columns([1, 2, 2])
-                fr[0].write(row.get('finance_id', '-'))
-                fr[1].write(f"₹ {float(row.get('payment_amt', 0)):,.2f}") # Column Name Matched
-                fr[2].write(row.get('payment_date', '-')) # Column Name Matched
+                
+                # Row Text Bold & Bigger
+                style = "class='row-text'"
+                r[1].markdown(f"<span {style}>{row.get('project_id', '-')}</span>", unsafe_allow_html=True)
+                r[2].markdown(f"<span {style}>{row.get('site_id', '-')}</span>", unsafe_allow_html=True)
+                r[3].markdown(f"<span {style}>{row.get('site_name', '-')}</span>", unsafe_allow_html=True)
+                r[4].markdown(f"<span {style}>{row.get('cluster', '-')}</span>", unsafe_allow_html=True)
+                r[5].markdown(f"<span {style}>{row.get('allocation_date', '-')}</span>", unsafe_allow_html=True)
+                r[6].markdown(f"<span {style}>{row.get('po_no', '-')}</span>", unsafe_allow_html=True)
+                r[7].markdown(f"<span {style}>₹{float(row.get('po_amt', 0)):,.0f}</span>", unsafe_allow_html=True)
+                r[8].markdown(f"<span {style}>{row.get('wcc_number', '-')}</span>", unsafe_allow_html=True)
+                r[9].markdown(f"<span {style}>{row.get('wcc_status', '-')}</span>", unsafe_allow_html=True)
                 st.markdown("<hr style='margin:2px; opacity:0.1'>", unsafe_allow_html=True)
 
+    with tab_finance:
+        cf1, cf2, cf3 = st.columns([1, 1.5, 1])
+        if cf1.button("➕ Add Payment", type="primary"): finance_form_dialog()
+        if not df_fin.empty:
+            cf3.download_button("📥 Download", data=df_fin.to_csv(index=False), file_name="Finance.csv")
+
+            search_fin = st.text_input("🔍 Search Finance...")
+            if search_fin:
+                df_fin = df_fin[df_fin.astype(str).apply(lambda x: x.str.contains(search_fin, case=False)).any(axis=1)]
+
+            st.markdown("### 🧾 Payment Transactions")
+            st.markdown("""<div style='background-color: #334155; padding: 12px; border-radius: 5px; display: flex; color: white; font-size: 14px; font-weight: 800;'>
+                <div style='flex: 1;'>ID</div><div style='flex: 2;'>Amount Paid</div><div style='flex: 2;'>Date Paid</div></div>""", unsafe_allow_html=True)
+            for _, row in df_fin.iterrows():
+                fr = st.columns([1, 2, 2])
+                fr[0].markdown(f"<span class='row-text'>{row.get('finance_id', '-')}</span>", unsafe_allow_html=True)
+                fr[1].markdown(f"<span class='row-text'>₹ {float(row.get('payment_amt', 0)):,.2f}</span>", unsafe_allow_html=True)
+                fr[2].markdown(f"<span class='row-text'>{row.get('payment_date', '-')}</span>", unsafe_allow_html=True)
+                st.markdown("<hr style='margin:2px; opacity:0.1'>", unsafe_allow_html=True)
+
+# --- OTHER PAGES ---
 elif st.session_state.current_page != "Dashboard":
     st.markdown("<div class='back-btn'>", unsafe_allow_html=True)
     if st.button("⬅️ Dashboard"): navigate_to("Dashboard")
