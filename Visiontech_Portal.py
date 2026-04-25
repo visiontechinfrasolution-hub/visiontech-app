@@ -157,34 +157,87 @@ if st.session_state.current_page == "Dashboard":
     
     spacer1, c1, c2, c3, spacer2 = st.columns([1.5, 2, 2, 2, 1.5])
     
-    # --- Dashboard Buttons Section ---
+    # --- Dashboard Buttons Section (FIXED INDENTATION) ---
+    with c1:
+        if st.button("📦\nBOQ Report"): st.switch_page("pages/boq_report.py")
+        if st.button("📊\nIndus Data"): st.switch_page("pages/indus_data.py")
+        if st.button("🚨\nSTN Manager"): navigate_to("STN Manager")
+        if st.button("📜\nVintage PDF"): navigate_to("PDFFormat")
 
-with c1:
-    if st.button("📦\nBOQ Report"): st.switch_page("pages/boq_report.py")
-    if st.button("📊\nIndus Data"): st.switch_page("pages/indus_data.py")
-    if st.button("🚨\nSTN Manager"): navigate_to("STN Manager")
-    if st.button("📜\nVintage PDF"): navigate_to("PDFFormat")
+    with c2:
+        if st.button("🧾\nPO Report"): navigate_to("PO")
+        if st.button("📡\nWCC Tracker"): st.switch_page("pages/wcc_tracker.py")
+        if st.button("📝\nAudit Portal"): navigate_to("Audit")
+        if st.button("🛰️\nSite Tracking"): navigate_to("Tracking")
 
-with c2:
-    if st.button("🧾\nPO Report"): navigate_to("PO")
-    if st.button("📡\nWCC Tracker"): st.switch_page("pages/wcc_tracker.py")
-    if st.button("📝\nAudit Portal"): navigate_to("Audit")
-    if st.button("🛰️\nSite Tracking"): navigate_to("Tracking")
+    with c3:
+        if st.button("🚀\nJajupro"): navigate_to("Jajupro")
+        if st.button("📁\nData Entry"): st.switch_page("pages/data_entry.py")
+        if st.button("📢\nRFAI Billing"): navigate_to("RFAI")
 
-with c3:
-    if st.button("🚀\nJajupro"): navigate_to("Jajupro")
-    if st.button("📁\nData Entry"): st.switch_page("pages/data_entry.py")
-    if st.button("📢\nRFAI Billing"): navigate_to("RFAI")
-    # Yahan agar koi extra button chahiye toh add karein, warna khali chhod dein
-       
 # --- PAGES LOGIC ---
+elif st.session_state.current_page == "Jajupro":
+    # --- Jajupro Page Logic ---
+    st.markdown("<div class='back-btn'>", unsafe_allow_html=True)
+    if st.button("⬅️ Dashboard"):
+        navigate_to("Dashboard")
+    st.markdown("</div>", unsafe_allow_html=True)
+    st.divider()
+    
+    st.title("🚀 Jajupro Management")
+    
+    # Dashboard Metrics (3 Boxes)
+    # Note: Inka real data aap supabase se fetch karke sum() kar sakte hain
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Total Site Amount", "₹ 0.00")
+    m2.metric("Total Paid Amount", "₹ 0.00")
+    m3.metric("Pending Balance", "₹ 0.00")
+    
+    st.divider()
+    
+    # Internal Tabs
+    tab_site, tab_finance = st.tabs(["🏗️ Site Entry", "💰 Finance"])
+    
+    with tab_site:
+        st.subheader("Site Entry - NR Calculation")
+        # Yahan aapka Site Entry Form aur Table aayega
+        
+    with tab_finance:
+        st.subheader("Finance - Payment Tracker")
+        # Yahan aapka Finance Table aayega
+
 elif st.session_state.current_page != "Dashboard":
+    # --- Other Pages Header ---
     st.markdown("<div class='back-btn'>", unsafe_allow_html=True)
     if st.button("⬅️ Dashboard"):
         navigate_to("Dashboard")
     st.markdown("</div>", unsafe_allow_html=True)
     st.divider()
 
+    # --- Baaki Pages ka Content ---
+    cur_p = st.session_state.current_page
+    
+    if cur_p == "STN Manager":
+        st.title("🚨 STN Manager")
+        # STN ka logic yahan likhein
+        
+    elif cur_p == "Audit":
+        st.title("📝 Audit Portal")
+        # Audit ka logic yahan likhein
+        
+    elif cur_p == "PO":
+        st.title("🧾 PO Report")
+        # PO ka logic yahan likhein
+        
+    elif cur_p == "RFAI":
+        st.title("📢 RFAI Billing")
+        # RFAI ka logic yahan likhein
+        
+    elif cur_p == "PDFFormat":
+        st.title("📜 Vintage PDF")
+        
+    else:
+        st.write(f"Content for {cur_p} is under development.")
 # =====================================================================
     # 🟩 TAB 1: BOQ REPORT (3 Dedicated Sections - 0% Logic Change)
     # =====================================================================
