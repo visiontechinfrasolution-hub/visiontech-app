@@ -89,20 +89,17 @@ def site_form_dialog(edit_data=None):
                 time.sleep(1); st.rerun()
             except Exception as e: st.error(f"⚠️ Error: {e}")
 
-# --- Finance Entry Form (Project ID removed from Dropdown as requested) ---
+# --- Finance Entry Form (Matching Supabase columns) ---
 @st.dialog("💰 Add Payment Entry")
 def finance_form_dialog():
     with st.form("finance_form", clear_on_submit=True):
-        # Yahan Project ID dropdown hata diya hai, aap manually dal sakte hain ya empty rakh sakte hain
-        p_id = st.text_input("Enter Project ID / Reference") 
         p_amt = st.number_input("Payment Amount", min_value=0.0)
         p_date = st.date_input("Payment Date", value=datetime.now())
         
         if st.form_submit_button("Submit Payment", use_container_width=True):
             payload = {
-                "Project_ID": p_id,
-                "Payment": float(p_amt),
-                "Payment_Date": str(p_date)
+                "payment_amt": float(p_amt),  # Matching screenshot
+                "payment_date": str(p_date)   # Matching screenshot
             }
             try:
                 supabase.table("nr_finance").insert(payload).execute()
@@ -139,7 +136,8 @@ elif st.session_state.current_page == "Jajupro":
         site_res = supabase.table("nr_calculation").select("*").order('sr_no', desc=True).execute()
         df_site = pd.DataFrame(site_res.data) if site_res.data else pd.DataFrame()
         
-        fin_res = supabase.table("nr_finance").select("*").execute()
+        # Fetching from nr_finance
+        fin_res = supabase.table("nr_finance").select("*").order('finance_id', desc=True).execute()
         df_fin = pd.DataFrame(fin_res.data) if fin_res.data else pd.DataFrame()
 
         if not df_site.empty: df_site.columns = [c.lower() for c in df_site.columns]
@@ -148,8 +146,9 @@ elif st.session_state.current_page == "Jajupro":
         st.error(f"Fetch Error: {e}")
         df_site, df_fin = pd.DataFrame(), pd.DataFrame()
 
+    # METRICS - Using payment_amt for calculation
     t_site = df_site['po_amt'].sum() if not df_site.empty else 0
-    t_paid = df_fin['payment'].sum() if not df_fin.empty else 0
+    t_paid = df_fin['payment_amt'].sum() if not df_fin.empty else 0
     balance = t_site - t_paid
 
     m1, m2, m3 = st.columns(3)
@@ -190,15 +189,14 @@ elif st.session_state.current_page == "Jajupro":
         if not df_fin.empty:
             st.markdown("### 🧾 Payment Transactions")
             st.markdown("""<div style='background-color: #334155; padding: 10px; border-radius: 5px; display: flex; color: white; font-size: 13px; font-weight: bold;'>
-                <div style='flex: 1;'>ID</div><div style='flex: 1.5;'>Project/Ref</div>
-                <div style='flex: 1.5;'>Amount</div><div style='flex: 1.5;'>Date</div>
+                <div style='flex: 1;'>Finance ID</div>
+                <div style='flex: 2;'>Amount Paid</div><div style='flex: 2;'>Date Paid</div>
                 </div>""", unsafe_allow_html=True)
             for _, row in df_fin.iterrows():
-                fr = st.columns([1, 1.5, 1.5, 1.5])
+                fr = st.columns([1, 2, 2])
                 fr[0].write(row.get('finance_id', '-'))
-                fr[1].write(row.get('project_id', '-'))
-                fr[2].write(f"₹ {float(row.get('payment', 0)):,.2f}")
-                fr[3].write(row.get('payment_date', '-'))
+                fr[1].write(f"₹ {float(row.get('payment_amt', 0)):,.2f}") # Column Name Matched
+                fr[2].write(row.get('payment_date', '-')) # Column Name Matched
                 st.markdown("<hr style='margin:2px; opacity:0.1'>", unsafe_allow_html=True)
 
 elif st.session_state.current_page != "Dashboard":
