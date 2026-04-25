@@ -72,6 +72,40 @@ st.markdown("""
 if 'current_page' not in st.session_state:
     st.session_state.current_page = "Dashboard"
 
+# --- 2. POP-UP DIALOG (NEW ENTRY FORM) ---
+@st.dialog("➕ Add New Site Record")
+def open_entry_popup():
+    with st.form("site_form_pop", clear_on_submit=True):
+        f1, f2, f3 = st.columns(3)
+        with f1:
+            p_id = st.text_input("Project ID")
+            s_id = st.text_input("Site ID")
+            s_name = st.text_input("Site Name")
+        with f2:
+            clstr = st.text_input("Cluster")
+            a_date = st.date_input("Allocation Date")
+            w_desc = st.text_area("Work Description")
+        with f3:
+            p_no = st.text_input("PO No")
+            p_amt = st.number_input("PO Amount", min_value=0.0)
+            wcc_no = st.text_input("WCC Number")
+            wcc_st = st.selectbox("WCC Status", ["Pending", "Approved", "Rejected"])
+        
+        if st.form_submit_button("Submit Data", use_container_width=True):
+            new_data = {
+                "project_id": p_id, "site_id": s_id, "site_name": s_name,
+                "cluster": clstr, "allocation_date": str(a_date),
+                "work_description": w_desc, "po_no": p_no, "po_amt": float(p_amt),
+                "wcc_number": wcc_no, "wcc_status": wcc_st
+            }
+            try:
+                supabase.table("nr_calculation").insert(new_data).execute()
+                st.success("✅ Record Added Successfully!")
+                time.sleep(1)
+                st.rerun()
+            except Exception as e:
+                st.error(f"⚠️ Database Error: {e}")
+
 # --- MAIN DASHBOARD ---
 if st.session_state.current_page == "Dashboard":
     st.markdown("<h1 style='text-align: center; color: #1E3A8A;'>🚀 Visiontech Portal</h1>", unsafe_allow_html=True)
@@ -104,16 +138,16 @@ elif st.session_state.current_page == "Jajupro":
     
     st.title("🚀 Jajupro Management")
 
-    # 1. Fetch Data
+    # Fetch Fresh Data
     try:
-        site_res = supabase.table("nr_calculation").select("*").execute()
+        site_res = supabase.table("nr_calculation").select("*").order('id', desc=True).execute()
         fin_res = supabase.table("nr_finance").select("*").execute()
         df_site = pd.DataFrame(site_res.data) if site_res.data else pd.DataFrame()
         df_fin = pd.DataFrame(fin_res.data) if fin_res.data else pd.DataFrame()
     except:
         df_site, df_fin = pd.DataFrame(), pd.DataFrame()
 
-    # Metrics
+    # Metrics (3 Boxes)
     t_site = df_site['po_amt'].sum() if not df_site.empty else 0
     t_paid = df_fin['payment_amt'].sum() if not df_fin.empty else 0
     balance = t_site - t_paid
@@ -129,16 +163,17 @@ elif st.session_state.current_page == "Jajupro":
 
     with tab_site:
         st.subheader("Site Entry - NR Calculation")
+        # Action Bar (New Entry, Bulk, Download)
         col1, col2, col3 = st.columns([1, 1, 1])
         with col1:
-            if st.button("➕ New Entry"): st.session_state.show_site_form = not st.session_state.get('show_site_form', False)
+            if st.button("➕ New Entry", key="jaju_new_btn"):
+                open_entry_popup()
         
         with col2:
             up_file = st.file_uploader("📂 Bulk Upload", type=['xlsx', 'csv'], label_visibility="collapsed")
             if up_file:
                 try:
                     bulk_df = pd.read_excel(up_file) if up_file.name.endswith('xlsx') else pd.read_csv(up_file)
-                    # Convert column names to lowercase to match DB
                     bulk_df.columns = [c.lower().replace(' ', '_') for c in bulk_df.columns]
                     data_to_save = bulk_df.to_dict(orient='records')
                     supabase.table("nr_calculation").insert(data_to_save).execute()
@@ -151,49 +186,43 @@ elif st.session_state.current_page == "Jajupro":
             if not df_site.empty:
                 st.download_button("📥 Download Excel", data=df_site.to_csv(index=False), file_name="NR_Report.csv")
 
-        if st.session_state.get('show_site_form', False):
-            with st.form("site_form"):
-                f1, f2, f3 = st.columns(3)
-                p_id = f1.text_input("Project ID")
-                s_id = f1.text_input("Site ID")
-                s_name = f1.text_input("Site Name")
-                clstr = f2.text_input("Cluster")
-                a_date = f2.date_input("Allocation Date")
-                w_desc = f2.text_area("Work Description")
-                p_no = f3.text_input("PO No")
-                p_amt = f3.number_input("PO Amount", min_value=0.0)
-                wcc_no = f3.text_input("WCC Number")
-                wcc_st = f3.selectbox("WCC Status", ["Pending", "Approved", "Rejected"])
+        st.write("---")
+        
+        # Search Bar
+        search = st.text_input("🔍 Search Site Data...", placeholder="Type Site ID or Project ID...")
+        if search and not df_site.empty:
+            df_site = df_site[df_site.astype(str).apply(lambda x: x.str.contains(search, case=False)).any(axis=1)]
+
+        # CUSTOM TABLE WITH EDIT BUTTONS
+        if not df_site.empty:
+            # Table Headers
+            t_head = st.columns([0.6, 1, 1, 2, 1, 1])
+            t_head[0].write("**Edit**")
+            t_head[1].write("**Site ID**")
+            t_head[2].write("**Project ID**")
+            t_head[3].write("**Site Name**")
+            t_head[4].write("**PO Amt**")
+            t_head[5].write("**Status**")
+            st.write("---")
+
+            # Table Data Rows
+            for idx, row in df_site.iterrows():
+                t_row = st.columns([0.6, 1, 1, 2, 1, 1])
+                # Edit Action
+                if t_row[0].button("📝", key=f"edit_act_{row['id']}"):
+                    st.toast(f"Edit Mode Active for {row['site_id']}")
                 
-                if st.form_submit_button("Submit Data"):
-                    # 1. Dictionary keys (Dhyan dein: ye names Supabase se match hone chahiye)
-                    new_data = {
-                        "project_id": p_id, 
-                        "site_id": s_id, 
-                        "site_name": s_name,
-                        "cluster": clstr, 
-                        "allocation_date": str(a_date),
-                        "work_description": w_desc, 
-                        "po_no": p_no, 
-                        "po_amt": float(p_amt), # Number format confirm
-                        "wcc_number": wcc_no, 
-                        "wcc_status": wcc_st
-                    }
-                    
-                    try:
-                        # 2. Insert execution
-                        response = supabase.table("nr_calculation").insert(new_data).execute()
-                        
-                        # 3. Success handling
-                        st.success("✅ Record Added Successfully!")
-                        st.session_state.show_site_form = False
-                        st.rerun()
-                        
-                    except Exception as e:
-                        # 4. Agar error aaye toh ye exact column ka naam bata dega
-                        st.error("⚠️ Database Error!")
-                        st.write("Error Details:", e) 
-                        st.info("Tip: Check if column names in Supabase are exactly like: project_id, site_id, site_name, etc.")
+                t_row[1].write(row['site_id'])
+                t_row[2].write(row['project_id'])
+                t_row[3].write(row['site_name'])
+                t_row[4].write(f"₹{row['po_amt']:,.2f}")
+                t_row[5].write(row['wcc_status'])
+        else:
+            st.info("No records found in database.")
+
+    with tab_finance:
+        st.subheader("Finance Transaction History")
+        st.dataframe(df_fin, use_container_width=True, hide_index=True)
 
 # --- OTHER PAGES LOGIC ---
 elif st.session_state.current_page != "Dashboard":
