@@ -131,24 +131,18 @@ if 'current_page' not in st.session_state:
     st.session_state.current_page = "Dashboard"
 
 # --- MAIN DASHBOARD ---
+# --- MAIN DASHBOARD ---
 if st.session_state.current_page == "Dashboard":
     st.markdown("""
         <style>
         @media (max-width: 768px) {
             div[data-testid="stHorizontalBlock"] {
-                flex-direction: row !important;
-                flex-wrap: wrap !important;
-                justify-content: center !important;
+                flex-direction: row !important; flex-wrap: wrap !important; justify-content: center !important;
             }
             div[data-testid="column"] {
-                min-width: 48% !important;
-                max-width: 48% !important;
-                padding: 0 5px !important;
+                min-width: 48% !important; max-width: 48% !important; padding: 0 5px !important;
             }
-            div[data-testid="column"]:nth-child(1), 
-            div[data-testid="column"]:nth-child(5) {
-                display: none !important;
-            }
+            div[data-testid="column"]:nth-child(1), div[data-testid="column"]:nth-child(5) { display: none !important; }
         }
         </style>
     """, unsafe_allow_html=True)
@@ -157,7 +151,6 @@ if st.session_state.current_page == "Dashboard":
     
     spacer1, c1, c2, c3, spacer2 = st.columns([1.5, 2, 2, 2, 1.5])
     
-    # --- Dashboard Buttons Section (FIXED INDENTATION) ---
     with c1:
         if st.button("📦\nBOQ Report"): st.switch_page("pages/boq_report.py")
         if st.button("📊\nIndus Data"): st.switch_page("pages/indus_data.py")
@@ -175,69 +168,109 @@ if st.session_state.current_page == "Dashboard":
         if st.button("📁\nData Entry"): st.switch_page("pages/data_entry.py")
         if st.button("📢\nRFAI Billing"): navigate_to("RFAI")
 
-# --- PAGES LOGIC ---
+# --- PAGES LOGIC (INCLUDING JAJUPRO) ---
 elif st.session_state.current_page == "Jajupro":
-    # --- Jajupro Page Logic ---
     st.markdown("<div class='back-btn'>", unsafe_allow_html=True)
-    if st.button("⬅️ Dashboard"):
-        navigate_to("Dashboard")
+    if st.button("⬅️ Dashboard"): navigate_to("Dashboard")
     st.markdown("</div>", unsafe_allow_html=True)
     st.divider()
     
     st.title("🚀 Jajupro Management")
-    
-    # Dashboard Metrics (3 Boxes)
-    # Note: Inka real data aap supabase se fetch karke sum() kar sakte hain
+
+    # 1. Fetch Real-time Data from Supabase
+    try:
+        site_res = supabase.table("NR_Calculation").select("*").execute()
+        fin_res = supabase.table("NR_Finance").select("*").execute()
+        df_site = pd.DataFrame(site_res.data) if site_res.data else pd.DataFrame()
+        df_fin = pd.DataFrame(fin_res.data) if fin_res.data else pd.DataFrame()
+    except Exception as e:
+        st.error(f"Supabase Error: {e}")
+        df_site, df_fin = pd.DataFrame(), pd.DataFrame()
+
+    # 2. Metrics Calculation
+    t_site = df_site['Po_amt'].sum() if not df_site.empty else 0
+    t_paid = df_fin['Payment_Amt'].sum() if not df_fin.empty else 0
+    balance = t_site - t_paid
+
     m1, m2, m3 = st.columns(3)
-    m1.metric("Total Site Amount", "₹ 0.00")
-    m2.metric("Total Paid Amount", "₹ 0.00")
-    m3.metric("Pending Balance", "₹ 0.00")
+    m1.metric("Total Site Amount", f"₹ {t_site:,.2f}")
+    m2.metric("Total Paid Amount", f"₹ {t_paid:,.2f}")
+    m3.metric("Pending Balance", f"₹ {balance:,.2f}")
     
     st.divider()
     
-    # Internal Tabs
     tab_site, tab_finance = st.tabs(["🏗️ Site Entry", "💰 Finance"])
     
     with tab_site:
         st.subheader("Site Entry - NR Calculation")
-        # Yahan aapka Site Entry Form aur Table aayega
-        
-    with tab_finance:
-        st.subheader("Finance - Payment Tracker")
-        # Yahan aapka Finance Table aayega
+        # Buttons: New Entry, Bulk, Download
+        b1, b2, b3 = st.columns([1, 1, 1])
+        with b1:
+            if st.button("➕ New Entry"): st.session_state.show_site_form = not st.session_state.get('show_site_form', False)
+        with b2:
+            up_file = st.file_uploader("📂 Bulk Upload", type=['xlsx', 'csv'], label_visibility="collapsed")
+        with b3:
+            if not df_site.empty:
+                st.download_button("📥 Download Excel", data=df_site.to_csv(index=False), file_name="NR_Report.csv")
 
+        # Form Logic
+        if st.session_state.get('show_site_form', False):
+            with st.form("site_form"):
+                f1, f2, f3 = st.columns(3)
+                p_id = f1.text_input("Project ID")
+                s_id = f1.text_input("Site ID")
+                s_name = f1.text_input("Site Name")
+                clstr = f2.text_input("Cluster")
+                a_date = f2.date_input("Allocation Date")
+                w_desc = f2.text_area("Work Description")
+                p_no = f3.text_input("PO No")
+                p_amt = f3.number_input("PO Amount", min_value=0.0)
+                wcc_no = f3.text_input("WCC Number")
+                wcc_st = f3.selectbox("WCC Status", ["Pending", "Approved", "Rejected"])
+                
+                if st.form_submit_button("Submit Data"):
+                    new_data = {"Project_ID": p_id, "Site_ID": s_id, "Site_Name": s_name, "Cluster": clstr, 
+                                "Allocation_Date": str(a_date), "Work_Description": w_desc, "PO_No": p_no, 
+                                "Po_amt": p_amt, "Wcc_number": wcc_no, "Wcc_status": wcc_st}
+                    supabase.table("NR_Calculation").insert(new_data).execute()
+                    st.success("Record Added!")
+                    st.session_state.show_site_form = False
+                    st.rerun()
+
+        # Data Display
+        search = st.text_input("🔍 Search Site Data...")
+        if search and not df_site.empty:
+            df_site = df_site[df_site.astype(str).apply(lambda x: x.str.contains(search, case=False)).any(axis=1)]
+        st.dataframe(df_site, use_container_width=True, hide_index=True)
+
+    with tab_finance:
+        st.subheader("Finance Tracker")
+        st.dataframe(df_fin, use_container_width=True, hide_index=True)
+
+# 3. OTHER PAGES (STN, PO, RFAI, etc.)
 elif st.session_state.current_page != "Dashboard":
-    # --- Other Pages Header ---
     st.markdown("<div class='back-btn'>", unsafe_allow_html=True)
-    if st.button("⬅️ Dashboard"):
-        navigate_to("Dashboard")
+    if st.button("⬅️ Dashboard"): navigate_to("Dashboard")
     st.markdown("</div>", unsafe_allow_html=True)
     st.divider()
 
-    # --- Baaki Pages ka Content ---
     cur_p = st.session_state.current_page
-    
     if cur_p == "STN Manager":
         st.title("🚨 STN Manager")
-        # STN ka logic yahan likhein
-        
+        # Yahan aapka STN wala code paste karein
     elif cur_p == "Audit":
         st.title("📝 Audit Portal")
-        # Audit ka logic yahan likhein
-        
+        # Yahan aapka Audit wala code paste karein
     elif cur_p == "PO":
         st.title("🧾 PO Report")
-        # PO ka logic yahan likhein
-        
+        # Yahan aapka PO wala code paste karein
     elif cur_p == "RFAI":
         st.title("📢 RFAI Billing")
-        # RFAI ka logic yahan likhein
-        
+        # Yahan aapka RFAI wala code paste karein
     elif cur_p == "PDFFormat":
         st.title("📜 Vintage PDF")
-        
     else:
-        st.write(f"Content for {cur_p} is under development.")
+        st.write(f"Section {cur_p} is active.")
 # =====================================================================
     # 🟩 TAB 1: BOQ REPORT (3 Dedicated Sections - 0% Logic Change)
     # =====================================================================
