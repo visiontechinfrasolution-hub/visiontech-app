@@ -1,0 +1,148 @@
+import streamlit as st
+import pandas as pd
+from io import BytesIO
+
+# --- Page Config ---
+st.set_page_config(page_title="NR System", layout="wide")
+
+# --- Database Placeholder (In-memory storage for demo) ---
+# Note: Real environment mein yahan SQL connection ka use karein
+if 'site_data' not in st.session_state:
+    st.session_state.site_data = pd.DataFrame(columns=[
+        'Sr_No', 'Project_ID', 'Site_ID', 'Site_Name', 'Cluster', 
+        'Allocation_Date', 'Work_Description', 'PO_No', 'Po_amt', 
+        'Wcc_number', 'Wcc_status'
+    ])
+
+if 'finance_data' not in st.session_state:
+    st.session_state.finance_data = pd.DataFrame(columns=[
+        'Finance_ID', 'Project_ID', 'Payment_Amt', 'Payment_Date'
+    ])
+
+# --- Helper Functions ---
+def to_excel(df):
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='Sheet1')
+    return output.getvalue()
+
+# --- Sidebar Navigation ---
+st.sidebar.title("Navigation")
+page = st.sidebar.radio("Go to", ["Site Entry", "Finance"])
+
+# ==========================================
+# PAGE 1: SITE ENTRY
+# ==========================================
+if page == "Site Entry":
+    st.title("🏗️ Site Entry - NR Calculation")
+    
+    # 1. Form Section
+    with st.expander("➕ Add New Site Entry", expanded=False):
+        with st.form("site_form", clear_on_submit=True):
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                p_id = st.text_input("Project ID")
+                s_id = st.text_input("Site ID")
+                s_name = st.text_input("Site Name")
+            with c2:
+                cluster = st.text_input("Cluster")
+                alloc_date = st.date_input("Allocation Date")
+                work_desc = st.text_area("Work Description")
+            with c3:
+                po_no = st.text_input("PO No")
+                po_amt = st.number_input("PO Amount", min_value=0.0)
+                wcc_no = st.text_input("WCC Number")
+                wcc_status = st.selectbox("WCC Status", ["Pending", "Submitted", "Approved"])
+            
+            if st.form_submit_button("Submit Site Data"):
+                new_row = pd.DataFrame([{
+                    'Sr_No': len(st.session_state.site_data) + 1,
+                    'Project_ID': p_id, 'Site_ID': s_id, 'Site_Name': s_name,
+                    'Cluster': cluster, 'Allocation_Date': alloc_date,
+                    'Work_Description': work_desc, 'PO_No': po_no,
+                    'Po_amt': po_amt, 'Wcc_number': wcc_no, 'Wcc_status': wcc_status
+                }])
+                st.session_state.site_data = pd.concat([st.session_state.site_data, new_row], ignore_index=True)
+                st.success("Entry Saved!")
+
+    # 2. Bulk Upload & Search
+    st.divider()
+    col_up, col_search = st.columns([1, 2])
+    with col_up:
+        uploaded_file = st.file_uploader("Bulk Upload Site (Excel/CSV)", type=['csv', 'xlsx'], key="up1")
+        if uploaded_file:
+            # logic for bulk upload
+            st.info("File uploaded successfully (Feature enabled)")
+
+    with col_search:
+        search_term = st.text_input("🔍 Search Site Data", placeholder="Search by Project ID, Site Name etc.")
+
+    # 3. Data Table & Download
+    df_display = st.session_state.site_data
+    if search_term:
+        df_display = df_display[df_display.astype(str).apply(lambda x: x.str.contains(search_term, case=False)).any(axis=1)]
+    
+    st.subheader("Site Data Table")
+    st.dataframe(df_display, use_container_width=True)
+    
+    excel_data = to_excel(df_display)
+    st.download_button("📥 Download Site Excel", data=excel_data, file_name="site_data.xlsx")
+
+# ==========================================
+# PAGE 2: FINANCE
+# ==========================================
+elif page == "Finance":
+    st.title("💰 Finance Management")
+
+    # 1. Calculation Boxes (Metrics)
+    total_site_amt = st.session_state.site_data['Po_amt'].sum()
+    total_paid_amt = st.session_state.finance_data['Payment_Amt'].sum()
+    balance_amt = total_site_amt - total_paid_amt
+
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Total Site Amount (PO)", f"₹ {total_site_amt:,.2f}")
+    m2.metric("Total Paid Amount", f"₹ {total_paid_amt:,.2f}")
+    m3.metric("Pending Balance", f"₹ {balance_amt:,.2f}", delta_color="inverse")
+
+    st.divider()
+
+    # 2. Form Section
+    with st.expander("➕ Add New Finance Entry", expanded=False):
+        with st.form("fin_form", clear_on_submit=True):
+            f_col1, f_col2 = st.columns(2)
+            with f_col1:
+                # Dropdown from Site Table Project IDs
+                project_list = st.session_state.site_data['Project_ID'].unique().tolist()
+                f_p_id = st.selectbox("Select Project ID", project_list if project_list else ["No Projects Found"])
+            with f_col2:
+                f_pay_amt = st.number_input("Payment Amount", min_value=0.0)
+                f_pay_date = st.date_input("Payment Date")
+            
+            if st.form_submit_button("Submit Payment"):
+                new_fin = pd.DataFrame([{
+                    'Finance_ID': len(st.session_state.finance_data) + 1,
+                    'Project_ID': f_p_id,
+                    'Payment_Amt': f_pay_amt,
+                    'Payment_Date': f_pay_date
+                }])
+                st.session_state.finance_data = pd.concat([st.session_state.finance_data, new_fin], ignore_index=True)
+                st.rerun() # Refresh dashboard metrics
+
+    # 3. Bulk Upload & Search
+    st.divider()
+    fc_up, fc_search = st.columns([1, 2])
+    with fc_up:
+        uploaded_fin = st.file_uploader("Bulk Upload Finance", type=['csv', 'xlsx'], key="up2")
+    with fc_search:
+        search_fin = st.text_input("🔍 Search Finance Data")
+
+    # 4. Data Table & Download
+    df_fin_display = st.session_state.finance_data
+    if search_fin:
+        df_fin_display = df_fin_display[df_fin_display.astype(str).apply(lambda x: x.str.contains(search_fin, case=False)).any(axis=1)]
+    
+    st.subheader("Finance Transaction Table")
+    st.dataframe(df_fin_display, use_container_width=True)
+    
+    excel_fin = to_excel(df_fin_display)
+    st.download_button("📥 Download Finance Excel", data=excel_fin, file_name="finance_data.xlsx")
