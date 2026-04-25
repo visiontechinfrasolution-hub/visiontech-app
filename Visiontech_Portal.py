@@ -53,7 +53,6 @@ if 'current_page' not in st.session_state:
 @st.dialog("🏗️ Site Master Form")
 def site_form_dialog(edit_data=None):
     is_edit = edit_data is not None
-    
     with st.form("site_master_form", clear_on_submit=True):
         f1, f2, f3 = st.columns(3)
         with f1:
@@ -76,8 +75,7 @@ def site_form_dialog(edit_data=None):
             default_idx = status_list.index(edit_data['wcc_status']) if is_edit and edit_data['wcc_status'] in status_list else 0
             wcc_st = st.selectbox("WCC Status", status_list, index=default_idx)
         
-        btn_label = "Update Site Data" if is_edit else "Save New Site"
-        if st.form_submit_button(btn_label, use_container_width=True):
+        if st.form_submit_button("Submit Data", use_container_width=True):
             payload = {
                 "project_id": p_id, "site_id": s_id, "site_name": s_name,
                 "cluster": clstr, "allocation_date": str(a_date),
@@ -86,7 +84,7 @@ def site_form_dialog(edit_data=None):
             }
             try:
                 supabase.table("nr_calculation").upsert(payload, on_conflict="project_id").execute()
-                st.success("✅ Database Updated!")
+                st.success("✅ Success!")
                 time.sleep(1)
                 st.rerun()
             except Exception as e:
@@ -115,62 +113,47 @@ elif st.session_state.current_page == "Jajupro":
     if st.button("⬅️ Dashboard"): navigate_to("Dashboard")
     st.markdown("</div>", unsafe_allow_html=True)
     st.divider()
-    
     st.title("🚀 Jajupro Management")
 
-    # FETCH DATA - Added DESC order for Sr_No to get New Entries on TOP
+    # FETCH DATA
     try:
-        # Note: 'sr_no' should exist in your DB for this ordering to work
         site_res = supabase.table("nr_calculation").select("*").order('sr_no', desc=True).execute()
         df_site = pd.DataFrame(site_res.data) if site_res.data else pd.DataFrame()
-        if not df_site.empty:
-            df_site.columns = [c.lower() for c in df_site.columns]
+        
+        fin_res = supabase.table("nr_finance").select("*").order('id', desc=True).execute()
+        df_fin = pd.DataFrame(fin_res.data) if fin_res.data else pd.DataFrame()
+
+        if not df_site.empty: df_site.columns = [c.lower() for c in df_site.columns]
+        if not df_fin.empty: df_fin.columns = [c.lower() for c in df_fin.columns]
     except Exception as e:
-        # Fallback if sr_no ordering fails
-        site_res = supabase.table("nr_calculation").select("*").execute()
-        df_site = pd.DataFrame(site_res.data) if site_res.data else pd.DataFrame()
-        if not df_site.empty:
-            df_site.columns = [c.lower() for c in df_site.columns]
+        st.error(f"Fetch Error: {e}")
+        df_site, df_fin = pd.DataFrame(), pd.DataFrame()
 
     # METRICS
-    t_amt = df_site['po_amt'].sum() if not df_site.empty and 'po_amt' in df_site.columns else 0
+    t_site = df_site['po_amt'].sum() if not df_site.empty and 'po_amt' in df_site.columns else 0
+    t_paid = df_fin['payment'].sum() if not df_fin.empty and 'payment' in df_fin.columns else 0
+    balance = t_site - t_paid
+
     m1, m2, m3 = st.columns(3)
-    m1.metric("Total Site Amount", f"₹ {t_amt:,.2f}")
-    m2.metric("Total Records", len(df_site))
-    m3.metric("Pending Balance", f"₹ {t_amt:,.2f}")
+    m1.metric("Total Site Amount", f"₹ {t_site:,.2f}")
+    m2.metric("Total Paid Amount", f"₹ {t_paid:,.2f}")
+    m3.metric("Pending Balance", f"₹ {balance:,.2f}")
 
     st.divider()
-
     tab_site, tab_finance = st.tabs(["🏗️ Site Master", "💰 Finance History"])
 
     with tab_site:
-        col_new, col_dl = st.columns([1, 4])
-        if col_new.button("➕ New Entry", type="primary"):
-            site_form_dialog()
-        
+        if st.button("➕ New Entry", type="primary"): site_form_dialog()
         if not df_site.empty:
             st.markdown("### 📋 Site Master List (Latest on Top)")
-            
-            # --- FULL COLUMN HEADER ---
             st.markdown("""<div style='background-color: #1E3A8A; padding: 10px; border-radius: 5px; display: flex; color: white; font-size: 11px; font-weight: bold;'>
-                <div style='flex: 0.4;'>Edit</div>
-                <div style='flex: 0.9;'>Project ID</div>
-                <div style='flex: 0.8;'>Site ID</div>
-                <div style='flex: 1.2;'>Site Name</div>
-                <div style='flex: 0.8;'>Cluster</div>
-                <div style='flex: 0.8;'>Date</div>
-                <div style='flex: 1;'>PO No</div>
-                <div style='flex: 0.8;'>Amount</div>
-                <div style='flex: 1;'>WCC No</div>
-                <div style='flex: 0.8;'>Status</div>
+                <div style='flex: 0.4;'>Edit</div><div style='flex: 0.9;'>Project ID</div><div style='flex: 0.8;'>Site ID</div>
+                <div style='flex: 1.2;'>Site Name</div><div style='flex: 0.8;'>Cluster</div><div style='flex: 0.8;'>Date</div>
+                <div style='flex: 1;'>PO No</div><div style='flex: 0.8;'>Amount</div><div style='flex: 1;'>WCC No</div><div style='flex: 0.8;'>Status</div>
                 </div>""", unsafe_allow_html=True)
-
             for idx, row in df_site.iterrows():
                 r = st.columns([0.4, 0.9, 0.8, 1.2, 0.8, 0.8, 1, 0.8, 1, 0.8])
-                
-                if r[0].button("📝", key=f"ed_{row.get('sr_no', idx)}"):
-                    site_form_dialog(edit_data=row.to_dict())
-                
+                if r[0].button("📝", key=f"ed_{row.get('sr_no', idx)}"): site_form_dialog(edit_data=row.to_dict())
                 r[1].write(f"<span style='font-size:11px'>{row.get('project_id', '-')}</span>", unsafe_allow_html=True)
                 r[2].write(f"<span style='font-size:11px'>{row.get('site_id', '-')}</span>", unsafe_allow_html=True)
                 r[3].write(f"<span style='font-size:11px'>{row.get('site_name', '-')}</span>", unsafe_allow_html=True)
@@ -180,13 +163,19 @@ elif st.session_state.current_page == "Jajupro":
                 r[7].write(f"<span style='font-size:11px'>₹{float(row.get('po_amt', 0)):,.0f}</span>", unsafe_allow_html=True)
                 r[8].write(f"<span style='font-size:11px'>{row.get('wcc_number', '-')}</span>", unsafe_allow_html=True)
                 r[9].write(f"<span style='font-size:11px'>{row.get('wcc_status', '-')}</span>", unsafe_allow_html=True)
-                
                 st.markdown("<hr style='margin:1px; opacity:0.1'>", unsafe_allow_html=True)
-        else:
-            st.info("No records found.")
+        else: st.info("No records found.")
 
     with tab_finance:
-        st.write("Finance Section under development.")
+        st.subheader("💰 Finance Transaction History")
+        if not df_fin.empty:
+            search_fin = st.text_input("🔍 Search Finance (Site ID / Project ID)...")
+            if search_fin:
+                df_fin = df_fin[df_fin.astype(str).apply(lambda x: x.str.contains(search_fin, case=False)).any(axis=1)]
+            
+            st.dataframe(df_fin, use_container_width=True, hide_index=True)
+        else:
+            st.info("No finance transactions found.")
 
 # --- OTHER PAGES ---
 elif st.session_state.current_page != "Dashboard":
@@ -194,6 +183,7 @@ elif st.session_state.current_page != "Dashboard":
     if st.button("⬅️ Dashboard"): navigate_to("Dashboard")
     st.markdown("</div>", unsafe_allow_html=True)
     st.title(f"Section {st.session_state.current_page}")
+    
     cur_p = st.session_state.current_page
     if cur_p == "STN Manager":
         st.title("🚨 STN Manager")
