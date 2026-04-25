@@ -49,7 +49,7 @@ st.markdown("""
 if 'current_page' not in st.session_state:
     st.session_state.current_page = "Dashboard"
 
-# --- 2. POP-UP DIALOG (ADD / EDIT FORM) ---
+# --- 2. POP-UP DIALOG (SITE MASTER FORM) ---
 @st.dialog("🏗️ Site Master Form")
 def site_form_dialog(edit_data=None):
     is_edit = edit_data is not None
@@ -77,14 +77,14 @@ def site_form_dialog(edit_data=None):
         
         if st.form_submit_button("Submit Data", use_container_width=True):
             payload = {
-                "project_id": p_id, "site_id": s_id, "site_name": s_name,
-                "cluster": clstr, "allocation_date": str(a_date),
-                "work_description": w_desc, "po_no": p_no, "po_amt": float(p_amt),
+                "Project_ID": p_id, "Site_ID": s_id, "Site_Name": s_name,
+                "Cluster": clstr, "Allocation_Date": str(a_date),
+                "Work_Description": w_desc, "PO_No": p_no, "Po_amt": float(p_amt),
                 "wcc_number": wcc_no, "wcc_status": wcc_st
             }
             try:
-                supabase.table("nr_calculation").upsert(payload, on_conflict="project_id").execute()
-                st.success("✅ Success!")
+                supabase.table("nr_calculation").upsert(payload, on_conflict="Project_ID").execute()
+                st.success("✅ Database Updated!")
                 time.sleep(1)
                 st.rerun()
             except Exception as e:
@@ -117,16 +117,19 @@ elif st.session_state.current_page == "Jajupro":
 
     # FETCH DATA
     try:
-        site_res = supabase.table("nr_calculation").select("*").order('sr_no', desc=True).execute()
+        # Ordering by Sr_No (latest on top)
+        site_res = supabase.table("nr_calculation").select("*").order('Sr_No', desc=True).execute()
         df_site = pd.DataFrame(site_res.data) if site_res.data else pd.DataFrame()
         
-        fin_res = supabase.table("nr_finance").select("*").order('id', desc=True).execute()
+        # Ordering by Finance_ID instead of 'id' to fix the error
+        fin_res = supabase.table("nr_finance").select("*").order('Finance_ID', desc=True).execute()
         df_fin = pd.DataFrame(fin_res.data) if fin_res.data else pd.DataFrame()
 
+        # Lowercase columns for streamlit consistency
         if not df_site.empty: df_site.columns = [c.lower() for c in df_site.columns]
         if not df_fin.empty: df_fin.columns = [c.lower() for c in df_fin.columns]
     except Exception as e:
-        st.error(f"Fetch Error: {e}")
+        st.error(f"❌ DATABASE FETCH ERROR: {e}")
         df_site, df_fin = pd.DataFrame(), pd.DataFrame()
 
     # METRICS
@@ -169,11 +172,9 @@ elif st.session_state.current_page == "Jajupro":
     with tab_finance:
         st.subheader("💰 Finance Transaction History")
         if not df_fin.empty:
-            search_fin = st.text_input("🔍 Search Finance (Site ID / Project ID)...")
-            if search_fin:
-                df_fin = df_fin[df_fin.astype(str).apply(lambda x: x.str.contains(search_fin, case=False)).any(axis=1)]
-            
-            st.dataframe(df_fin, use_container_width=True, hide_index=True)
+            # Displaying finance table using Project_ID, Payment, Payment_Date columns
+            st.dataframe(df_fin[['finance_id', 'project_id', 'payment', 'payment_date']], 
+                         use_container_width=True, hide_index=True)
         else:
             st.info("No finance transactions found.")
 
