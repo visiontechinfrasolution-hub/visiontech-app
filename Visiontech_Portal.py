@@ -92,29 +92,29 @@ def open_entry_popup():
             wcc_st = st.selectbox("WCC Status", ["Pending", "Approved", "Rejected"])
         
         if st.form_submit_button("Submit Data", use_container_width=True):
-            # Mapping according to your SQL Schema (Capital Letters)
+            # Using lowercase keys to match your Supabase schema (nr_calculation)
             new_data = {
-                "Project_ID": p_id, 
-                "Site_ID": s_id, 
-                "Site_Name": s_name,
-                "Cluster": clstr, 
-                "Allocation_Date": str(a_date),
-                "Work_Description": w_desc, 
-                "PO_No": p_no, 
-                "Po_amt": float(p_amt),
+                "project_id": p_id, 
+                "site_id": s_id, 
+                "site_name": s_name,
+                "cluster": clstr, 
+                "allocation_date": str(a_date),
+                "work_description": w_desc, 
+                "po_no": p_no, 
+                "po_amt": float(p_amt),
                 "wcc_number": wcc_no, 
                 "wcc_status": wcc_st
             }
             try:
-                # Upsert is safer to prevent duplicate Project ID errors
-                supabase.table("NR_Calculation").upsert(new_data, on_conflict="Project_ID").execute()
+                # Table name: nr_calculation
+                supabase.table("nr_calculation").upsert(new_data, on_conflict="project_id").execute()
                 st.success("✅ Record Added Successfully!")
                 time.sleep(1)
                 st.rerun()
             except Exception as e:
                 st.error(f"⚠️ Database Error: {e}")
 
-# --- MAIN DASHBOARD ---
+# --- 3. MAIN DASHBOARD ---
 if st.session_state.current_page == "Dashboard":
     st.markdown("<h1 style='text-align: center; color: #1E3A8A;'>🚀 Visiontech Portal</h1>", unsafe_allow_html=True)
     
@@ -137,7 +137,7 @@ if st.session_state.current_page == "Dashboard":
         if st.button("📁\nData Entry"): st.switch_page("pages/data_entry.py")
         if st.button("📢\nRFAI Billing"): navigate_to("RFAI")
 
-# --- JAJUPRO PAGE LOGIC ---
+# --- 4. JAJUPRO PAGE LOGIC ---
 elif st.session_state.current_page == "Jajupro":
     st.markdown("<div class='back-btn'>", unsafe_allow_html=True)
     if st.button("⬅️ Dashboard"): navigate_to("Dashboard")
@@ -148,20 +148,26 @@ elif st.session_state.current_page == "Jajupro":
 
     # Fetch Fresh Data
     try:
-        # Match SQL table name NR_Calculation
-        site_res = supabase.table("NR_Calculation").select("*").execute()
+        # Fetching records from nr_calculation
+        site_res = supabase.table("nr_calculation").select("*").execute()
         df_site = pd.DataFrame(site_res.data) if site_res.data else pd.DataFrame()
         
-        # Finance table fetch
-        fin_res = supabase.table("NR_Finance").select("*").execute()
+        # Fetching records from nr_finance
+        fin_res = supabase.table("nr_finance").select("*").execute()
         df_fin = pd.DataFrame(fin_res.data) if fin_res.data else pd.DataFrame()
+
+        # Normalize column names to lowercase to ensure consistency
+        if not df_site.empty:
+            df_site.columns = [c.lower() for c in df_site.columns]
+        if not df_fin.empty:
+            df_fin.columns = [c.lower() for c in df_fin.columns]
     except Exception as fetch_error:
         st.error(f"❌ DATABASE FETCH ERROR: {fetch_error}")
         df_site, df_fin = pd.DataFrame(), pd.DataFrame()
 
-    # Metrics (Using exact SQL Case)
-    t_site = df_site['Po_amt'].sum() if not df_site.empty and 'Po_amt' in df_site.columns else 0
-    t_paid = df_fin['Payment'].sum() if not df_fin.empty and 'Payment' in df_fin.columns else 0
+    # Metrics (3 Boxes)
+    t_site = df_site['po_amt'].sum() if not df_site.empty and 'po_amt' in df_site.columns else 0
+    t_paid = df_fin['payment'].sum() if not df_fin.empty and 'payment' in df_fin.columns else 0
     balance = t_site - t_paid
 
     m1, m2, m3 = st.columns(3)
@@ -185,9 +191,9 @@ elif st.session_state.current_page == "Jajupro":
             if up_file:
                 try:
                     bulk_df = pd.read_excel(up_file) if up_file.name.endswith('xlsx') else pd.read_csv(up_file)
-                    # Note: Excel columns must match DB exactly or mapping needed
+                    bulk_df.columns = [c.lower().replace(' ', '_') for c in bulk_df.columns]
                     data_to_save = bulk_df.to_dict(orient='records')
-                    supabase.table("NR_Calculation").upsert(data_to_save, on_conflict="Project_ID").execute()
+                    supabase.table("nr_calculation").upsert(data_to_save, on_conflict="project_id").execute()
                     st.success(f"Successfully uploaded {len(data_to_save)} records!")
                     st.rerun()
                 except Exception as e:
@@ -220,16 +226,16 @@ elif st.session_state.current_page == "Jajupro":
             """, unsafe_allow_html=True)
 
             for idx, row in df_site.iterrows():
-                # Case-matching with your SQL columns (Capital Letters)
-                s_id = row.get('Site_ID', '-')
-                p_id = row.get('Project_ID', '-')
-                s_name = row.get('Site_Name', '-')
-                p_amt = row.get('Po_amt', 0)
+                s_id = row.get('site_id', '-')
+                p_id = row.get('project_id', '-')
+                s_name = row.get('site_name', '-')
+                p_amt = row.get('po_amt', 0)
                 status = row.get('wcc_status', '-')
-                sr_no = row.get('Sr_No', idx) # Sr_No from your SQL
+                # Using sr_no as unique key if id doesn't exist
+                unique_key = row.get('sr_no', idx)
 
                 t_row = st.columns([0.6, 1, 1, 2, 1, 1])
-                if t_row[0].button("📝", key=f"edit_act_complete_{sr_no}"):
+                if t_row[0].button("📝", key=f"edit_act_complete_{unique_key}"):
                     st.toast(f"Edit Mode Active for Site ID: {s_id}")
                 
                 t_row[1].write(s_id)
@@ -239,13 +245,13 @@ elif st.session_state.current_page == "Jajupro":
                 t_row[5].write(status)
                 st.markdown("<hr style='margin: 5px 0; opacity: 0.2;'>", unsafe_allow_html=True)
         else:
-            st.info("No records found in database. Check Supabase Table and RLS.")
+            st.info("No records found in database.")
 
     with tab_finance:
         st.subheader("Finance Transaction History")
         st.dataframe(df_fin, use_container_width=True, hide_index=True)
 
-# --- OTHER PAGES LOGIC ---
+# --- 5. OTHER PAGES LOGIC ---
 elif st.session_state.current_page != "Dashboard":
     st.markdown("<div class='back-btn'>", unsafe_allow_html=True)
     if st.button("⬅️ Dashboard"): navigate_to("Dashboard")
