@@ -20,7 +20,6 @@ URL = "https://sckyflvukpmdqmdzjzhs.supabase.co"
 KEY = "sb_publishable_rAiegSkKYvM0Z9n7sUAI1w_WTgm1S4I" 
 supabase = create_client(URL, KEY)
 
-# --- NAVIGATION FUNCTION ---
 def navigate_to(page):
     st.session_state.current_page = page
     st.rerun()
@@ -35,8 +34,6 @@ st.markdown("""
     header { visibility: hidden; }
     footer { visibility: hidden; }
     .stApp { background-color: #F8FAFC; }
-    
-    /* Desktop Buttons */
     div.stButton > button {
         width: 100%; height: 120px; border-radius: 20px; border: none;
         background-color: white; color: #1E293B; font-size: 18px; font-weight: bold;
@@ -44,219 +41,153 @@ st.markdown("""
         display: flex; flex-direction: column; justify-content: center;
         white-space: pre-wrap; transition: 0.3s;
     }
-    div.stButton > button:hover {
-        transform: translateY(-5px); background-color: #1E3A8A; color: white;
-    }
-
-    /* Mobile Responsiveness */
-    @media (max-width: 768px) {
-        div[data-testid="stHorizontalBlock"] {
-            flex-direction: row !important; flex-wrap: wrap !important;
-            justify-content: center !important; gap: 10px !important;
-        }
-        div[data-testid="column"] {
-            min-width: 45% !important; max-width: 45% !important; padding: 0 !important;
-        }
-        div.stButton > button {
-            height: 100px !important; font-size: 14px !important;
-        }
-    }
-
-    .back-btn button {
-        height: 50px !important; width: 160px !important;
-        background-color: #64748B !important; color: white !important;
-    }
+    div.stButton > button:hover { transform: translateY(-5px); background-color: #1E3A8A; color: white; }
+    .back-btn button { height: 50px !important; width: 160px !important; background-color: #64748B !important; color: white !important; }
     </style>
     """, unsafe_allow_html=True)
 
 if 'current_page' not in st.session_state:
     st.session_state.current_page = "Dashboard"
 
-# --- 2. POP-UP DIALOG (NEW ENTRY FORM) ---
-@st.dialog("➕ Add New Site Record")
-def open_entry_popup():
-    with st.form("site_form_pop", clear_on_submit=True):
+# --- 2. POP-UP DIALOG (ADD / EDIT FORM) ---
+@st.dialog("🏗️ Site Details Form")
+def site_form_dialog(edit_data=None):
+    # Agar edit_data hai toh purana value load hoga, nahi toh empty
+    is_edit = edit_data is not None
+    
+    with st.form("site_master_form", clear_on_submit=True):
         f1, f2, f3 = st.columns(3)
         with f1:
-            p_id = st.text_input("Project ID")
-            s_id = st.text_input("Site ID")
-            s_name = st.text_input("Site Name")
+            p_id = st.text_input("Project ID", value=edit_data['project_id'] if is_edit else "")
+            s_id = st.text_input("Site ID", value=edit_data['site_id'] if is_edit else "")
+            s_name = st.text_input("Site Name", value=edit_data['site_name'] if is_edit else "")
         with f2:
-            clstr = st.text_input("Cluster")
-            a_date = st.date_input("Allocation Date")
-            w_desc = st.text_area("Work Description")
+            clstr = st.text_input("Cluster", value=edit_data['cluster'] if is_edit else "")
+            # Date conversion
+            default_date = datetime.strptime(edit_data['allocation_date'], '%Y-%m-%d') if is_edit and edit_data['allocation_date'] else datetime.now()
+            a_date = st.date_input("Allocation Date", value=default_date)
+            w_desc = st.text_area("Work Description", value=edit_data['work_description'] if is_edit else "")
         with f3:
-            p_no = st.text_input("PO No")
-            p_amt = st.number_input("PO Amount", min_value=0.0)
-            wcc_no = st.text_input("WCC Number")
-            wcc_st = st.selectbox("WCC Status", ["Pending", "Approved", "Rejected"])
+            p_no = st.text_input("PO No", value=edit_data['po_no'] if is_edit else "")
+            p_amt = st.number_input("PO Amount", min_value=0.0, value=float(edit_data['po_amt']) if is_edit else 0.0)
+            wcc_no = st.text_input("WCC Number", value=edit_data['wcc_number'] if is_edit else "")
+            status_list = ["Pending", "Approved", "Rejected"]
+            default_idx = status_list.index(edit_data['wcc_status']) if is_edit and edit_data['wcc_status'] in status_list else 0
+            wcc_st = st.selectbox("WCC Status", status_list, index=default_idx)
         
-        if st.form_submit_button("Submit Data", use_container_width=True):
-            # Using lowercase keys to match your Supabase schema (nr_calculation)
-            new_data = {
-                "project_id": p_id, 
-                "site_id": s_id, 
-                "site_name": s_name,
-                "cluster": clstr, 
-                "allocation_date": str(a_date),
-                "work_description": w_desc, 
-                "po_no": p_no, 
-                "po_amt": float(p_amt),
-                "wcc_number": wcc_no, 
-                "wcc_status": wcc_st
+        btn_label = "Update Record" if is_edit else "Save Record"
+        if st.form_submit_button(btn_label, use_container_width=True):
+            payload = {
+                "project_id": p_id, "site_id": s_id, "site_name": s_name,
+                "cluster": clstr, "allocation_date": str(a_date),
+                "work_description": w_desc, "po_no": p_no, "po_amt": float(p_amt),
+                "wcc_number": wcc_no, "wcc_status": wcc_st
             }
             try:
-                # Table name: nr_calculation
-                supabase.table("nr_calculation").upsert(new_data, on_conflict="project_id").execute()
-                st.success("✅ Record Added Successfully!")
+                supabase.table("nr_calculation").upsert(payload, on_conflict="project_id").execute()
+                st.success("✅ Success!")
                 time.sleep(1)
                 st.rerun()
             except Exception as e:
-                st.error(f"⚠️ Database Error: {e}")
+                st.error(f"⚠️ Error: {e}")
 
 # --- 3. MAIN DASHBOARD ---
 if st.session_state.current_page == "Dashboard":
     st.markdown("<h1 style='text-align: center; color: #1E3A8A;'>🚀 Visiontech Portal</h1>", unsafe_allow_html=True)
-    
-    spacer1, c1, c2, c3, spacer2 = st.columns([1, 2, 2, 2, 1])
-    
+    c1, c2, c3 = st.columns(3)
     with c1:
         if st.button("📦\nBOQ Report"): st.switch_page("pages/boq_report.py")
         if st.button("📊\nIndus Data"): st.switch_page("pages/indus_data.py")
         if st.button("🚨\nSTN Manager"): navigate_to("STN Manager")
-        if st.button("📜\nVintage PDF"): navigate_to("PDFFormat")
-
     with c2:
         if st.button("🧾\nPO Report"): navigate_to("PO")
-        if st.button("📡\nWCC Tracker"): st.switch_page("pages/wcc_tracker.py")
-        if st.button("📝\nAudit Portal"): navigate_to("Audit")
-        if st.button("🛰️\nSite Tracking"): st.switch_page("pages/tracking.py")
-
-    with c3:
         if st.button("🚀\nJajupro"): navigate_to("Jajupro")
+        if st.button("📡\nWCC Tracker"): st.switch_page("pages/wcc_tracker.py")
+    with c3:
         if st.button("📁\nData Entry"): st.switch_page("pages/data_entry.py")
         if st.button("📢\nRFAI Billing"): navigate_to("RFAI")
+        if st.button("📜\nVintage PDF"): navigate_to("PDFFormat")
 
-# --- 4. JAJUPRO PAGE LOGIC ---
+# --- 4. JAJUPRO MANAGEMENT ---
 elif st.session_state.current_page == "Jajupro":
     st.markdown("<div class='back-btn'>", unsafe_allow_html=True)
     if st.button("⬅️ Dashboard"): navigate_to("Dashboard")
     st.markdown("</div>", unsafe_allow_html=True)
     st.divider()
     
-    st.title("🚀 Jajupro Management")
-
-    # Fetch Fresh Data
+    # FETCH DATA
     try:
-        # Fetching records from nr_calculation
         site_res = supabase.table("nr_calculation").select("*").execute()
         df_site = pd.DataFrame(site_res.data) if site_res.data else pd.DataFrame()
-        
-        # Fetching records from nr_finance
-        fin_res = supabase.table("nr_finance").select("*").execute()
-        df_fin = pd.DataFrame(fin_res.data) if fin_res.data else pd.DataFrame()
-
-        # Normalize column names to lowercase to ensure consistency
         if not df_site.empty:
             df_site.columns = [c.lower() for c in df_site.columns]
-        if not df_fin.empty:
-            df_fin.columns = [c.lower() for c in df_fin.columns]
-    except Exception as fetch_error:
-        st.error(f"❌ DATABASE FETCH ERROR: {fetch_error}")
-        df_site, df_fin = pd.DataFrame(), pd.DataFrame()
+    except Exception as e:
+        st.error(f"Fetch Error: {e}")
+        df_site = pd.DataFrame()
 
-    # Metrics (3 Boxes)
-    t_site = df_site['po_amt'].sum() if not df_site.empty and 'po_amt' in df_site.columns else 0
-    t_paid = df_fin['payment'].sum() if not df_fin.empty and 'payment' in df_fin.columns else 0
-    balance = t_site - t_paid
-
+    # METRICS
+    t_amt = df_site['po_amt'].sum() if not df_site.empty and 'po_amt' in df_site.columns else 0
     m1, m2, m3 = st.columns(3)
-    m1.metric("Total Site Amount", f"₹ {t_site:,.2f}")
-    m2.metric("Total Paid Amount", f"₹ {t_paid:,.2f}")
-    m3.metric("Pending Balance", f"₹ {balance:,.2f}")
+    m1.metric("Total Site Amount", f"₹ {t_amt:,.2f}")
+    m2.metric("Total Records", len(df_site))
+    m3.metric("Pending Balance", f"₹ {t_amt:,.2f}")
 
     st.divider()
 
-    tab_site, tab_finance = st.tabs(["🏗️ Site Entry", "💰 Finance"])
+    # TABS
+    tab_site, tab_finance = st.tabs(["🏗️ Site Master", "💰 Finance History"])
 
     with tab_site:
-        st.subheader("Site Entry - NR Calculation")
-        col1, col2, col3 = st.columns([1, 1, 1])
-        with col1:
-            if st.button("➕ New Entry", key="jaju_new_btn_complete"):
-                open_entry_popup()
+        # ACTION BAR
+        col_new, col_dl = st.columns([1, 4])
+        if col_new.button("➕ New Entry", type="primary"):
+            site_form_dialog()
         
-        with col2:
-            up_file = st.file_uploader("📂 Bulk Upload", type=['xlsx', 'csv'], label_visibility="collapsed")
-            if up_file:
-                try:
-                    bulk_df = pd.read_excel(up_file) if up_file.name.endswith('xlsx') else pd.read_csv(up_file)
-                    bulk_df.columns = [c.lower().replace(' ', '_') for c in bulk_df.columns]
-                    data_to_save = bulk_df.to_dict(orient='records')
-                    supabase.table("nr_calculation").upsert(data_to_save, on_conflict="project_id").execute()
-                    st.success(f"Successfully uploaded {len(data_to_save)} records!")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Bulk Upload Error: {e}")
-
-        with col3:
-            if not df_site.empty:
-                st.download_button("📥 Download Excel", data=df_site.to_csv(index=False), file_name="NR_Report.csv")
-
-        st.write("---")
-        
-        # Search Bar
-        search = st.text_input("🔍 Search Site Data...", placeholder="Type Site ID or Project ID...")
-        if search and not df_site.empty:
-            df_site = df_site[df_site.astype(str).apply(lambda x: x.str.contains(search, case=False)).any(axis=1)]
-
-        # --- CUSTOM TABLE WITH EDIT BUTTONS ---
         if not df_site.empty:
-            st.markdown("""
-                <div style='background-color: #1E3A8A; padding: 10px; border-radius: 5px; margin-bottom: 10px;'>
-                    <div style='display: flex; color: white; font-weight: bold;'>
-                        <div style='flex: 0.6;'>Edit</div>
-                        <div style='flex: 1;'>Site ID</div>
-                        <div style='flex: 1;'>Project ID</div>
-                        <div style='flex: 2;'>Site Name</div>
-                        <div style='flex: 1;'>PO Amount</div>
-                        <div style='flex: 1;'>Status</div>
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
+            # --- FULL COLUMN TABLE ---
+            st.markdown("### 📋 Site Records (All Columns)")
+            
+            # Header with all columns
+            st.markdown("""<div style='background-color: #1E3A8A; padding: 10px; border-radius: 5px; display: flex; color: white; font-size: 13px; font-weight: bold;'>
+                <div style='flex: 0.5;'>Edit</div>
+                <div style='flex: 1;'>Project ID</div>
+                <div style='flex: 1;'>Site ID</div>
+                <div style='flex: 1.5;'>Site Name</div>
+                <div style='flex: 1;'>Cluster</div>
+                <div style='flex: 1;'>Alloc. Date</div>
+                <div style='flex: 1;'>PO No</div>
+                <div style='flex: 1;'>Amount</div>
+                <div style='flex: 1;'>Status</div>
+                </div>""", unsafe_allow_html=True)
 
             for idx, row in df_site.iterrows():
-                s_id = row.get('site_id', '-')
-                p_id = row.get('project_id', '-')
-                s_name = row.get('site_name', '-')
-                p_amt = row.get('po_amt', 0)
-                status = row.get('wcc_status', '-')
-                # Using sr_no as unique key if id doesn't exist
-                unique_key = row.get('sr_no', idx)
-
-                t_row = st.columns([0.6, 1, 1, 2, 1, 1])
-                if t_row[0].button("📝", key=f"edit_act_complete_{unique_key}"):
-                    st.toast(f"Edit Mode Active for Site ID: {s_id}")
+                r = st.columns([0.5, 1, 1, 1.5, 1, 1, 1, 1, 1])
                 
-                t_row[1].write(s_id)
-                t_row[2].write(p_id)
-                t_row[3].write(s_name)
-                t_row[4].write(f"₹{float(p_amt):,.2f}")
-                t_row[5].write(status)
-                st.markdown("<hr style='margin: 5px 0; opacity: 0.2;'>", unsafe_allow_html=True)
+                # Edit Button (Functionality Connected)
+                if r[0].button("📝", key=f"ed_{idx}"):
+                    site_form_dialog(edit_data=row.to_dict())
+                
+                r[1].write(row.get('project_id', '-'))
+                r[2].write(row.get('site_id', '-'))
+                r[3].write(row.get('site_name', '-'))
+                r[4].write(row.get('cluster', '-'))
+                r[5].write(row.get('allocation_date', '-'))
+                r[6].write(row.get('po_no', '-'))
+                r[7].write(f"₹{float(row.get('po_amt', 0)):,.0f}")
+                r[8].write(row.get('wcc_status', '-'))
+                st.markdown("<hr style='margin:2px; opacity:0.1'>", unsafe_allow_html=True)
         else:
-            st.info("No records found in database.")
+            st.info("No records found.")
 
     with tab_finance:
-        st.subheader("Finance Transaction History")
-        st.dataframe(df_fin, use_container_width=True, hide_index=True)
+        st.write("Finance data loading...")
 
-# --- 5. OTHER PAGES LOGIC ---
+# --- OTHER PAGES ---
 elif st.session_state.current_page != "Dashboard":
     st.markdown("<div class='back-btn'>", unsafe_allow_html=True)
     if st.button("⬅️ Dashboard"): navigate_to("Dashboard")
     st.markdown("</div>", unsafe_allow_html=True)
-    st.divider()
+    st.title(f"Section {st.session_state.current_page}")
 
     cur_p = st.session_state.current_page
     if cur_p == "STN Manager":
