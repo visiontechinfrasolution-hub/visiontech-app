@@ -1,113 +1,176 @@
 import streamlit as st
 from supabase import create_client
 import pandas as pd
+from datetime import datetime
 import time
+import io
 
-# --- 1. CONNECTION ---
+# --- 1. DATABASE CONNECTION ---
 URL = "https://sckyflvukpmdqmdzjzhs.supabase.co"
 KEY = "sb_publishable_rAiegSkKYvM0Z9n7sUAI1w_WTgm1S4I" 
 supabase = create_client(URL, KEY)
 
+# --- NAVIGATION FUNCTION ---
 def navigate_to(page):
     st.session_state.current_page = page
     st.rerun()
 
-# --- INITIALIZE SESSION STATES ---
+# --- UI SETUP ---
+st.set_page_config(page_title="Visiontech Portal", layout="wide", initial_sidebar_state="collapsed")
+
+# --- CUSTOM CSS (Visiontech Style) ---
+st.markdown("""
+    <style>
+    [data-testid="stSidebar"] { display: none; }
+    header { visibility: hidden; }
+    footer { visibility: hidden; }
+    .stApp { background-color: #F8FAFC; }
+    
+    /* Desktop Dashboard Buttons */
+    div.stButton > button {
+        width: 100%; height: 120px; border-radius: 20px; border: none;
+        background-color: white; color: #1E293B; font-size: 18px; font-weight: bold;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-bottom: 20px;
+        display: flex; flex-direction: column; justify-content: center;
+        white-space: pre-wrap; transition: 0.3s;
+    }
+    div.stButton > button:hover {
+        transform: translateY(-5px); background-color: #1E3A8A; color: white;
+    }
+    
+    .back-btn button {
+        height: 50px !important; width: 160px !important;
+        background-color: #64748B !important; color: white !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# Session State Initialization
 if 'current_page' not in st.session_state:
     st.session_state.current_page = "Dashboard"
-if 'show_popup' not in st.session_state:
-    st.session_state.show_popup = False
 
-st.set_page_config(page_title="Visiontech Portal", layout="wide")
+# --- 2. POP-UP DIALOG (NEW SITE ENTRY) ---
+@st.dialog("➕ Add New Site Record")
+def open_entry_popup():
+    with st.form("site_form_pop", clear_on_submit=True):
+        f1, f2, f3 = st.columns(3)
+        with f1:
+            p_id = st.text_input("Project ID")
+            s_id = st.text_input("Site ID")
+            s_name = st.text_input("Site Name")
+        with f2:
+            clstr = st.text_input("Cluster")
+            a_date = st.date_input("Allocation Date")
+            w_desc = st.text_area("Work Description")
+        with f3:
+            p_no = st.text_input("PO No")
+            p_amt = st.number_input("PO Amount", min_value=0.0)
+            wcc_no = st.text_input("WCC Number")
+            wcc_st = st.selectbox("WCC Status", ["Pending", "Approved", "Rejected"])
+        
+        if st.form_submit_button("Submit Data", use_container_width=True):
+            new_data = {
+                "project_id": p_id, "site_id": s_id, "site_name": s_name,
+                "cluster": clstr, "allocation_date": str(a_date),
+                "work_description": w_desc, "po_no": p_no, "po_amt": float(p_amt),
+                "wcc_number": wcc_no, "wcc_status": wcc_st
+            }
+            try:
+                # Using upsert to prevent unique key errors
+                supabase.table("nr_calculation").upsert(new_data, on_conflict="project_id").execute()
+                st.success("✅ Success! Site Added/Updated.")
+                time.sleep(1)
+                st.rerun()
+            except Exception as e:
+                st.error(f"⚠️ Error: {e}")
 
-# --- JAJUPRO PAGE LOGIC ---
-if st.session_state.current_page == "Jajupro":
-    # Back Button
-    if st.button("⬅️ Back to Dashboard"):
-        navigate_to("Dashboard")
-    
+# --- 3. DASHBOARD PAGE ---
+if st.session_state.current_page == "Dashboard":
+    st.markdown("<h1 style='text-align: center; color: #1E3A8A;'>🚀 Visiontech Portal</h1>", unsafe_allow_html=True)
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        if st.button("📦\nBOQ Report"): st.switch_page("pages/boq_report.py")
+        if st.button("📊\nIndus Data"): st.switch_page("pages/indus_data.py")
+        if st.button("🚨\nSTN Manager"): navigate_to("STN Manager")
+    with c2:
+        if st.button("🧾\nPO Report"): navigate_to("PO")
+        if st.button("🚀\nJajupro"): navigate_to("Jajupro")
+        if st.button("📝\nAudit Portal"): navigate_to("Audit")
+    with c3:
+        if st.button("📁\nData Entry"): st.switch_page("pages/data_entry.py")
+        if st.button("📢\nRFAI Billing"): navigate_to("RFAI")
+        if st.button("🛰️\nSite Tracking"): st.switch_page("pages/tracking.py")
+
+# --- 4. JAJUPRO MANAGEMENT PAGE ---
+elif st.session_state.current_page == "Jajupro":
+    st.markdown("<div class='back-btn'>", unsafe_allow_html=True)
+    if st.button("⬅️ Dashboard"): navigate_to("Dashboard")
+    st.markdown("</div>", unsafe_allow_html=True)
+    st.divider()
     st.title("🚀 Jajupro Management")
 
-    # 1. Fetch Data First
+    # Fetch Data from Supabase
     try:
-        site_res = supabase.table("nr_calculation").select("*").order('id').execute()
+        site_res = supabase.table("nr_calculation").select("*").order('id', desc=True).execute()
         df_site = pd.DataFrame(site_res.data) if site_res.data else pd.DataFrame()
-    except:
+        
+        # Clean column names to lowercase to ensure matching works
+        if not df_site.empty:
+            df_site.columns = [c.lower() for c in df_site.columns]
+    except Exception as e:
+        st.error(f"Fetch Error: {e}")
         df_site = pd.DataFrame()
 
-    # 2. Metrics Header (Top Section)
-    t_site = df_site['po_amt'].sum() if not df_site.empty else 0
+    # Metrics Section
+    total_site_amt = df_site['po_amt'].sum() if not df_site.empty and 'po_amt' in df_site.columns else 0
     m1, m2, m3 = st.columns(3)
-    m1.metric("Total Site Amount", f"₹ {t_site:,.2f}")
+    m1.metric("Total Site Amount", f"₹ {total_site_amt:,.2f}")
     m2.metric("Total Paid Amount", "₹ 0.00")
-    m3.metric("Pending Balance", f"₹ {t_site:,.2f}")
+    m3.metric("Pending Balance", f"₹ {total_site_amt:,.2f}")
 
     st.divider()
 
-    # --- 3. POP-UP LOGIC (MANUAL) ---
-    # Agar 'New Entry' button daba hai, toh screen par sirf FORM dikhega
-    if st.session_state.show_popup:
-        st.markdown("### 🏗️ Add New Entry")
-        with st.container(border=True): # Ye box ki tarah dikhega
-            with st.form("manual_pop_form"):
-                f1, f2, f3 = st.columns(3)
-                p_id = f1.text_input("Project ID")
-                s_id = f1.text_input("Site ID")
-                s_name = f2.text_input("Site Name")
-                p_amt = f2.number_input("PO Amount", min_value=0.0)
-                wcc_st = f3.selectbox("Status", ["Pending", "Approved"])
+    tab1, tab2 = st.tabs(["🏗️ Site Entry", "💰 Finance"])
+
+    with tab1:
+        # Action Buttons Area
+        col_new, col_bulk, col_dl = st.columns([1, 2, 1])
+        with col_new:
+            if st.button("➕ New Entry", key="jaju_entry_btn", type="primary"):
+                open_entry_popup()
+        with col_dl:
+            if not df_site.empty:
+                st.download_button("📥 Download Excel", data=df_site.to_csv(index=False), file_name="NR_Report.csv")
+
+        st.write("---")
+        
+        # --- DYNAMIC TABLE DISPLAY ---
+        if not df_site.empty:
+            # Table Header
+            st.markdown("""<div style='background-color: #1E3A8A; padding: 10px; border-radius: 5px; display: flex; color: white; font-weight: bold;'>
+                <div style='flex: 0.6;'>Edit</div><div style='flex: 1;'>Site ID</div><div style='flex: 1;'>Project ID</div>
+                <div style='flex: 2;'>Site Name</div><div style='flex: 1;'>PO Amount</div><div style='flex: 1;'>Status</div>
+                </div>""", unsafe_allow_html=True)
+
+            # Table Body Rows
+            for idx, row in df_site.iterrows():
+                r = st.columns([0.6, 1, 1, 2, 1, 1])
+                if r[0].button("📝", key=f"edit_{row.get('id', idx)}"):
+                    st.toast(f"Edit clicked for {row.get('site_id', '-')}")
                 
-                c_btn1, c_btn2 = st.columns(2)
-                if c_btn1.form_submit_button("✅ Save Data", use_container_width=True):
-                    new_rec = {"project_id": p_id, "site_id": s_id, "site_name": s_name, "po_amt": p_amt, "wcc_status": wcc_st}
-                    supabase.table("nr_calculation").insert(new_rec).execute()
-                    st.session_state.show_popup = False # Form band karo
-                    st.success("Saved!")
-                    time.sleep(1)
-                    st.rerun()
-                
-                if c_btn2.form_submit_button("❌ Cancel", use_container_width=True):
-                    st.session_state.show_popup = False
-                    st.rerun()
-        st.stop() # Form dikhte waqt niche ka code (table) mat dikhao
+                r[1].write(row.get('site_id', '-'))
+                r[2].write(row.get('project_id', '-'))
+                r[3].write(row.get('site_name', '-'))
+                r[4].write(f"₹{row.get('po_amt', 0):,.2f}")
+                r[5].write(row.get('wcc_status', '-'))
+                st.markdown("<hr style='margin:2px; opacity:0.1'>", unsafe_allow_html=True)
+        else:
+            st.info("Database empty. Please click 'New Entry' to add data.")
 
-    # --- 4. MAIN PAGE CONTENT (Jab form band ho) ---
-    col_a, col_b = st.columns([1, 4])
-    with col_a:
-        if st.button("➕ New Entry", type="primary"):
-            st.session_state.show_popup = True
-            st.rerun()
-    
-    st.markdown("### 📋 Current Site Records")
-    
-    if not df_site.empty:
-        # Table Layout
-        # Columns: Edit | Site ID | Project ID | Site Name | Amount | Status
-        cols = st.columns([0.8, 1, 1, 2, 1, 1])
-        cols[0].write("**Action**")
-        cols[1].write("**Site ID**")
-        cols[2].write("**Project ID**")
-        cols[3].write("**Site Name**")
-        cols[4].write("**PO Amt**")
-        cols[5].write("**Status**")
-        st.divider()
-
-        for idx, row in df_site.iterrows():
-            r = st.columns([0.8, 1, 1, 2, 1, 1])
-            # Edit Button
-            if r[0].button("📝 Edit", key=f"btn_{row['id']}"):
-                st.info(f"Edit clicked for {row['site_id']}")
-            
-            r[1].write(row['site_id'])
-            r[2].write(row['project_id'])
-            r[3].write(row['site_name'])
-            r[4].write(f"₹{row['po_amt']:,.2f}")
-            r[5].write(row['wcc_status'])
-    else:
-        st.warning("Database mein koi data nahi mila.")
-
-# --- DASHBOARD LOGIC ---
-elif st.session_state.current_page == "Dashboard":
-    st.title("Visiontech Dashboard")
-    if st.button("Go to Jajupro"):
-        navigate_to("Jajupro")
+# --- 5. OTHER PAGES PLACEHOLDER ---
+elif st.session_state.current_page != "Dashboard":
+    st.markdown("<div class='back-btn'>", unsafe_allow_html=True)
+    if st.button("⬅️ Dashboard"): navigate_to("Dashboard")
+    st.markdown("</div>", unsafe_allow_html=True)
+    st.title(f"Section: {st.session_state.current_page}")
+    st.write("Development in progress.")
