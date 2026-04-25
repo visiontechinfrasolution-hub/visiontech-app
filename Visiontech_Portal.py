@@ -49,11 +49,12 @@ st.markdown("""
 if 'current_page' not in st.session_state:
     st.session_state.current_page = "Dashboard"
 
-# --- 2. POP-UP DIALOG (ADD / EDIT FORM) ---
+# --- 2. POP-UP DIALOGS ---
+
+# --- Site Master Form ---
 @st.dialog("🏗️ Site Master Form")
 def site_form_dialog(edit_data=None):
     is_edit = edit_data is not None
-    
     with st.form("site_master_form", clear_on_submit=True):
         f1, f2, f3 = st.columns(3)
         with f1:
@@ -63,13 +64,8 @@ def site_form_dialog(edit_data=None):
         with f2:
             clstr = st.text_input("Cluster", value=edit_data['cluster'] if is_edit else "")
             try:
-                # Proper date handling for display
-                if is_edit and edit_data['allocation_date']:
-                    default_date = datetime.strptime(edit_data['allocation_date'], '%Y-%m-%d')
-                else:
-                    default_date = datetime.now()
-            except:
-                default_date = datetime.now()
+                default_date = datetime.strptime(edit_data['allocation_date'], '%Y-%m-%d') if is_edit and edit_data['allocation_date'] else datetime.now()
+            except: default_date = datetime.now()
             a_date = st.date_input("Allocation Date", value=default_date)
             w_desc = st.text_area("Work Description", value=edit_data['work_description'] if is_edit else "")
         with f3:
@@ -80,8 +76,7 @@ def site_form_dialog(edit_data=None):
             default_idx = status_list.index(edit_data['wcc_status']) if is_edit and edit_data['wcc_status'] in status_list else 0
             wcc_st = st.selectbox("WCC Status", status_list, index=default_idx)
         
-        btn_label = "Update Site Data" if is_edit else "Save New Site"
-        if st.form_submit_button(btn_label, use_container_width=True):
+        if st.form_submit_button("Submit Data", use_container_width=True):
             payload = {
                 "project_id": p_id, "site_id": s_id, "site_name": s_name,
                 "cluster": clstr, "allocation_date": str(a_date),
@@ -89,13 +84,30 @@ def site_form_dialog(edit_data=None):
                 "wcc_number": wcc_no, "wcc_status": wcc_st
             }
             try:
-                # Upsert ensures that if Project_ID matches, it updates; otherwise, it creates.
                 supabase.table("nr_calculation").upsert(payload, on_conflict="project_id").execute()
-                st.success("✅ Success! Site data updated.")
-                time.sleep(1)
-                st.rerun()
-            except Exception as e:
-                st.error(f"⚠️ Error: {e}")
+                st.success("✅ Database Updated!")
+                time.sleep(1); st.rerun()
+            except Exception as e: st.error(f"⚠️ Error: {e}")
+
+# --- Finance Entry Form ---
+@st.dialog("💰 Add Payment Entry")
+def finance_form_dialog(project_list):
+    with st.form("finance_form", clear_on_submit=True):
+        p_id = st.selectbox("Select Project ID", options=project_list)
+        p_amt = st.number_input("Payment Amount", min_value=0.0)
+        p_date = st.date_input("Payment Date", value=datetime.now())
+        
+        if st.form_submit_button("Submit Payment", use_container_width=True):
+            payload = {
+                "Project_ID": p_id,
+                "Payment": float(p_amt),
+                "Payment_Date": str(p_date)
+            }
+            try:
+                supabase.table("nr_finance").insert(payload).execute()
+                st.success("✅ Payment Added!")
+                time.sleep(1); st.rerun()
+            except Exception as e: st.error(f"⚠️ Error: {e}")
 
 # --- 3. MAIN DASHBOARD ---
 if st.session_state.current_page == "Dashboard":
@@ -120,30 +132,25 @@ elif st.session_state.current_page == "Jajupro":
     if st.button("⬅️ Dashboard"): navigate_to("Dashboard")
     st.markdown("</div>", unsafe_allow_html=True)
     st.divider()
-    
     st.title("🚀 Jajupro Management")
 
-    # FETCH DATA
+    # FETCH FRESH DATA
     try:
-        # Fetching records with latest entries on top
         site_res = supabase.table("nr_calculation").select("*").order('sr_no', desc=True).execute()
         df_site = pd.DataFrame(site_res.data) if site_res.data else pd.DataFrame()
         
-        # Finance History Fetch
         fin_res = supabase.table("nr_finance").select("*").execute()
         df_fin = pd.DataFrame(fin_res.data) if fin_res.data else pd.DataFrame()
 
-        if not df_site.empty:
-            df_site.columns = [c.lower() for c in df_site.columns]
-        if not df_fin.empty:
-            df_fin.columns = [c.lower() for c in df_fin.columns]
+        if not df_site.empty: df_site.columns = [c.lower() for c in df_site.columns]
+        if not df_fin.empty: df_fin.columns = [c.lower() for c in df_fin.columns]
     except Exception as e:
         st.error(f"Fetch Error: {e}")
         df_site, df_fin = pd.DataFrame(), pd.DataFrame()
 
     # METRICS
-    t_site = df_site['po_amt'].sum() if not df_site.empty and 'po_amt' in df_site.columns else 0
-    t_paid = df_fin['payment'].sum() if not df_fin.empty and 'payment' in df_fin.columns else 0
+    t_site = df_site['po_amt'].sum() if not df_site.empty else 0
+    t_paid = df_fin['payment'].sum() if not df_fin.empty else 0
     balance = t_site - t_paid
 
     m1, m2, m3 = st.columns(3)
@@ -152,38 +159,20 @@ elif st.session_state.current_page == "Jajupro":
     m3.metric("Pending Balance", f"₹ {balance:,.2f}")
 
     st.divider()
-
     tab_site, tab_finance = st.tabs(["🏗️ Site Master", "💰 Finance History"])
 
     with tab_site:
-        col_new, col_dl = st.columns([1, 4])
-        if col_new.button("➕ New Entry", type="primary"):
-            site_form_dialog()
-        
+        if st.button("➕ New Site Entry", type="primary"): site_form_dialog()
         if not df_site.empty:
-            st.markdown("### 📋 Site Master List (Latest on Top)")
-            
-            # --- FULL COLUMN HEADER ---
+            st.markdown("### 📋 Site Master List")
             st.markdown("""<div style='background-color: #1E3A8A; padding: 10px; border-radius: 5px; display: flex; color: white; font-size: 11px; font-weight: bold;'>
-                <div style='flex: 0.4;'>Edit</div>
-                <div style='flex: 0.9;'>Project ID</div>
-                <div style='flex: 0.8;'>Site ID</div>
-                <div style='flex: 1.2;'>Site Name</div>
-                <div style='flex: 0.8;'>Cluster</div>
-                <div style='flex: 0.8;'>Date</div>
-                <div style='flex: 1;'>PO No</div>
-                <div style='flex: 0.8;'>Amount</div>
-                <div style='flex: 1;'>WCC No</div>
-                <div style='flex: 0.8;'>Status</div>
+                <div style='flex: 0.4;'>Edit</div><div style='flex: 0.9;'>Project ID</div><div style='flex: 0.8;'>Site ID</div>
+                <div style='flex: 1.2;'>Site Name</div><div style='flex: 0.8;'>Cluster</div><div style='flex: 0.8;'>Date</div>
+                <div style='flex: 1;'>PO No</div><div style='flex: 0.8;'>Amount</div><div style='flex: 1;'>WCC No</div><div style='flex: 0.8;'>Status</div>
                 </div>""", unsafe_allow_html=True)
-
             for idx, row in df_site.iterrows():
                 r = st.columns([0.4, 0.9, 0.8, 1.2, 0.8, 0.8, 1, 0.8, 1, 0.8])
-                
-                # Edit button triggers the dialog with existing data
-                if r[0].button("📝", key=f"ed_{row.get('sr_no', idx)}"):
-                    site_form_dialog(edit_data=row.to_dict())
-                
+                if r[0].button("📝", key=f"ed_{row.get('sr_no', idx)}"): site_form_dialog(row.to_dict())
                 r[1].write(f"<span style='font-size:11px'>{row.get('project_id', '-')}</span>", unsafe_allow_html=True)
                 r[2].write(f"<span style='font-size:11px'>{row.get('site_id', '-')}</span>", unsafe_allow_html=True)
                 r[3].write(f"<span style='font-size:11px'>{row.get('site_name', '-')}</span>", unsafe_allow_html=True)
@@ -193,17 +182,34 @@ elif st.session_state.current_page == "Jajupro":
                 r[7].write(f"<span style='font-size:11px'>₹{float(row.get('po_amt', 0)):,.0f}</span>", unsafe_allow_html=True)
                 r[8].write(f"<span style='font-size:11px'>{row.get('wcc_number', '-')}</span>", unsafe_allow_html=True)
                 r[9].write(f"<span style='font-size:11px'>{row.get('wcc_status', '-')}</span>", unsafe_allow_html=True)
-                
                 st.markdown("<hr style='margin:1px; opacity:0.1'>", unsafe_allow_html=True)
-        else:
-            st.info("No records found.")
+        else: st.info("No records found.")
 
     with tab_finance:
-        st.subheader("💰 Finance Transaction History")
+        col_f1, col_f2 = st.columns([1, 4])
+        with col_f1:
+            if not df_site.empty:
+                if st.button("➕ Add Payment", type="primary", key="add_pay_btn"):
+                    finance_form_dialog(df_site['project_id'].tolist())
+            else:
+                st.warning("Pehle Site add karein.")
+        
         if not df_fin.empty:
-            st.dataframe(df_fin, use_container_width=True, hide_index=True)
+            st.markdown("### 🧾 Payment Transactions")
+            # Layout for Finance table
+            st.markdown("""<div style='background-color: #334155; padding: 10px; border-radius: 5px; display: flex; color: white; font-size: 13px; font-weight: bold;'>
+                <div style='flex: 1;'>Payment ID</div><div style='flex: 1.5;'>Project ID</div>
+                <div style='flex: 1.5;'>Amount Paid</div><div style='flex: 1.5;'>Date</div>
+                </div>""", unsafe_allow_html=True)
+            for _, row in df_fin.iterrows():
+                fr = st.columns([1, 1.5, 1.5, 1.5])
+                fr[0].write(row.get('finance_id', '-'))
+                fr[1].write(row.get('project_id', '-'))
+                fr[2].write(f"₹ {float(row.get('payment', 0)):,.2f}")
+                fr[3].write(row.get('payment_date', '-'))
+                st.markdown("<hr style='margin:2px; opacity:0.1'>", unsafe_allow_html=True)
         else:
-            st.info("No transactions found.")
+            st.info("Koi payment entry nahi mili.")
 
 # --- OTHER PAGES ---
 elif st.session_state.current_page != "Dashboard":
