@@ -173,7 +173,7 @@ if st.session_state.current_page == "Dashboard":
         if st.button("🏗️\nSite Detail"): navigate_to("Site")
         if st.button("📁\nData Entry"): st.switch_page("pages/data_entry.py")
         if st.button("📢\nRFAI Billing"): navigate_to("RFAI")
-        if st.button("📜\nVintage PDF"): navigate_to("PDFFormat")
+        if st.button("🚀\nJajupro"): navigate_to("Jajupro")
        
 # --- PAGES LOGIC ---
 elif st.session_state.current_page != "Dashboard":
