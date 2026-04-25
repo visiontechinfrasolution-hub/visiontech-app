@@ -20,85 +20,10 @@ URL = "https://sckyflvukpmdqmdzjzhs.supabase.co"
 KEY = "sb_publishable_rAiegSkKYvM0Z9n7sUAI1w_WTgm1S4I" 
 supabase = create_client(URL, KEY)
 
-# --- 1.A EMAIL FUNCTION ---
-def send_professional_email(selected_df, to_emails, cc_emails):
-    import smtplib
-    from email.mime.multipart import MIMEMultipart
-    from email.mime.text import MIMEText
-    from datetime import datetime, timedelta
-
-    SENDER = "vispltower@gmail.com" 
-    PWD = "llzg bjkq dyig rykv" 
-    
-    tomorrow = (datetime.now() + timedelta(days=1)).strftime('%d-%b-%Y')
-    
-    msg = MIMEMultipart()
-    msg['Subject'] = f"Audit Request_Visiontech_({tomorrow})"
-    msg['From'] = f"Visiontech Portal <{SENDER}>"
-    msg['To'] = to_emails
-    msg['Cc'] = cc_emails
-
-    header_style = "background-color: #FFFF00; font-weight: bold; border: 1px solid black; padding: 4px; font-size: 10px; text-align: center; color: black;"
-    td_style = "border: 1px solid black; padding: 4px; font-size: 10px; text-align: center;"
-
-    cols = [
-        "Circle", "Ref. No.", "Indus ID", "Site Name", "Site Add", "Cluster / Zone",
-        "Date of Offerance in ISQ", "Date Of Audit Planned in ISQ", "ISQ Offerance Status(Y/N)",
-        "Documents uploaded in ISQ(Y/N)", "TSP Shared Filled checklist during Offerance for audit (Yes / No)",
-        "TSP Shared Compliance Photographs during audit Offerance (yes / No)", "Project", "Tower Type",
-        "Tower Ht.", "Stage", "TSP Name", "Audit Agency Name", "Representative Name",
-        "Representative Contact Number", "Actual ofference date", "Audit Engineer Name",
-        "Contact Details.", "Actual Audit date", "Actual Audit Time", "Lat", "Long"
-    ]
-
-    h_html = "".join([f"<th style='{header_style}'>{c}</th>" for c in cols])
-    r_html = ""
-    for _, row in selected_df.iterrows():
-        r_html += "<tr>"
-        for col in cols:
-            val = row.get(col, "-")
-            r_html += f"<td style='{td_style}'>{val}</td>"
-        r_html += "</tr>"
-
-    body = f"""
-    <html>
-    <body style="font-family: Calibri, Arial; font-size: 11px;">
-        <p>Hello Sir,</p>
-        <p>Please find the audit request for the following sites attached in the table below:</p>
-        <div style="overflow-x: auto;">
-            <table border="1" style="border-collapse: collapse; width: 100%; border: 1px solid black;">
-                <thead><tr style="background-color: #FFFF00;">{h_html}</tr></thead>
-                <tbody>{r_html}</tbody>
-            </table>
-        </div>
-        <br>
-        <p>Thanks & Regards,<br>
-        <b>Saira Quzi</b><br>
-        Mobile: +91 8180827123<br>
-        Visiontech Infra Solution</p>
-    </body>
-    </html>
-    """
-    msg.attach(MIMEText(body, 'html'))
-
-    try:
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls() 
-        server.login(SENDER, PWD)
-        server.send_message(msg)
-        server.quit()
-        return True
-    except Exception as e:
-        st.error(f"Gmail Error: {e}")
-        return False
-
 # --- NAVIGATION FUNCTION ---
 def navigate_to(page):
-    if page == "Tracking":
-        st.switch_page("pages/tracking.py")
-    else:
-        st.session_state.current_page = page
-        st.rerun()
+    st.session_state.current_page = page
+    st.rerun()
 
 # --- UI SETUP ---
 st.set_page_config(page_title="Visiontech Portal", layout="wide", initial_sidebar_state="collapsed")
@@ -131,22 +56,7 @@ if 'current_page' not in st.session_state:
     st.session_state.current_page = "Dashboard"
 
 # --- MAIN DASHBOARD ---
-# --- MAIN DASHBOARD ---
 if st.session_state.current_page == "Dashboard":
-    st.markdown("""
-        <style>
-        @media (max-width: 768px) {
-            div[data-testid="stHorizontalBlock"] {
-                flex-direction: row !important; flex-wrap: wrap !important; justify-content: center !important;
-            }
-            div[data-testid="column"] {
-                min-width: 48% !important; max-width: 48% !important; padding: 0 5px !important;
-            }
-            div[data-testid="column"]:nth-child(1), div[data-testid="column"]:nth-child(5) { display: none !important; }
-        }
-        </style>
-    """, unsafe_allow_html=True)
-
     st.markdown("<h1 style='text-align: center; color: #1E3A8A;'>🚀 Visiontech Portal</h1>", unsafe_allow_html=True)
     
     spacer1, c1, c2, c3, spacer2 = st.columns([1.5, 2, 2, 2, 1.5])
@@ -161,14 +71,14 @@ if st.session_state.current_page == "Dashboard":
         if st.button("🧾\nPO Report"): navigate_to("PO")
         if st.button("📡\nWCC Tracker"): st.switch_page("pages/wcc_tracker.py")
         if st.button("📝\nAudit Portal"): navigate_to("Audit")
-        if st.button("🛰️\nSite Tracking"): navigate_to("Tracking")
+        if st.button("🛰️\nSite Tracking"): st.switch_page("pages/tracking.py")
 
     with c3:
         if st.button("🚀\nJajupro"): navigate_to("Jajupro")
         if st.button("📁\nData Entry"): st.switch_page("pages/data_entry.py")
         if st.button("📢\nRFAI Billing"): navigate_to("RFAI")
 
-# --- PAGES LOGIC (INCLUDING JAJUPRO) ---
+# --- JAJUPRO PAGE LOGIC ---
 elif st.session_state.current_page == "Jajupro":
     st.markdown("<div class='back-btn'>", unsafe_allow_html=True)
     if st.button("⬅️ Dashboard"): navigate_to("Dashboard")
@@ -177,43 +87,40 @@ elif st.session_state.current_page == "Jajupro":
     
     st.title("🚀 Jajupro Management")
 
-    # 1. Fetch Real-time Data from Supabase
+    # 1. Fetch Data from Supabase (Lowercase table names)
     try:
-        site_res = supabase.table("NR_Calculation").select("*").execute()
-        fin_res = supabase.table("NR_Finance").select("*").execute()
+        site_res = supabase.table("nr_calculation").select("*").execute()
+        fin_res = supabase.table("nr_finance").select("*").execute()
         df_site = pd.DataFrame(site_res.data) if site_res.data else pd.DataFrame()
         df_fin = pd.DataFrame(fin_res.data) if fin_res.data else pd.DataFrame()
-    except Exception as e:
-        st.error(f"Supabase Error: {e}")
+    except:
         df_site, df_fin = pd.DataFrame(), pd.DataFrame()
 
-    # 2. Metrics Calculation
-    t_site = df_site['Po_amt'].sum() if not df_site.empty else 0
-    t_paid = df_fin['Payment_Amt'].sum() if not df_fin.empty else 0
+    # Metrics
+    t_site = df_site['po_amt'].sum() if not df_site.empty else 0
+    t_paid = df_fin['payment_amt'].sum() if not df_fin.empty else 0
     balance = t_site - t_paid
 
     m1, m2, m3 = st.columns(3)
     m1.metric("Total Site Amount", f"₹ {t_site:,.2f}")
     m2.metric("Total Paid Amount", f"₹ {t_paid:,.2f}")
     m3.metric("Pending Balance", f"₹ {balance:,.2f}")
-    
+
     st.divider()
-    
+
     tab_site, tab_finance = st.tabs(["🏗️ Site Entry", "💰 Finance"])
-    
+
     with tab_site:
         st.subheader("Site Entry - NR Calculation")
-        # Buttons: New Entry, Bulk, Download
-        b1, b2, b3 = st.columns([1, 1, 1])
-        with b1:
+        col1, col2, col3 = st.columns([1, 1, 1])
+        with col1:
             if st.button("➕ New Entry"): st.session_state.show_site_form = not st.session_state.get('show_site_form', False)
-        with b2:
+        with col2:
             up_file = st.file_uploader("📂 Bulk Upload", type=['xlsx', 'csv'], label_visibility="collapsed")
-        with b3:
+        with col3:
             if not df_site.empty:
                 st.download_button("📥 Download Excel", data=df_site.to_csv(index=False), file_name="NR_Report.csv")
 
-        # Form Logic
         if st.session_state.get('show_site_form', False):
             with st.form("site_form"):
                 f1, f2, f3 = st.columns(3)
@@ -229,25 +136,23 @@ elif st.session_state.current_page == "Jajupro":
                 wcc_st = f3.selectbox("WCC Status", ["Pending", "Approved", "Rejected"])
                 
                 if st.form_submit_button("Submit Data"):
-                    new_data = {"Project_ID": p_id, "Site_ID": s_id, "Site_Name": s_name, "Cluster": clstr, 
-                                "Allocation_Date": str(a_date), "Work_Description": w_desc, "PO_No": p_no, 
-                                "Po_amt": p_amt, "Wcc_number": wcc_no, "Wcc_status": wcc_st}
-                    supabase.table("NR_Calculation").insert(new_data).execute()
+                    new_data = {
+                        "project_id": p_id, "site_id": s_id, "site_name": s_name,
+                        "cluster": clstr, "allocation_date": str(a_date),
+                        "work_description": w_desc, "po_no": p_no, "po_amt": p_amt,
+                        "wcc_number": wcc_no, "wcc_status": wcc_st
+                    }
+                    supabase.table("nr_calculation").insert(new_data).execute()
                     st.success("Record Added!")
                     st.session_state.show_site_form = False
                     st.rerun()
 
-        # Data Display
         search = st.text_input("🔍 Search Site Data...")
         if search and not df_site.empty:
             df_site = df_site[df_site.astype(str).apply(lambda x: x.str.contains(search, case=False)).any(axis=1)]
         st.dataframe(df_site, use_container_width=True, hide_index=True)
 
-    with tab_finance:
-        st.subheader("Finance Tracker")
-        st.dataframe(df_fin, use_container_width=True, hide_index=True)
-
-# 3. OTHER PAGES (STN, PO, RFAI, etc.)
+# --- OTHER PAGES LOGIC ---
 elif st.session_state.current_page != "Dashboard":
     st.markdown("<div class='back-btn'>", unsafe_allow_html=True)
     if st.button("⬅️ Dashboard"): navigate_to("Dashboard")
@@ -257,20 +162,16 @@ elif st.session_state.current_page != "Dashboard":
     cur_p = st.session_state.current_page
     if cur_p == "STN Manager":
         st.title("🚨 STN Manager")
-        # Yahan aapka STN wala code paste karein
     elif cur_p == "Audit":
         st.title("📝 Audit Portal")
-        # Yahan aapka Audit wala code paste karein
     elif cur_p == "PO":
         st.title("🧾 PO Report")
-        # Yahan aapka PO wala code paste karein
     elif cur_p == "RFAI":
         st.title("📢 RFAI Billing")
-        # Yahan aapka RFAI wala code paste karein
     elif cur_p == "PDFFormat":
         st.title("📜 Vintage PDF")
     else:
-        st.write(f"Section {cur_p} is active.")
+        st.write(f"Welcome to {cur_p}")
 # =====================================================================
     # 🟩 TAB 1: BOQ REPORT (3 Dedicated Sections - 0% Logic Change)
     # =====================================================================
