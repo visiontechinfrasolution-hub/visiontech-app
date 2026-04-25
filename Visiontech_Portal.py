@@ -99,7 +99,8 @@ def open_entry_popup():
                 "wcc_number": wcc_no, "wcc_status": wcc_st
             }
             try:
-                supabase.table("nr_calculation").insert(new_data).execute()
+                # Using upsert to handle duplicate keys if necessary
+                supabase.table("nr_calculation").upsert(new_data, on_conflict="project_id").execute()
                 st.success("✅ Record Added Successfully!")
                 time.sleep(1)
                 st.rerun()
@@ -148,8 +149,9 @@ elif st.session_state.current_page == "Jajupro":
         df_site, df_fin = pd.DataFrame(), pd.DataFrame()
 
     # Metrics (3 Boxes)
-    t_site = df_site['po_amt'].sum() if not df_site.empty else 0
-    t_paid = df_fin['payment_amt'].sum() if not df_fin.empty else 0
+    # Using case-insensitive get for metrics calculation
+    t_site = df_site['po_amt'].sum() if not df_site.empty and 'po_amt' in df_site.columns else 0
+    t_paid = df_fin['payment_amt'].sum() if not df_fin.empty and 'payment_amt' in df_fin.columns else 0
     balance = t_site - t_paid
 
     m1, m2, m3 = st.columns(3)
@@ -176,7 +178,7 @@ elif st.session_state.current_page == "Jajupro":
                     bulk_df = pd.read_excel(up_file) if up_file.name.endswith('xlsx') else pd.read_csv(up_file)
                     bulk_df.columns = [c.lower().replace(' ', '_') for c in bulk_df.columns]
                     data_to_save = bulk_df.to_dict(orient='records')
-                    supabase.table("nr_calculation").insert(data_to_save).execute()
+                    supabase.table("nr_calculation").upsert(data_to_save, on_conflict="project_id").execute()
                     st.success(f"Successfully uploaded {len(data_to_save)} records!")
                     st.rerun()
                 except Exception as e:
@@ -193,30 +195,43 @@ elif st.session_state.current_page == "Jajupro":
         if search and not df_site.empty:
             df_site = df_site[df_site.astype(str).apply(lambda x: x.str.contains(search, case=False)).any(axis=1)]
 
-        # CUSTOM TABLE WITH EDIT BUTTONS
+        # --- CUSTOM TABLE WITH EDIT BUTTONS ---
         if not df_site.empty:
-            # Table Headers
-            t_head = st.columns([0.6, 1, 1, 2, 1, 1])
-            t_head[0].write("**Edit**")
-            t_head[1].write("**Site ID**")
-            t_head[2].write("**Project ID**")
-            t_head[3].write("**Site Name**")
-            t_head[4].write("**PO Amt**")
-            t_head[5].write("**Status**")
-            st.write("---")
+            # Table Header Styling
+            st.markdown("""
+                <div style='background-color: #1E3A8A; padding: 10px; border-radius: 5px; margin-bottom: 10px;'>
+                    <div style='display: flex; color: white; font-weight: bold;'>
+                        <div style='flex: 0.6;'>Edit</div>
+                        <div style='flex: 1;'>Site ID</div>
+                        <div style='flex: 1;'>Project ID</div>
+                        <div style='flex: 2;'>Site Name</div>
+                        <div style='flex: 1;'>PO Amount</div>
+                        <div style='flex: 1;'>Status</div>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
 
             # Table Data Rows
             for idx, row in df_site.iterrows():
+                # Case-insensitive data fetch logic
+                s_id = row.get('site_id', row.get('Site_ID', '-'))
+                p_id = row.get('project_id', row.get('Project_ID', '-'))
+                s_name = row.get('site_name', row.get('Site_Name', '-'))
+                p_amt = row.get('po_amt', row.get('Po_amt', 0))
+                status = row.get('wcc_status', row.get('Wcc_status', '-'))
+                db_id = row.get('id')
+
                 t_row = st.columns([0.6, 1, 1, 2, 1, 1])
                 # Edit Action
-                if t_row[0].button("📝", key=f"edit_act_{row['id']}"):
-                    st.toast(f"Edit Mode Active for {row['site_id']}")
+                if t_row[0].button("📝", key=f"edit_act_{db_id}"):
+                    st.toast(f"Edit Mode Active for {s_id}")
                 
-                t_row[1].write(row['site_id'])
-                t_row[2].write(row['project_id'])
-                t_row[3].write(row['site_name'])
-                t_row[4].write(f"₹{row['po_amt']:,.2f}")
-                t_row[5].write(row['wcc_status'])
+                t_row[1].write(s_id)
+                t_row[2].write(p_id)
+                t_row[3].write(s_name)
+                t_row[4].write(f"₹{float(p_amt):,.2f}")
+                t_row[5].write(status)
+                st.markdown("<hr style='margin: 5px 0; opacity: 0.2;'>", unsafe_allow_html=True)
         else:
             st.info("No records found in database.")
 
