@@ -99,9 +99,9 @@ def open_entry_popup():
                 "wcc_number": wcc_no, "wcc_status": wcc_st
             }
             try:
-                # Using upsert as requested to handle conflicts automatically
+                # Upsert used to handle duplicate Project ID conflicts
                 supabase.table("nr_calculation").upsert(new_data, on_conflict="project_id").execute()
-                st.success("✅ Record Added Successfully!")
+                st.success("✅ Record Added/Updated Successfully!")
                 time.sleep(1)
                 st.rerun()
             except Exception as e:
@@ -141,18 +141,19 @@ elif st.session_state.current_page == "Jajupro":
 
     # Fetch Fresh Data
     try:
+        # Fetching records ordered by ID to see latest entries first
         site_res = supabase.table("nr_calculation").select("*").order('id', desc=True).execute()
         fin_res = supabase.table("nr_finance").select("*").execute()
         df_site = pd.DataFrame(site_res.data) if site_res.data else pd.DataFrame()
         df_fin = pd.DataFrame(fin_res.data) if fin_res.data else pd.DataFrame()
         
-        # Ensure all column names are lowercase to prevent display issues
+        # Normalize column names to lowercase to ensure consistency
         if not df_site.empty:
             df_site.columns = [c.lower() for c in df_site.columns]
     except:
         df_site, df_fin = pd.DataFrame(), pd.DataFrame()
 
-    # Metrics (3 Boxes)
+    # Metrics calculation
     t_site = df_site['po_amt'].sum() if not df_site.empty and 'po_amt' in df_site.columns else 0
     t_paid = df_fin['payment_amt'].sum() if not df_fin.empty and 'payment_amt' in df_fin.columns else 0
     balance = t_site - t_paid
@@ -168,10 +169,10 @@ elif st.session_state.current_page == "Jajupro":
 
     with tab_site:
         st.subheader("Site Entry - NR Calculation")
-        # Action Bar (New Entry, Bulk, Download)
+        # Top Action Buttons
         col1, col2, col3 = st.columns([1, 1, 1])
         with col1:
-            if st.button("➕ New Entry", key="jaju_new_btn"):
+            if st.button("➕ New Entry", key="jaju_new_btn_final"):
                 open_entry_popup()
         
         with col2:
@@ -193,14 +194,14 @@ elif st.session_state.current_page == "Jajupro":
 
         st.write("---")
         
-        # Search Bar
+        # Search Functionality
         search = st.text_input("🔍 Search Site Data...", placeholder="Type Site ID or Project ID...")
         if search and not df_site.empty:
             df_site = df_site[df_site.astype(str).apply(lambda x: x.str.contains(search, case=False)).any(axis=1)]
 
-        # --- CUSTOM TABLE WITH EDIT BUTTONS ---
+        # --- CUSTOM DATA TABLE WITH EDIT BUTTONS ---
         if not df_site.empty:
-            # Table Header Styling
+            # Header Row Styling
             st.markdown("""
                 <div style='background-color: #1E3A8A; padding: 10px; border-radius: 5px; margin-bottom: 10px;'>
                     <div style='display: flex; color: white; font-weight: bold;'>
@@ -214,9 +215,9 @@ elif st.session_state.current_page == "Jajupro":
                 </div>
             """, unsafe_allow_html=True)
 
-            # Table Data Rows
+            # Iterating through data to build the row structure
             for idx, row in df_site.iterrows():
-                # Case-insensitive data fetch logic
+                # Handling column name sensitivity
                 s_id = row.get('site_id', row.get('Site_ID', '-'))
                 p_id = row.get('project_id', row.get('Project_ID', '-'))
                 s_name = row.get('site_name', row.get('Site_Name', '-'))
@@ -225,8 +226,8 @@ elif st.session_state.current_page == "Jajupro":
                 db_id = row.get('id')
 
                 t_row = st.columns([0.6, 1, 1, 2, 1, 1])
-                # Edit Action
-                if t_row[0].button("📝", key=f"edit_act_{db_id}"):
+                # Edit Action Button
+                if t_row[0].button("📝", key=f"edit_act_main_{db_id}"):
                     st.toast(f"Edit Mode Active for {s_id}")
                 
                 t_row[1].write(s_id)
@@ -236,7 +237,7 @@ elif st.session_state.current_page == "Jajupro":
                 t_row[5].write(status)
                 st.markdown("<hr style='margin: 5px 0; opacity: 0.2;'>", unsafe_allow_html=True)
         else:
-            st.info("No records found in database.")
+            st.info("No records found. If data exists in Supabase, please disable RLS (Row Level Security) in the Supabase Dashboard.")
 
     with tab_finance:
         st.subheader("Finance Transaction History")
