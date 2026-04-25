@@ -165,7 +165,7 @@ if st.session_state.current_page == "Dashboard":
         
     with c2:
         if st.button("🧾\nPO Report"): navigate_to("PO")
-        if st.button("📡\nWCC Tracker"): navigate_to("WCC")
+        if st.button("📡\nWCC Tracker"): st.switch_page("pages/wcc_tracker.py")
         if st.button("📝\nAudit Portal"): navigate_to("Audit")
         if st.button("🛰️\nSite Tracking"): navigate_to("Tracking")
                
