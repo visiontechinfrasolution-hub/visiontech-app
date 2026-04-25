@@ -2,11 +2,12 @@ import streamlit as st
 import pandas as pd
 from io import BytesIO
 
-# --- Page Config ---
-st.set_page_config(page_title="NR System", layout="wide")
+# --- 1. Page Configuration ---
+st.set_page_config(page_title="Jajupro Portal", layout="wide")
 
-# --- Database Placeholder (In-memory storage for demo) ---
-# Note: Real environment mein yahan SQL connection ka use karein
+# --- 2. Database Connection Placeholder ---
+# Note: Real use ke liye yahan SQL query se data fetch karein
+# Abhi ke liye hum session_state use kar rahe hain
 if 'site_data' not in st.session_state:
     st.session_state.site_data = pd.DataFrame(columns=[
         'Sr_No', 'Project_ID', 'Site_ID', 'Site_Name', 'Cluster', 
@@ -19,26 +20,29 @@ if 'finance_data' not in st.session_state:
         'Finance_ID', 'Project_ID', 'Payment_Amt', 'Payment_Date'
     ])
 
-# --- Helper Functions ---
+# --- 3. Helper Functions (Excel & Search) ---
 def to_excel(df):
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='Sheet1')
+        df.to_excel(writer, index=False, sheet_name='Jajupro_Data')
     return output.getvalue()
 
-# --- Sidebar Navigation ---
-st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", ["Site Entry", "Finance"])
+# --- 4. Main Title ---
+st.title("🚀 Jajupro Management System")
+st.markdown("---")
+
+# --- 5. Internal Navigation (Tabs) ---
+tab_site, tab_finance = st.tabs(["🏗️ Site Entry", "💰 Finance Management"])
 
 # ==========================================
-# PAGE 1: SITE ENTRY
+# TAB 1: SITE ENTRY
 # ==========================================
-if page == "Site Entry":
-    st.title("🏗️ Site Entry - NR Calculation")
+with tab_site:
+    st.header("NR Calculation - Site Entry")
     
-    # 1. Form Section
-    with st.expander("➕ Add New Site Entry", expanded=False):
-        with st.form("site_form", clear_on_submit=True):
+    # Form for Site Entry
+    with st.expander("➕ Add New Site Entry (Click to Expand)", expanded=True):
+        with st.form("jaju_site_form", clear_on_submit=True):
             c1, c2, c3 = st.columns(3)
             with c1:
                 p_id = st.text_input("Project ID")
@@ -47,102 +51,97 @@ if page == "Site Entry":
             with c2:
                 cluster = st.text_input("Cluster")
                 alloc_date = st.date_input("Allocation Date")
-                work_desc = st.text_area("Work Description")
+                w_desc = st.text_area("Work Description")
             with c3:
                 po_no = st.text_input("PO No")
-                po_amt = st.number_input("PO Amount", min_value=0.0)
+                po_amt = st.number_input("PO Amount", min_value=0.0, step=1000.0)
                 wcc_no = st.text_input("WCC Number")
-                wcc_status = st.selectbox("WCC Status", ["Pending", "Submitted", "Approved"])
+                wcc_status = st.selectbox("WCC Status", ["Pending", "Submitted", "Approved", "Rejected"])
             
-            if st.form_submit_button("Submit Site Data"):
-                new_row = pd.DataFrame([{
+            if st.form_submit_button("Save Site Details"):
+                new_site = pd.DataFrame([{
                     'Sr_No': len(st.session_state.site_data) + 1,
                     'Project_ID': p_id, 'Site_ID': s_id, 'Site_Name': s_name,
                     'Cluster': cluster, 'Allocation_Date': alloc_date,
-                    'Work_Description': work_desc, 'PO_No': po_no,
+                    'Work_Description': w_desc, 'PO_No': po_no,
                     'Po_amt': po_amt, 'Wcc_number': wcc_no, 'Wcc_status': wcc_status
                 }])
-                st.session_state.site_data = pd.concat([st.session_state.site_data, new_row], ignore_index=True)
-                st.success("Entry Saved!")
+                st.session_state.site_data = pd.concat([st.session_state.site_data, new_site], ignore_index=True)
+                st.success("Site Data Saved Successfully!")
 
-    # 2. Bulk Upload & Search
     st.divider()
+    
+    # Search & Bulk Upload
     col_up, col_search = st.columns([1, 2])
     with col_up:
-        uploaded_file = st.file_uploader("Bulk Upload Site (Excel/CSV)", type=['csv', 'xlsx'], key="up1")
-        if uploaded_file:
-            # logic for bulk upload
-            st.info("File uploaded successfully (Feature enabled)")
-
+        st.file_uploader("Bulk Upload (Excel/CSV)", type=['xlsx', 'csv'], key="site_bulk")
     with col_search:
-        search_term = st.text_input("🔍 Search Site Data", placeholder="Search by Project ID, Site Name etc.")
+        search_site = st.text_input("🔍 Search in Site Table", placeholder="Type Project ID or Site Name...")
 
-    # 3. Data Table & Download
-    df_display = st.session_state.site_data
-    if search_term:
-        df_display = df_display[df_display.astype(str).apply(lambda x: x.str.contains(search_term, case=False)).any(axis=1)]
+    # Table Display
+    df_s = st.session_state.site_data
+    if search_site:
+        df_s = df_s[df_s.astype(str).apply(lambda x: x.str.contains(search_site, case=False)).any(axis=1)]
     
-    st.subheader("Site Data Table")
-    st.dataframe(df_display, use_container_width=True)
+    st.dataframe(df_s, use_container_width=True, hide_index=True)
     
-    excel_data = to_excel(df_display)
-    st.download_button("📥 Download Site Excel", data=excel_data, file_name="site_data.xlsx")
+    # Download Button
+    if not df_s.empty:
+        st.download_button("📥 Download Site Report", data=to_excel(df_s), file_name="Jajupro_Site_Report.xlsx")
 
 # ==========================================
-# PAGE 2: FINANCE
+# TAB 2: FINANCE MANAGEMENT
 # ==========================================
-elif page == "Finance":
-    st.title("💰 Finance Management")
+with tab_finance:
+    st.header("NR Finance Tracker")
 
-    # 1. Calculation Boxes (Metrics)
-    total_site_amt = st.session_state.site_data['Po_amt'].sum()
-    total_paid_amt = st.session_state.finance_data['Payment_Amt'].sum()
-    balance_amt = total_site_amt - total_paid_amt
+    # A. 3 Dashboard Boxes (Metrics)
+    total_po = st.session_state.site_data['Po_amt'].sum()
+    total_paid = st.session_state.finance_data['Payment_Amt'].sum()
+    balance = total_po - total_paid
 
     m1, m2, m3 = st.columns(3)
-    m1.metric("Total Site Amount (PO)", f"₹ {total_site_amt:,.2f}")
-    m2.metric("Total Paid Amount", f"₹ {total_paid_amt:,.2f}")
-    m3.metric("Pending Balance", f"₹ {balance_amt:,.2f}", delta_color="inverse")
+    m1.metric("Total Site Amount (PO)", f"₹ {total_po:,.2f}")
+    m2.metric("Total Paid Amount", f"₹ {total_paid:,.2f}")
+    m3.metric("Pending Balance", f"₹ {balance:,.2f}", delta=f"-{balance:,.2f}", delta_color="inverse")
 
     st.divider()
 
-    # 2. Form Section
-    with st.expander("➕ Add New Finance Entry", expanded=False):
-        with st.form("fin_form", clear_on_submit=True):
-            f_col1, f_col2 = st.columns(2)
-            with f_col1:
-                # Dropdown from Site Table Project IDs
-                project_list = st.session_state.site_data['Project_ID'].unique().tolist()
-                f_p_id = st.selectbox("Select Project ID", project_list if project_list else ["No Projects Found"])
-            with f_col2:
-                f_pay_amt = st.number_input("Payment Amount", min_value=0.0)
-                f_pay_date = st.date_input("Payment Date")
+    # B. Finance Entry Form
+    with st.expander("➕ Record New Payment", expanded=False):
+        with st.form("jaju_fin_form", clear_on_submit=True):
+            f1, f2, f3 = st.columns(3)
+            with f1:
+                p_list = st.session_state.site_data['Project_ID'].unique().tolist()
+                f_pid = st.selectbox("Select Project ID", p_list if p_list else ["No Project Found"])
+            with f2:
+                f_amt = st.number_input("Payment Amount", min_value=0.0)
+            with f3:
+                f_date = st.date_input("Payment Date")
             
             if st.form_submit_button("Submit Payment"):
                 new_fin = pd.DataFrame([{
                     'Finance_ID': len(st.session_state.finance_data) + 1,
-                    'Project_ID': f_p_id,
-                    'Payment_Amt': f_pay_amt,
-                    'Payment_Date': f_pay_date
+                    'Project_ID': f_pid,
+                    'Payment_Amt': f_amt,
+                    'Payment_Date': f_date
                 }])
                 st.session_state.finance_data = pd.concat([st.session_state.finance_data, new_fin], ignore_index=True)
-                st.rerun() # Refresh dashboard metrics
+                st.rerun()
 
-    # 3. Bulk Upload & Search
-    st.divider()
-    fc_up, fc_search = st.columns([1, 2])
-    with fc_up:
-        uploaded_fin = st.file_uploader("Bulk Upload Finance", type=['csv', 'xlsx'], key="up2")
-    with fc_search:
-        search_fin = st.text_input("🔍 Search Finance Data")
+    # C. Search & Table
+    fs_up, fs_search = st.columns([1, 2])
+    with fs_up:
+        st.file_uploader("Bulk Upload Finance", type=['xlsx', 'csv'], key="fin_bulk")
+    with fs_search:
+        search_fin = st.text_input("🔍 Search in Finance Table")
 
-    # 4. Data Table & Download
-    df_fin_display = st.session_state.finance_data
+    df_f = st.session_state.finance_data
     if search_fin:
-        df_fin_display = df_fin_display[df_fin_display.astype(str).apply(lambda x: x.str.contains(search_fin, case=False)).any(axis=1)]
-    
-    st.subheader("Finance Transaction Table")
-    st.dataframe(df_fin_display, use_container_width=True)
-    
-    excel_fin = to_excel(df_fin_display)
-    st.download_button("📥 Download Finance Excel", data=excel_fin, file_name="finance_data.xlsx")
+        df_f = df_f[df_f.astype(str).apply(lambda x: x.str.contains(search_fin, case=False)).any(axis=1)]
+
+    st.dataframe(df_f, use_container_width=True, hide_index=True)
+
+    # Download Button
+    if not df_f.empty:
+        st.download_button("📥 Download Finance Report", data=to_excel(df_f), file_name="Jajupro_Finance_Report.xlsx")
