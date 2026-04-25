@@ -1,7 +1,6 @@
 import streamlit as st
 from supabase import create_client
 import pandas as pd
-from datetime import datetime
 import time
 
 # --- 1. CONNECTION ---
@@ -13,56 +12,30 @@ def navigate_to(page):
     st.session_state.current_page = page
     st.rerun()
 
-st.set_page_config(page_title="Visiontech Portal", layout="wide", initial_sidebar_state="collapsed")
-
-# --- CUSTOM CSS ---
-st.markdown("""
-    <style>
-    [data-testid="stSidebar"] { display: none; }
-    header { visibility: hidden; }
-    .stApp { background-color: #F8FAFC; }
-    div.stButton > button {
-        width: 100%; height: 100px; border-radius: 15px;
-        background-color: white; color: #1E293B; font-weight: bold;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.05); transition: 0.3s;
-    }
-    div.stButton > button:hover { background-color: #1E3A8A; color: white; }
-    .back-btn button { height: 40px !important; width: 120px !important; background-color: #64748B !important; color: white !important; }
-    .edit-btn button { height: 30px !important; font-size: 12px !important; background-color: #F1F5F9 !important; border: 1px solid #CBD5E1 !important; }
-    </style>
-    """, unsafe_allow_html=True)
-
+# --- INITIALIZE SESSION STATES ---
 if 'current_page' not in st.session_state:
     st.session_state.current_page = "Dashboard"
+if 'show_popup' not in st.session_state:
+    st.session_state.show_popup = False
 
-# --- MAIN DASHBOARD ---
-if st.session_state.current_page == "Dashboard":
-    st.markdown("<h1 style='text-align: center; color: #1E3A8A;'>🚀 Visiontech Portal</h1>", unsafe_allow_html=True)
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        if st.button("📦 BOQ Report"): st.switch_page("pages/boq_report.py")
-        if st.button("🚨 STN Manager"): navigate_to("STN Manager")
-    with c2:
-        if st.button("🧾 PO Report"): navigate_to("PO")
-        if st.button("🚀 Jajupro"): navigate_to("Jajupro")
-    with c3:
-        if st.button("📝 Audit Portal"): navigate_to("Audit")
-        if st.button("📢 RFAI Billing"): navigate_to("RFAI")
+st.set_page_config(page_title="Visiontech Portal", layout="wide")
 
 # --- JAJUPRO PAGE LOGIC ---
-elif st.session_state.current_page == "Jajupro":
-    st.markdown("<div class='back-btn'>", unsafe_allow_html=True)
-    if st.button("⬅️ Dashboard"): navigate_to("Dashboard")
-    st.markdown("</div>", unsafe_allow_html=True)
+if st.session_state.current_page == "Jajupro":
+    # Back Button
+    if st.button("⬅️ Back to Dashboard"):
+        navigate_to("Dashboard")
     
-    # 1. Fetch Data
+    st.title("🚀 Jajupro Management")
+
+    # 1. Fetch Data First
     try:
         site_res = supabase.table("nr_calculation").select("*").order('id').execute()
         df_site = pd.DataFrame(site_res.data) if site_res.data else pd.DataFrame()
     except:
         df_site = pd.DataFrame()
 
-    # Metrics
+    # 2. Metrics Header (Top Section)
     t_site = df_site['po_amt'].sum() if not df_site.empty else 0
     m1, m2, m3 = st.columns(3)
     m1.metric("Total Site Amount", f"₹ {t_site:,.2f}")
@@ -71,51 +44,59 @@ elif st.session_state.current_page == "Jajupro":
 
     st.divider()
 
-    # --- 2. NEW ENTRY (EXPANDER - Pop-up style) ---
-    with st.expander("➕ Click Here to Add New Entry", expanded=False):
-        with st.form("new_entry_form"):
-            f1, f2, f3 = st.columns(3)
-            p_id = f1.text_input("Project ID")
-            s_id = f1.text_input("Site ID")
-            s_name = f1.text_input("Site Name")
-            clstr = f2.text_input("Cluster")
-            a_date = f2.date_input("Allocation Date")
-            w_desc = f2.text_area("Work Description")
-            p_no = f3.text_input("PO No")
-            p_amt = f3.number_input("PO Amount", min_value=0.0)
-            wcc_st = st.selectbox("WCC Status", ["Pending", "Approved", "Rejected"])
-            
-            if st.form_submit_button("Save to Database"):
-                new_data = {"project_id": p_id, "site_id": s_id, "site_name": s_name, "cluster": clstr, 
-                            "allocation_date": str(a_date), "work_description": w_desc, "po_no": p_no, 
-                            "po_amt": p_amt, "wcc_status": wcc_st}
-                supabase.table("nr_calculation").insert(new_data).execute()
-                st.success("Saved!")
-                time.sleep(1)
-                st.rerun()
+    # --- 3. POP-UP LOGIC (MANUAL) ---
+    # Agar 'New Entry' button daba hai, toh screen par sirf FORM dikhega
+    if st.session_state.show_popup:
+        st.markdown("### 🏗️ Add New Entry")
+        with st.container(border=True): # Ye box ki tarah dikhega
+            with st.form("manual_pop_form"):
+                f1, f2, f3 = st.columns(3)
+                p_id = f1.text_input("Project ID")
+                s_id = f1.text_input("Site ID")
+                s_name = f2.text_input("Site Name")
+                p_amt = f2.number_input("PO Amount", min_value=0.0)
+                wcc_st = f3.selectbox("Status", ["Pending", "Approved"])
+                
+                c_btn1, c_btn2 = st.columns(2)
+                if c_btn1.form_submit_button("✅ Save Data", use_container_width=True):
+                    new_rec = {"project_id": p_id, "site_id": s_id, "site_name": s_name, "po_amt": p_amt, "wcc_status": wcc_st}
+                    supabase.table("nr_calculation").insert(new_rec).execute()
+                    st.session_state.show_popup = False # Form band karo
+                    st.success("Saved!")
+                    time.sleep(1)
+                    st.rerun()
+                
+                if c_btn2.form_submit_button("❌ Cancel", use_container_width=True):
+                    st.session_state.show_popup = False
+                    st.rerun()
+        st.stop() # Form dikhte waqt niche ka code (table) mat dikhao
 
-    # --- 3. TABLE WITH EDIT BUTTONS ---
-    st.markdown("### 📋 Current Site List")
+    # --- 4. MAIN PAGE CONTENT (Jab form band ho) ---
+    col_a, col_b = st.columns([1, 4])
+    with col_a:
+        if st.button("➕ New Entry", type="primary"):
+            st.session_state.show_popup = True
+            st.rerun()
+    
+    st.markdown("### 📋 Current Site Records")
+    
     if not df_site.empty:
-        # Header Columns
-        h = st.columns([0.6, 1, 1, 2, 1, 1])
-        h[0].write("**Edit**")
-        h[1].write("**Site ID**")
-        h[2].write("**Project ID**")
-        h[3].write("**Site Name**")
-        h[4].write("**PO Amt**")
-        h[5].write("**Status**")
-        st.write("---")
+        # Table Layout
+        # Columns: Edit | Site ID | Project ID | Site Name | Amount | Status
+        cols = st.columns([0.8, 1, 1, 2, 1, 1])
+        cols[0].write("**Action**")
+        cols[1].write("**Site ID**")
+        cols[2].write("**Project ID**")
+        cols[3].write("**Site Name**")
+        cols[4].write("**PO Amt**")
+        cols[5].write("**Status**")
+        st.divider()
 
-        # Row Data
-        for _, row in df_site.iterrows():
-            r = st.columns([0.6, 1, 1, 2, 1, 1])
-            
-            # Har row ke liye Edit button
-            with r[0]:
-                if st.button("📝 Edit", key=f"edit_{row['id']}"):
-                    st.toast(f"Editing {row['site_id']}...")
-                    # Future: Yahan edit form trigger karenge
+        for idx, row in df_site.iterrows():
+            r = st.columns([0.8, 1, 1, 2, 1, 1])
+            # Edit Button
+            if r[0].button("📝 Edit", key=f"btn_{row['id']}"):
+                st.info(f"Edit clicked for {row['site_id']}")
             
             r[1].write(row['site_id'])
             r[2].write(row['project_id'])
@@ -123,4 +104,10 @@ elif st.session_state.current_page == "Jajupro":
             r[4].write(f"₹{row['po_amt']:,.2f}")
             r[5].write(row['wcc_status'])
     else:
-        st.info("Koi data nahi mila. Upar 'New Entry' par click karein.")
+        st.warning("Database mein koi data nahi mila.")
+
+# --- DASHBOARD LOGIC ---
+elif st.session_state.current_page == "Dashboard":
+    st.title("Visiontech Dashboard")
+    if st.button("Go to Jajupro"):
+        navigate_to("Jajupro")
