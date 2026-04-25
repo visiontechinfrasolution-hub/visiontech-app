@@ -166,21 +166,34 @@ elif st.session_state.current_page == "Jajupro":
                 wcc_st = f3.selectbox("WCC Status", ["Pending", "Approved", "Rejected"])
                 
                 if st.form_submit_button("Submit Data"):
+                    # 1. Dictionary keys (Dhyan dein: ye names Supabase se match hone chahiye)
                     new_data = {
-                        "project_id": p_id, "site_id": s_id, "site_name": s_name,
-                        "cluster": clstr, "allocation_date": str(a_date),
-                        "work_description": w_desc, "po_no": p_no, "po_amt": p_amt,
-                        "wcc_number": wcc_no, "wcc_status": wcc_st
+                        "project_id": p_id, 
+                        "site_id": s_id, 
+                        "site_name": s_name,
+                        "cluster": clstr, 
+                        "allocation_date": str(a_date),
+                        "work_description": w_desc, 
+                        "po_no": p_no, 
+                        "po_amt": float(p_amt), # Number format confirm
+                        "wcc_number": wcc_no, 
+                        "wcc_status": wcc_st
                     }
-                    supabase.table("nr_calculation").insert(new_data).execute()
-                    st.success("Record Added!")
-                    st.session_state.show_site_form = False
-                    st.rerun()
-
-        search = st.text_input("🔍 Search Site Data...")
-        if search and not df_site.empty:
-            df_site = df_site[df_site.astype(str).apply(lambda x: x.str.contains(search, case=False)).any(axis=1)]
-        st.dataframe(df_site, use_container_width=True, hide_index=True)
+                    
+                    try:
+                        # 2. Insert execution
+                        response = supabase.table("nr_calculation").insert(new_data).execute()
+                        
+                        # 3. Success handling
+                        st.success("✅ Record Added Successfully!")
+                        st.session_state.show_site_form = False
+                        st.rerun()
+                        
+                    except Exception as e:
+                        # 4. Agar error aaye toh ye exact column ka naam bata dega
+                        st.error("⚠️ Database Error!")
+                        st.write("Error Details:", e) 
+                        st.info("Tip: Check if column names in Supabase are exactly like: project_id, site_id, site_name, etc.")
 
 # --- OTHER PAGES LOGIC ---
 elif st.session_state.current_page != "Dashboard":
