@@ -159,7 +159,7 @@ if st.session_state.current_page == "Dashboard":
     
     with c1:
         if st.button("📦\nBOQ Report"): st.switch_page("pages/boq_report.py")
-        if st.button("📊\nIndus Data"): navigate_to("Indus")
+        if st.button("📊\nIndus Data"): st.switch_page("pages/indus_data.py")
         if st.button("💰\nFinance"): navigate_to("Finance")
         if st.button("🚨\nSTN Manager"): navigate_to("STN Manager")
         
