@@ -43,9 +43,6 @@ st.markdown("""
     }
     div.stButton > button:hover { transform: translateY(-5px); background-color: #1E3A8A; color: white; }
     .back-btn button { height: 50px !important; width: 160px !important; background-color: #64748B !important; color: white !important; }
-    
-    /* Table Text Size */
-    .stText { font-size: 12px !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -65,7 +62,6 @@ def site_form_dialog(edit_data=None):
             s_name = st.text_input("Site Name", value=edit_data['site_name'] if is_edit else "")
         with f2:
             clstr = st.text_input("Cluster", value=edit_data['cluster'] if is_edit else "")
-            # Date Handling
             try:
                 default_date = datetime.strptime(edit_data['allocation_date'], '%Y-%m-%d') if is_edit and edit_data['allocation_date'] else datetime.now()
             except:
@@ -120,15 +116,21 @@ elif st.session_state.current_page == "Jajupro":
     st.markdown("</div>", unsafe_allow_html=True)
     st.divider()
     
-    # FETCH DATA
+    st.title("🚀 Jajupro Management")
+
+    # FETCH DATA - Added DESC order for Sr_No to get New Entries on TOP
     try:
-        site_res = supabase.table("nr_calculation").select("*").execute()
+        # Note: 'sr_no' should exist in your DB for this ordering to work
+        site_res = supabase.table("nr_calculation").select("*").order('sr_no', desc=True).execute()
         df_site = pd.DataFrame(site_res.data) if site_res.data else pd.DataFrame()
         if not df_site.empty:
             df_site.columns = [c.lower() for c in df_site.columns]
     except Exception as e:
-        st.error(f"Fetch Error: {e}")
-        df_site = pd.DataFrame()
+        # Fallback if sr_no ordering fails
+        site_res = supabase.table("nr_calculation").select("*").execute()
+        df_site = pd.DataFrame(site_res.data) if site_res.data else pd.DataFrame()
+        if not df_site.empty:
+            df_site.columns = [c.lower() for c in df_site.columns]
 
     # METRICS
     t_amt = df_site['po_amt'].sum() if not df_site.empty and 'po_amt' in df_site.columns else 0
@@ -147,9 +149,9 @@ elif st.session_state.current_page == "Jajupro":
             site_form_dialog()
         
         if not df_site.empty:
-            st.markdown("### 📋 Site Master List")
+            st.markdown("### 📋 Site Master List (Latest on Top)")
             
-            # --- FULL COLUMN HEADER (All Columns Included) ---
+            # --- FULL COLUMN HEADER ---
             st.markdown("""<div style='background-color: #1E3A8A; padding: 10px; border-radius: 5px; display: flex; color: white; font-size: 11px; font-weight: bold;'>
                 <div style='flex: 0.4;'>Edit</div>
                 <div style='flex: 0.9;'>Project ID</div>
@@ -164,14 +166,11 @@ elif st.session_state.current_page == "Jajupro":
                 </div>""", unsafe_allow_html=True)
 
             for idx, row in df_site.iterrows():
-                # Flex based columns for better fit
                 r = st.columns([0.4, 0.9, 0.8, 1.2, 0.8, 0.8, 1, 0.8, 1, 0.8])
                 
-                # Column 0: Edit Button
-                if r[0].button("📝", key=f"ed_{idx}"):
+                if r[0].button("📝", key=f"ed_{row.get('sr_no', idx)}"):
                     site_form_dialog(edit_data=row.to_dict())
                 
-                # Column 1 to 9: All Data
                 r[1].write(f"<span style='font-size:11px'>{row.get('project_id', '-')}</span>", unsafe_allow_html=True)
                 r[2].write(f"<span style='font-size:11px'>{row.get('site_id', '-')}</span>", unsafe_allow_html=True)
                 r[3].write(f"<span style='font-size:11px'>{row.get('site_name', '-')}</span>", unsafe_allow_html=True)
@@ -179,7 +178,7 @@ elif st.session_state.current_page == "Jajupro":
                 r[5].write(f"<span style='font-size:11px'>{row.get('allocation_date', '-')}</span>", unsafe_allow_html=True)
                 r[6].write(f"<span style='font-size:11px'>{row.get('po_no', '-')}</span>", unsafe_allow_html=True)
                 r[7].write(f"<span style='font-size:11px'>₹{float(row.get('po_amt', 0)):,.0f}</span>", unsafe_allow_html=True)
-                r[8].write(f"<span style='font-size:11px'>{row.get('wcc_number', '-')}</span>", unsafe_allow_html=True) # WCC Number added here
+                r[8].write(f"<span style='font-size:11px'>{row.get('wcc_number', '-')}</span>", unsafe_allow_html=True)
                 r[9].write(f"<span style='font-size:11px'>{row.get('wcc_status', '-')}</span>", unsafe_allow_html=True)
                 
                 st.markdown("<hr style='margin:1px; opacity:0.1'>", unsafe_allow_html=True)
@@ -195,7 +194,6 @@ elif st.session_state.current_page != "Dashboard":
     if st.button("⬅️ Dashboard"): navigate_to("Dashboard")
     st.markdown("</div>", unsafe_allow_html=True)
     st.title(f"Section {st.session_state.current_page}")
-
     cur_p = st.session_state.current_page
     if cur_p == "STN Manager":
         st.title("🚨 STN Manager")
