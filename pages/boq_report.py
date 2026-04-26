@@ -23,6 +23,23 @@ st.divider()
 st.markdown("""
     <style>
         [data-testid="stDataFrame"] { border: 2px solid #1E3A8A; border-radius: 12px; }
+        
+        /* Scrollbar styling */
+        section[data-testid="stTableContainer"] > div {
+            overflow: auto !important;
+        }
+        ::-webkit-scrollbar {
+            width: 14px;
+            height: 14px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1E3A8A !important;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
         div.stButton > button:first-child {
             height: 60px !important; font-size: 20px !important; font-weight: bold !important;
             background-color: #1E3A8A !important; color: white !important; border-radius: 12px !important;
@@ -105,9 +122,15 @@ with t1:
             if not df_final.empty:
                 st.success(f"✅ {len(df_final)} Records Found!")
 
+                # --- NEW: EXCEL DOWNLOAD BUTTON FOR TAB 1 ---
+                df_for_dl = df_final[[c for c in mera_sequence if c in df_final.columns]]
+                buf = io.BytesIO()
+                with pd.ExcelWriter(buf, engine='xlsxwriter') as writer:
+                    df_for_dl.to_excel(writer, index=False, sheet_name='Search_Results')
+                st.download_button("📥 Download Search Excel", buf.getvalue(), f"Search_{datetime.now().strftime('%Y%m%d')}.xlsx", key="dl_t1_search")
+
                 # --- UPDATED LOGIC: STN STATUS (Qty B > 0 Only) ---
                 try:
-                    # Step 1: Filter Capex AND Parent items only
                     mask = (
                         df_final['Product'].astype(str).str.contains('Capex', case=False, na=False) & 
                         df_final['Parent/Child'].astype(str).str.contains('Parent', case=False, na=False)
@@ -115,42 +138,26 @@ with t1:
                     df_status_check = df_final[mask].copy()
 
                     if not df_status_check.empty:
-                        # Qty numeric conversion
                         df_status_check['Qty A'] = pd.to_numeric(df_status_check['Qty A'], errors='coerce').fillna(0)
                         df_status_check['Qty B'] = pd.to_numeric(df_status_check['Qty B'], errors='coerce').fillna(0)
                         df_status_check['Qty C'] = pd.to_numeric(df_status_check['Qty C'], errors='coerce').fillna(0)
-
-                        # logic: Sirf wahi rows consider karo jahan Qty B > 0 hai (Material liya gaya hai)
                         df_dispatched = df_status_check[df_status_check['Qty B'] > 0]
 
                         if not df_dispatched.empty:
-                            # Condition: Jitna liya (Qty B) utna hi mila (Qty C) hona chahiye
                             is_stn_done = all(df_dispatched['Qty B'] == df_dispatched['Qty C'])
-
                             if is_stn_done:
-                                st.markdown("""
-                                    <div style='background-color: #DCFCE7; padding: 20px; border-radius: 12px; border: 2px solid #166534; text-align: center;'>
-                                        <h1 style='color: #166534; margin: 0;'>✅ STN Done</h1>
-                                        <p style='color: #166534; margin: 0; font-weight: bold;'>Jitna material liya (Qty B), utna mil gaya (Qty C)!</p>
-                                    </div>
-                                """, unsafe_allow_html=True)
+                                st.markdown("<div style='background-color: #DCFCE7; padding: 20px; border-radius: 12px; border: 2px solid #166534; text-align: center;'><h1 style='color: #166534; margin: 0;'>✅ STN Done</h1></div>", unsafe_allow_html=True)
                             else:
-                                st.markdown("""
-                                    <div style='background-color: #FEE2E2; padding: 20px; border-radius: 12px; border: 2px solid #991B1B; text-align: center;'>
-                                        <h1 style='color: #991B1B; margin: 0;'>❌ STN Pending</h1>
-                                        <p style='color: #991B1B; margin: 0; font-weight: bold;'>Liya hua material (Qty B) aur mila hua material (Qty C) match nahi hai.</p>
-                                    </div>
-                                """, unsafe_allow_html=True)
+                                st.markdown("<div style='background-color: #FEE2E2; padding: 20px; border-radius: 12px; border: 2px solid #991B1B; text-align: center;'><h1 style='color: #991B1B; margin: 0;'>❌ STN Pending</h1></div>", unsafe_allow_html=True)
                         else:
                             st.info("ℹ️ Is Project mein abhi koi Capex-Parent material 'Liya' (Qty B > 0) nahi gaya hai.")
                     else:
                         st.info("ℹ️ Is Search mein koi Capex-Parent item nahi mila.")
-                    st.write("") 
                 except Exception as e:
                     st.error(f"Logic Error: {e}")
-                # --- END OF UPDATED LOGIC ---
 
-                st.dataframe(df_final[[c for c in mera_sequence if c in df_final.columns]], use_container_width=True, hide_index=True, height=200)
+                # Display with Height 600
+                st.dataframe(df_final[[c for c in mera_sequence if c in df_final.columns]], use_container_width=True, hide_index=True, height=600)
             else: 
                 st.warning("कोणतीही माहिती सापडली नाही.")
 
@@ -174,7 +181,6 @@ with t2:
                 if data:
                     df_processed = process_boq_data(data)
                     
-                    # Table 1: Transporter
                     df_trans = df_processed[df_processed['Transporter'].astype(str).str.contains('Visiotech|Visiontech', case=False, na=False)]
                     st.markdown(f"<div class='table-header'>📦 Transporter Report</div>", unsafe_allow_html=True)
                     if not df_trans.empty:
@@ -182,9 +188,8 @@ with t2:
                         with pd.ExcelWriter(buffer1, engine='xlsxwriter') as writer:
                             df_trans[[c for c in mera_sequence if c in df_trans.columns]].to_excel(writer, index=False)
                         st.download_button("📥 Download Transporter Excel", buffer1.getvalue(), f"Transporter_{start_date}_to_{end_date}.xlsx", key="dl_t1_p2")
-                        st.dataframe(df_trans[[c for c in mera_sequence if c in df_trans.columns]], use_container_width=True, hide_index=True)
+                        st.dataframe(df_trans[[c for c in mera_sequence if c in df_trans.columns]], use_container_width=True, hide_index=True, height=500)
 
-                    # Table 2: TSP Partner
                     df_tsp = df_processed[df_processed['TSP Partner Name'].astype(str).str.contains('Visiotech|Visiontech', case=False, na=False)]
                     st.markdown(f"<div class='table-header'>🏗️ TSP Partner Report</div>", unsafe_allow_html=True)
                     if not df_tsp.empty:
@@ -192,7 +197,7 @@ with t2:
                         with pd.ExcelWriter(buffer2, engine='xlsxwriter') as writer:
                             df_tsp[[c for c in mera_sequence if c in df_tsp.columns]].to_excel(writer, index=False)
                         st.download_button("📥 Download TSP Excel", buffer2.getvalue(), f"TSP_{start_date}_to_{end_date}.xlsx", key="dl_t2_p2")
-                        st.dataframe(df_tsp[[c for c in mera_sequence if c in df_tsp.columns]], use_container_width=True, hide_index=True)
+                        st.dataframe(df_tsp[[c for c in mera_sequence if c in df_tsp.columns]], use_container_width=True, hide_index=True, height=500)
                 else: st.error("डेटा सापडला नाही.")
             except Exception as e: st.error(f"Error: {e}")
 
@@ -208,7 +213,6 @@ with t3:
             bulk_df.columns = [str(c).strip() for c in bulk_df.columns]
             if 'Project Number' in bulk_df.columns:
                 p_list = bulk_df['Project Number'].astype(str).str.strip().unique().tolist()
-                
                 bc1, bc2 = st.columns(2)
                 with bc1: submit_bulk = st.button("🚀 SUBMIT & PROCESS", use_container_width=True, key="bulk_submit_p3")
                 with bc2: clear_bulk = st.button("🧹 CLEAR", use_container_width=True, key="bulk_clear_p3")
@@ -226,34 +230,7 @@ with t3:
                             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                                 df_final[[c for c in mera_sequence if c in df_final.columns]].to_excel(writer, index=False)
                             st.download_button("📥 Download Bulk Excel", output.getvalue(), "Bulk_Report.xlsx")
-                            st.dataframe(df_final[[c for c in mera_sequence if c in df_final.columns]], use_container_width=True, hide_index=True)
+                            st.dataframe(df_final[[c for c in mera_sequence if c in df_final.columns]], use_container_width=True, hide_index=True, height=600)
                         else: st.warning("डेटा सापडला नाही.")
             else: st.error("Project Number कॉलम सापडला नाही.")
-        except Exception as e: st.error(f"Error: {e}. Check openpyxl.")
-    st.markdown("""
-    <style>
-        [data-testid="stDataFrame"] { border: 2px solid #1E3A8A; border-radius: 12px; }
-        
-        /* स्क्रॉल बार को मोटा और पकड़ने में आसान बनाने के लिए */
-        section[data-testid="stTableContainer"] > div {
-            overflow: auto !important;
-        }
-        ::-webkit-scrollbar {
-            width: 14px;  /* वर्टिकल स्क्रॉल बार की चौड़ाई */
-            height: 14px; /* हॉरिजॉन्टल स्क्रॉल बार की ऊंचाई */
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #1E3A8A !important; /* आपका डार्क ब्लू कलर */
-            border-radius: 10px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #f1f1f1;
-        }
-
-        div.stButton > button:first-child {
-            height: 60px !important; font-size: 20px !important; font-weight: bold !important;
-            background-color: #1E3A8A !important; color: white !important; border-radius: 12px !important;
-            width: 100% !important;
-        }
-    </style>
-""", unsafe_allow_html=True)
+        except Exception as e: st.error(f"Error: {e}")
