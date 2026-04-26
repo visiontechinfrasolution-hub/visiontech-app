@@ -150,7 +150,7 @@ with t1:
                     st.error(f"Logic Error: {e}")
                 # --- END OF UPDATED LOGIC ---
 
-                st.dataframe(df_final[[c for c in mera_sequence if c in df_final.columns]], use_container_width=True, hide_index=True, height=400)
+                st.dataframe(df_final[[c for c in mera_sequence if c in df_final.columns]], use_container_width=True, hide_index=True, height=200)
             else: 
                 st.warning("कोणतीही माहिती सापडली नाही.")
 
