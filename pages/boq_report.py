@@ -230,7 +230,7 @@ with t3:
                         else: st.warning("डेटा सापडला नाही.")
             else: st.error("Project Number कॉलम सापडला नाही.")
         except Exception as e: st.error(f"Error: {e}. Check openpyxl.")
-            st.markdown("""
+    st.markdown("""
     <style>
         [data-testid="stDataFrame"] { border: 2px solid #1E3A8A; border-radius: 12px; }
         
