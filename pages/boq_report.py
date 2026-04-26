@@ -230,3 +230,30 @@ with t3:
                         else: st.warning("डेटा सापडला नाही.")
             else: st.error("Project Number कॉलम सापडला नाही.")
         except Exception as e: st.error(f"Error: {e}. Check openpyxl.")
+            st.markdown("""
+    <style>
+        [data-testid="stDataFrame"] { border: 2px solid #1E3A8A; border-radius: 12px; }
+        
+        /* स्क्रॉल बार को मोटा और पकड़ने में आसान बनाने के लिए */
+        section[data-testid="stTableContainer"] > div {
+            overflow: auto !important;
+        }
+        ::-webkit-scrollbar {
+            width: 14px;  /* वर्टिकल स्क्रॉल बार की चौड़ाई */
+            height: 14px; /* हॉरिजॉन्टल स्क्रॉल बार की ऊंचाई */
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1E3A8A !important; /* आपका डार्क ब्लू कलर */
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        div.stButton > button:first-child {
+            height: 60px !important; font-size: 20px !important; font-weight: bold !important;
+            background-color: #1E3A8A !important; color: white !important; border-radius: 12px !important;
+            width: 100% !important;
+        }
+    </style>
+""", unsafe_allow_html=True)
