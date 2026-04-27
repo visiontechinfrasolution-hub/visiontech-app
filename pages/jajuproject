@@ -5,12 +5,11 @@ from datetime import datetime
 import time
 import io
 
-# --- 1. DATABASE CONNECTION ---
+# --- 1. CONNECTION ---
 URL = "https://sckyflvukpmdqmdzjzhs.supabase.co"
 KEY = "sb_publishable_rAiegSkKYvM0Z9n7sUAI1w_WTgm1S4I" 
 supabase = create_client(URL, KEY)
 
-# --- NAVIGATION FUNCTION ---
 def navigate_to(page):
     st.session_state.current_page = page
     st.rerun()
@@ -18,15 +17,15 @@ def navigate_to(page):
 # --- UI SETUP ---
 st.set_page_config(page_title="Visiontech Portal", layout="wide", initial_sidebar_state="collapsed")
 
-# --- CUSTOM CSS (Visiontech Style) ---
+# --- CUSTOM CSS ---
 st.markdown("""
     <style>
     [data-testid="stSidebar"] { display: none; }
     header { visibility: hidden; }
     footer { visibility: hidden; }
     .stApp { background-color: #F8FAFC; }
-    
-    /* Desktop Dashboard Buttons */
+    [data-testid="stMetricValue"] { font-size: 32px !important; font-weight: 800 !important; }
+    [data-testid="stMetricLabel"] { font-size: 18px !important; font-weight: 700 !important; }
     div.stButton > button {
         width: 100%; height: 120px; border-radius: 20px; border: none;
         background-color: white; color: #1E293B; font-size: 18px; font-weight: bold;
@@ -34,57 +33,71 @@ st.markdown("""
         display: flex; flex-direction: column; justify-content: center;
         white-space: pre-wrap; transition: 0.3s;
     }
-    div.stButton > button:hover {
-        transform: translateY(-5px); background-color: #1E3A8A; color: white;
-    }
-    
-    .back-btn button {
-        height: 50px !important; width: 160px !important;
-        background-color: #64748B !important; color: white !important;
-    }
+    div.stButton > button:hover { transform: translateY(-5px); background-color: #1E3A8A; color: white; }
+    .back-btn button { height: 50px !important; width: 160px !important; background-color: #64748B !important; color: white !important; }
+    .row-text { font-size: 13px !important; font-weight: 600 !important; color: #1E293B; }
     </style>
     """, unsafe_allow_html=True)
 
-# Session State Initialization
 if 'current_page' not in st.session_state:
     st.session_state.current_page = "Dashboard"
+if 'jaju_locked' not in st.session_state:
+    st.session_state.jaju_locked = True
 
-# --- 2. POP-UP DIALOG (NEW SITE ENTRY) ---
-@st.dialog("➕ Add New Site Record")
-def open_entry_popup():
-    with st.form("site_form_pop", clear_on_submit=True):
+# --- 2. POP-UP DIALOGS ---
+@st.dialog("🏗️ Site Master Form")
+def site_form_dialog(edit_data=None):
+    is_edit = edit_data is not None
+    with st.form("site_master_form", clear_on_submit=True):
         f1, f2, f3 = st.columns(3)
         with f1:
-            p_id = st.text_input("Project ID")
-            s_id = st.text_input("Site ID")
-            s_name = st.text_input("Site Name")
+            p_id = st.text_input("Project ID", value=edit_data['project_id'] if is_edit else "")
+            s_id = st.text_input("Site ID", value=edit_data['site_id'] if is_edit else "")
+            s_name = st.text_input("Site Name", value=edit_data['site_name'] if is_edit else "")
         with f2:
-            clstr = st.text_input("Cluster")
-            a_date = st.date_input("Allocation Date")
-            w_desc = st.text_area("Work Description")
+            clstr = st.text_input("Cluster", value=edit_data['cluster'] if is_edit else "")
+            try:
+                default_date = datetime.strptime(edit_data['allocation_date'], '%Y-%m-%d') if is_edit and edit_data['allocation_date'] else datetime.now()
+            except: default_date = datetime.now()
+            a_date = st.date_input("Allocation Date", value=default_date)
+            w_desc = st.text_area("Work Description", value=edit_data['work_description'] if is_edit else "")
         with f3:
-            p_no = st.text_input("PO No")
-            p_amt = st.number_input("PO Amount", min_value=0.0)
-            wcc_no = st.text_input("WCC Number")
-            wcc_st = st.selectbox("WCC Status", ["Pending", "Approved", "Rejected"])
+            p_no = st.text_input("PO No", value=edit_data['po_no'] if is_edit else "")
+            p_amt = st.number_input("PO Amount", min_value=0.0, value=float(edit_data['po_amt']) if is_edit else 0.0)
+            # Logic 1: Payable Amt is 40% of PO Amt
+            pay_amt = p_amt * 0.40
+            st.info(f"Payable Amount (40%): ₹ {pay_amt:,.2f}")
+            wcc_no = st.text_input("WCC Number", value=edit_data['wcc_number'] if is_edit else "")
+            status_list = ["Pending", "Approved", "Rejected"]
+            default_idx = status_list.index(edit_data['wcc_status']) if is_edit and edit_data['wcc_status'] in status_list else 0
+            wcc_st = st.selectbox("WCC Status (Proceed)", status_list, index=default_idx)
         
         if st.form_submit_button("Submit Data", use_container_width=True):
-            new_data = {
+            payload = {
                 "project_id": p_id, "site_id": s_id, "site_name": s_name,
                 "cluster": clstr, "allocation_date": str(a_date),
                 "work_description": w_desc, "po_no": p_no, "po_amt": float(p_amt),
+                "payable_amt": float(pay_amt), # Added column
                 "wcc_number": wcc_no, "wcc_status": wcc_st
             }
             try:
-                # Using upsert to prevent unique key errors
-                supabase.table("nr_calculation").upsert(new_data, on_conflict="project_id").execute()
-                st.success("✅ Success! Site Added/Updated.")
-                time.sleep(1)
-                st.rerun()
-            except Exception as e:
-                st.error(f"⚠️ Error: {e}")
+                supabase.table("nr_calculation").upsert(payload, on_conflict="project_id").execute()
+                st.success("✅ Success!"); time.sleep(1); st.rerun()
+            except Exception as e: st.error(f"⚠️ Error: {e}")
 
-# --- 3. DASHBOARD PAGE ---
+@st.dialog("💰 Add Payment Entry")
+def finance_form_dialog():
+    with st.form("finance_form", clear_on_submit=True):
+        p_amt = st.number_input("Payment Amount", min_value=0.0)
+        p_date = st.date_input("Payment Date", value=datetime.now())
+        if st.form_submit_button("Submit Payment", use_container_width=True):
+            payload = {"payment_amt": float(p_amt), "payment_date": str(p_date)}
+            try:
+                supabase.table("nr_finance").insert(payload).execute()
+                st.success("✅ Added!"); time.sleep(1); st.rerun()
+            except Exception as e: st.error(f"⚠️ Error: {e}")
+
+# --- 3. MAIN DASHBOARD ---
 if st.session_state.current_page == "Dashboard":
     st.markdown("<h1 style='text-align: center; color: #1E3A8A;'>🚀 Visiontech Portal</h1>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns(3)
@@ -95,82 +108,134 @@ if st.session_state.current_page == "Dashboard":
     with c2:
         if st.button("🧾\nPO Report"): navigate_to("PO")
         if st.button("🚀\nJajupro"): navigate_to("Jajupro")
-        if st.button("📝\nAudit Portal"): navigate_to("Audit")
+        if st.button("📡\nWCC Tracker"): st.switch_page("pages/wcc_tracker.py")
     with c3:
         if st.button("📁\nData Entry"): st.switch_page("pages/data_entry.py")
         if st.button("📢\nRFAI Billing"): navigate_to("RFAI")
-        if st.button("🛰️\nSite Tracking"): st.switch_page("pages/tracking.py")
+        if st.button("📜\nVintage PDF"): navigate_to("PDFFormat")
 
-# --- 4. JAJUPRO MANAGEMENT PAGE ---
+# --- 4. JAJUPRO MANAGEMENT ---
 elif st.session_state.current_page == "Jajupro":
     st.markdown("<div class='back-btn'>", unsafe_allow_html=True)
-    if st.button("⬅️ Dashboard"): navigate_to("Dashboard")
+    if st.button("⬅️ Dashboard"): 
+        st.session_state.jaju_locked = True
+        navigate_to("Dashboard")
     st.markdown("</div>", unsafe_allow_html=True)
     st.divider()
+
+    if st.session_state.jaju_locked:
+        st.subheader("🔐 Jajupro is Locked")
+        pwd = st.text_input("Enter Password", type="password")
+        if st.button("Unlock"):
+            if pwd == "Mayur@123": st.session_state.jaju_locked = False; st.rerun()
+            else: st.error("Wrong Password!")
+        st.stop()
+
     st.title("🚀 Jajupro Management")
 
-    # Fetch Data from Supabase
     try:
-        site_res = supabase.table("nr_calculation").select("*").order('id', desc=True).execute()
+        site_res = supabase.table("nr_calculation").select("*").order('sr_no', desc=True).execute()
         df_site = pd.DataFrame(site_res.data) if site_res.data else pd.DataFrame()
-        
-        # Clean column names to lowercase to ensure matching works
-        if not df_site.empty:
-            df_site.columns = [c.lower() for c in df_site.columns]
+        fin_res = supabase.table("nr_finance").select("*").order('finance_id', desc=True).execute()
+        df_fin = pd.DataFrame(fin_res.data) if fin_res.data else pd.DataFrame()
+
+        if not df_site.empty: df_site.columns = [c.lower() for c in df_site.columns]
+        if not df_fin.empty: df_fin.columns = [c.lower() for c in df_fin.columns]
     except Exception as e:
         st.error(f"Fetch Error: {e}")
-        df_site = pd.DataFrame()
+        df_site, df_fin = pd.DataFrame(), pd.DataFrame()
 
-    # Metrics Section
-    total_site_amt = df_site['po_amt'].sum() if not df_site.empty and 'po_amt' in df_site.columns else 0
-    m1, m2, m3 = st.columns(3)
-    m1.metric("Total Site Amount", f"₹ {total_site_amt:,.2f}")
-    m2.metric("Total Paid Amount", "₹ 0.00")
-    m3.metric("Pending Balance", f"₹ {total_site_amt:,.2f}")
+    # --- LOGIC 2: Total Site Amount (Only if Status is Approved/Proceed) ---
+    if not df_site.empty:
+        # Filtering only approved records for Total calculation
+        approved_df = df_site[df_site['wcc_status'] == 'Approved']
+        t_site = approved_df['payable_amt'].sum() 
+    else:
+        t_site = 0
+        
+    t_paid = df_fin['payment_amt'].sum() if not df_fin.empty else 0
+    balance = t_site - t_paid
+
+    m1, m2 = st.columns(2)
+    m1.metric("Total Payable (Approved Only)", f"₹ {t_site:,.2f}")
+    m2.metric("Total Paid Amount", f"₹ {t_paid:,.2f}")
+    
+    balance_color = "red" if balance < 0 else "black"
+    st.markdown(f"""
+        <div style="background-color: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border-left: 10px solid {balance_color};">
+            <p style="color: grey; font-size: 18px; font-weight: bold; margin-bottom: 0;">Pending Balance</p>
+            <h2 style="color: {balance_color}; font-size: 32px; font-weight: 800; margin-top: 0;">₹ {balance:,.2f}</h2>
+        </div>
+    """, unsafe_allow_html=True)
 
     st.divider()
+    tab_site, tab_finance = st.tabs(["🏗️ Site Master", "💰 Finance History"])
 
-    tab1, tab2 = st.tabs(["🏗️ Site Entry", "💰 Finance"])
-
-    with tab1:
-        # Action Buttons Area
-        col_new, col_bulk, col_dl = st.columns([1, 2, 1])
-        with col_new:
-            if st.button("➕ New Entry", key="jaju_entry_btn", type="primary"):
-                open_entry_popup()
-        with col_dl:
-            if not df_site.empty:
-                st.download_button("📥 Download Excel", data=df_site.to_csv(index=False), file_name="NR_Report.csv")
-
-        st.write("---")
-        
-        # --- DYNAMIC TABLE DISPLAY ---
+    with tab_site:
+        c_act1, c_act2, c_act3 = st.columns([1, 1.5, 1])
+        if c_act1.button("➕ New Entry", type="primary"): site_form_dialog()
+        up_site = c_act2.file_uploader("📂 Bulk Upload", type=['xlsx', 'csv'], label_visibility="collapsed")
+        if up_site:
+            try:
+                b_df = pd.read_excel(up_site) if up_site.name.endswith('xlsx') else pd.read_csv(up_site)
+                b_df.columns = [c.lower().replace(' ', '_') for c in b_df.columns]
+                # Bulk Calculation Logic 1 for uploads
+                if 'po_amt' in b_df.columns:
+                    b_df['payable_amt'] = b_df['po_amt'] * 0.40
+                supabase.table("nr_calculation").upsert(b_df.to_dict(orient='records'), on_conflict="project_id").execute()
+                st.success("✅ Done!"); time.sleep(1); st.rerun()
+            except Exception as e: st.error(f"Error: {e}")
         if not df_site.empty:
-            # Table Header
-            st.markdown("""<div style='background-color: #1E3A8A; padding: 10px; border-radius: 5px; display: flex; color: white; font-weight: bold;'>
-                <div style='flex: 0.6;'>Edit</div><div style='flex: 1;'>Site ID</div><div style='flex: 1;'>Project ID</div>
-                <div style='flex: 2;'>Site Name</div><div style='flex: 1;'>PO Amount</div><div style='flex: 1;'>Status</div>
+            c_act3.download_button("📥 Download", data=df_site.to_csv(index=False), file_name="Site_Master.csv")
+
+        search_site = st.text_input("🔍 Search Site...")
+        if search_site:
+            df_site = df_site[df_site.astype(str).apply(lambda x: x.str.contains(search_site, case=False)).any(axis=1)]
+
+        if not df_site.empty:
+            # Added Payable Amt column in Header
+            st.markdown("""<div style='background-color: #1E3A8A; padding: 12px; border-radius: 5px; display: flex; color: white; font-size: 12px; font-weight: 800;'>
+                <div style='flex: 0.4;'>Edit</div><div style='flex: 0.8;'>Project ID</div><div style='flex: 0.8;'>Site ID</div>
+                <div style='flex: 1.0;'>Site Name</div><div style='flex: 0.7;'>Cluster</div><div style='flex: 0.7;'>Date</div>
+                <div style='flex: 0.8;'>PO No</div><div style='flex: 0.8;'>PO Amt</div><div style='flex: 0.8;'>Payable</div><div style='flex: 0.8;'>WCC No</div><div style='flex: 0.7;'>Status</div>
                 </div>""", unsafe_allow_html=True)
-
-            # Table Body Rows
             for idx, row in df_site.iterrows():
-                r = st.columns([0.6, 1, 1, 2, 1, 1])
-                if r[0].button("📝", key=f"edit_{row.get('id', idx)}"):
-                    st.toast(f"Edit clicked for {row.get('site_id', '-')}")
-                
-                r[1].write(row.get('site_id', '-'))
-                r[2].write(row.get('project_id', '-'))
-                r[3].write(row.get('site_name', '-'))
-                r[4].write(f"₹{row.get('po_amt', 0):,.2f}")
-                r[5].write(row.get('wcc_status', '-'))
-                st.markdown("<hr style='margin:2px; opacity:0.1'>", unsafe_allow_html=True)
-        else:
-            st.info("Database empty. Please click 'New Entry' to add data.")
+                r = st.columns([0.4, 0.8, 0.8, 1.0, 0.7, 0.7, 0.8, 0.8, 0.8, 0.8, 0.7])
+                if r[0].button("📝", key=f"ed_{row.get('sr_no', idx)}"): site_form_dialog(row.to_dict())
+                style = "class='row-text'"
+                r[1].markdown(f"<span {style}>{row.get('project_id', '-')}</span>", unsafe_allow_html=True)
+                r[2].markdown(f"<span {style}>{row.get('site_id', '-')}</span>", unsafe_allow_html=True)
+                r[3].markdown(f"<span {style}>{row.get('site_name', '-')}</span>", unsafe_allow_html=True)
+                r[4].markdown(f"<span {style}>{row.get('cluster', '-')}</span>", unsafe_allow_html=True)
+                r[5].markdown(f"<span {style}>{row.get('allocation_date', '-')}</span>", unsafe_allow_html=True)
+                r[6].markdown(f"<span {style}>{row.get('po_no', '-')}</span>", unsafe_allow_html=True)
+                r[7].markdown(f"<span {style}>₹{float(row.get('po_amt', 0)):,.0f}</span>", unsafe_allow_html=True)
+                # Display Payable Amt
+                r[8].markdown(f"<span {style}>₹{float(row.get('payable_amt', 0)):,.0f}</span>", unsafe_allow_html=True)
+                r[9].markdown(f"<span {style}>{row.get('wcc_number', '-')}</span>", unsafe_allow_html=True)
+                r[10].markdown(f"<span {style}>{row.get('wcc_status', '-')}</span>", unsafe_allow_html=True)
+                st.markdown("<hr style='margin:1px; opacity:0.1'>", unsafe_allow_html=True)
 
-# --- 5. OTHER PAGES PLACEHOLDER ---
+    with tab_finance:
+        cf1, cf2, cf3 = st.columns([1, 1.5, 1])
+        if cf1.button("➕ Add Payment", type="primary"): finance_form_dialog()
+        if not df_fin.empty:
+            cf3.download_button("📥 Download", data=df_fin.to_csv(index=False), file_name="Finance.csv")
+            search_fin = st.text_input("🔍 Search Finance...")
+            if search_fin:
+                df_fin = df_fin[df_fin.astype(str).apply(lambda x: x.str.contains(search_fin, case=False)).any(axis=1)]
+
+            st.markdown("""<div style='background-color: #334155; padding: 12px; border-radius: 5px; display: flex; color: white; font-size: 14px; font-weight: 800;'>
+                <div style='flex: 1;'>ID</div><div style='flex: 2;'>Amount Paid</div><div style='flex: 2;'>Date Paid</div></div>""", unsafe_allow_html=True)
+            for _, row in df_fin.iterrows():
+                fr = st.columns([1, 2, 2])
+                fr[0].markdown(f"<span class='row-text'>{row.get('finance_id', '-')}</span>", unsafe_allow_html=True)
+                fr[1].markdown(f"<span class='row-text'>₹ {float(row.get('payment_amt', 0)):,.2f}</span>", unsafe_allow_html=True)
+                fr[2].markdown(f"<span class='row-text'>{row.get('payment_date', '-')}</span>", unsafe_allow_html=True)
+                st.markdown("<hr style='margin:2px; opacity:0.1'>", unsafe_allow_html=True)
+
 elif st.session_state.current_page != "Dashboard":
     st.markdown("<div class='back-btn'>", unsafe_allow_html=True)
     if st.button("⬅️ Dashboard"): navigate_to("Dashboard")
     st.markdown("</div>", unsafe_allow_html=True)
-    st.title(f"Section: {st.session_state.current_page}")
-    st.write("Development in progress.")
+    st.title(f"Section {st.session_state.current_page}")
