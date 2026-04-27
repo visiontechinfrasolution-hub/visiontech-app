@@ -91,19 +91,18 @@ def site_form_dialog(edit_data=None):
             st.info(f"Payable Amount (40%): ₹ {pay_calc:,.2f}")
 
             wcc_no = st.text_input("WCC Number", value=edit_data.get('wcc_number', '') if is_edit else "")
-            
-            # --- NEW STATUS LIST UPDATED HERE ---
             status_list = ["Processed", "Pending Approval", "Corrected", "Error", "Rejected", "Canceled"]
             current_status = edit_data.get('wcc_status', 'Pending Approval') if is_edit else 'Pending Approval'
             default_idx = status_list.index(current_status) if current_status in status_list else 1
             wcc_st = st.selectbox("WCC Status", status_list, index=default_idx)
         
         if st.form_submit_button("Submit Data", use_container_width=True):
+            # Yahan Payable_Amt exact match karega Supabase se
             payload = {
                 "project_id": p_id, "site_id": s_id, "site_name": s_name,
                 "cluster": clstr, "allocation_date": str(a_date),
                 "work_description": w_desc, "po_no": p_no, "po_amt": float(p_amt),
-                "payable_amt": float(pay_calc),
+                "Payable_Amt": float(pay_calc), 
                 "wcc_number": wcc_no, "wcc_status": wcc_st
             }
             try:
@@ -171,9 +170,16 @@ elif st.session_state.current_page == "Jajupro":
         df_fin = pd.DataFrame(fin_res.data) if fin_res.data else pd.DataFrame()
 
         if not df_site.empty: 
+            # Force everything to lowercase for pandas mapping
             df_site.columns = [c.lower() for c in df_site.columns]
             df_site['po_amt'] = pd.to_numeric(df_site.get('po_amt', 0), errors='coerce').fillna(0)
-            df_site['payable_amt'] = df_site['po_amt'] * 0.40
+            
+            # Agar purani rows mein Payable_Amt ki value blank ho, to 40% on the fly lagao
+            if 'payable_amt' not in df_site.columns:
+                df_site['payable_amt'] = df_site['po_amt'] * 0.40
+            else:
+                # Fill na with 40% value
+                df_site['payable_amt'] = pd.to_numeric(df_site['payable_amt'], errors='coerce').fillna(df_site['po_amt'] * 0.40)
 
         if not df_fin.empty: 
             df_fin.columns = [c.lower() for c in df_fin.columns]
@@ -183,16 +189,16 @@ elif st.session_state.current_page == "Jajupro":
         st.error(f"Fetch Error: {e}")
         df_site, df_fin = pd.DataFrame(), pd.DataFrame()
 
+    # Metrics Calculation
     t_site = 0
     if not df_site.empty and 'wcc_status' in df_site.columns:
-        # --- TOTAL CALCULATION UPDATED TO TRACK 'Processed' INSTEAD OF 'Approved' ---
         t_site = df_site[df_site['wcc_status'] == 'Processed']['payable_amt'].sum()
     
     t_paid = df_fin['payment_amt'].sum() if not df_fin.empty else 0
     balance = t_site - t_paid
 
     m1, m2, m3 = st.columns(3)
-    m1.metric("Total Site Amount (Processed)", f"₹ {t_site:,.2f}") # Label Updated
+    m1.metric("Total Site Amount (Processed)", f"₹ {t_site:,.2f}")
     m2.metric("Total Paid Amount", f"₹ {t_paid:,.2f}")
     
     balance_color = "red" if balance < 0 else "black"
@@ -214,10 +220,17 @@ elif st.session_state.current_page == "Jajupro":
         if up_site:
             try:
                 b_df = pd.read_excel(up_site) if up_site.name.endswith('xlsx') else pd.read_csv(up_site)
-                b_df.columns = [c.lower().replace(' ', '_') for c in b_df.columns]
-                if 'po_amt' in b_df.columns:
-                    b_df['payable_amt'] = b_df['po_amt'] * 0.40
-                supabase.table("nr_calculation").upsert(b_df.to_dict(orient='records'), on_conflict="project_id").execute()
+                # Ensure we upload using the exact column names expected by DB
+                upload_records = []
+                for _, row in b_df.iterrows():
+                    rec = row.to_dict()
+                    # Convert keys to match DB format just in case
+                    new_rec = {k.lower().replace(' ', '_'): v for k, v in rec.items()}
+                    po_v = float(new_rec.get('po_amt', 0))
+                    new_rec['Payable_Amt'] = po_v * 0.40 # DB matched
+                    upload_records.append(new_rec)
+                
+                supabase.table("nr_calculation").upsert(upload_records, on_conflict="project_id").execute()
                 st.success("✅ Success!"); time.sleep(1); st.rerun()
             except Exception as e: st.error(f"Error: {e}")
             
@@ -246,8 +259,8 @@ elif st.session_state.current_page == "Jajupro":
                 r[5].markdown(f"<span {style}>{row.get('allocation_date', '-')}</span>", unsafe_allow_html=True)
                 r[6].markdown(f"<span {style}>{row.get('po_no', '-')}</span>", unsafe_allow_html=True)
                 
-                po_amt_display = row.get('po_amt', 0)
-                pay_amt_display = row.get('payable_amt', po_amt_display * 0.40)
+                po_amt_display = float(row.get('po_amt', 0))
+                pay_amt_display = float(row.get('payable_amt', po_amt_display * 0.40))
                 
                 r[7].markdown(f"<span {style}>₹{po_amt_display:,.0f}</span>", unsafe_allow_html=True)
                 r[8].markdown(f"<span {style} style='color:#1E3A8A;'>₹{pay_amt_display:,.0f}</span>", unsafe_allow_html=True)
