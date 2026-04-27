@@ -91,9 +91,11 @@ def site_form_dialog(edit_data=None):
             st.info(f"Payable Amount (40%): ₹ {pay_calc:,.2f}")
 
             wcc_no = st.text_input("WCC Number", value=edit_data.get('wcc_number', '') if is_edit else "")
-            status_list = ["Pending", "Approved", "Rejected"]
-            current_status = edit_data.get('wcc_status', 'Pending') if is_edit else 'Pending'
-            default_idx = status_list.index(current_status) if current_status in status_list else 0
+            
+            # --- NEW STATUS LIST UPDATED HERE ---
+            status_list = ["Processed", "Pending Approval", "Corrected", "Error", "Rejected", "Canceled"]
+            current_status = edit_data.get('wcc_status', 'Pending Approval') if is_edit else 'Pending Approval'
+            default_idx = status_list.index(current_status) if current_status in status_list else 1
             wcc_st = st.selectbox("WCC Status", status_list, index=default_idx)
         
         if st.form_submit_button("Submit Data", use_container_width=True):
@@ -170,13 +172,8 @@ elif st.session_state.current_page == "Jajupro":
 
         if not df_site.empty: 
             df_site.columns = [c.lower() for c in df_site.columns]
-            # --- FIX FOR BLANK DATA (Convert None/Empty to 0) ---
             df_site['po_amt'] = pd.to_numeric(df_site.get('po_amt', 0), errors='coerce').fillna(0)
-            
-            if 'payable_amt' not in df_site.columns:
-                df_site['payable_amt'] = df_site['po_amt'] * 0.40
-            
-            df_site['payable_amt'] = pd.to_numeric(df_site.get('payable_amt', 0), errors='coerce').fillna(0)
+            df_site['payable_amt'] = df_site['po_amt'] * 0.40
 
         if not df_fin.empty: 
             df_fin.columns = [c.lower() for c in df_fin.columns]
@@ -188,13 +185,14 @@ elif st.session_state.current_page == "Jajupro":
 
     t_site = 0
     if not df_site.empty and 'wcc_status' in df_site.columns:
-        t_site = df_site[df_site['wcc_status'] == 'Approved']['payable_amt'].sum()
+        # --- TOTAL CALCULATION UPDATED TO TRACK 'Processed' INSTEAD OF 'Approved' ---
+        t_site = df_site[df_site['wcc_status'] == 'Processed']['payable_amt'].sum()
     
     t_paid = df_fin['payment_amt'].sum() if not df_fin.empty else 0
     balance = t_site - t_paid
 
     m1, m2, m3 = st.columns(3)
-    m1.metric("Total Site Amount (Approved)", f"₹ {t_site:,.2f}")
+    m1.metric("Total Site Amount (Processed)", f"₹ {t_site:,.2f}") # Label Updated
     m2.metric("Total Paid Amount", f"₹ {t_paid:,.2f}")
     
     balance_color = "red" if balance < 0 else "black"
@@ -248,9 +246,8 @@ elif st.session_state.current_page == "Jajupro":
                 r[5].markdown(f"<span {style}>{row.get('allocation_date', '-')}</span>", unsafe_allow_html=True)
                 r[6].markdown(f"<span {style}>{row.get('po_no', '-')}</span>", unsafe_allow_html=True)
                 
-                # --- NO MORE FLOAT CRASHES HERE ---
                 po_amt_display = row.get('po_amt', 0)
-                pay_amt_display = row.get('payable_amt', 0)
+                pay_amt_display = row.get('payable_amt', po_amt_display * 0.40)
                 
                 r[7].markdown(f"<span {style}>₹{po_amt_display:,.0f}</span>", unsafe_allow_html=True)
                 r[8].markdown(f"<span {style} style='color:#1E3A8A;'>₹{pay_amt_display:,.0f}</span>", unsafe_allow_html=True)
