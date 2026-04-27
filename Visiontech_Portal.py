@@ -85,6 +85,12 @@ def site_form_dialog(edit_data=None):
         with f3:
             p_no = st.text_input("PO No", value=edit_data['po_no'] if is_edit else "")
             p_amt = st.number_input("PO Amount", min_value=0.0, value=float(edit_data['po_amt']) if is_edit else 0.0)
+            
+            # --- NEW LOGIC ADDED: 40% Calculation Display ---
+            pay_calc = p_amt * 0.40
+            st.info(f"Payable Amount (40%): ₹ {pay_calc:,.2f}")
+            # ------------------------------------------------
+
             wcc_no = st.text_input("WCC Number", value=edit_data['wcc_number'] if is_edit else "")
             status_list = ["Pending", "Approved", "Rejected"]
             default_idx = status_list.index(edit_data['wcc_status']) if is_edit and edit_data['wcc_status'] in status_list else 0
@@ -95,6 +101,7 @@ def site_form_dialog(edit_data=None):
                 "project_id": p_id, "site_id": s_id, "site_name": s_name,
                 "cluster": clstr, "allocation_date": str(a_date),
                 "work_description": w_desc, "po_no": p_no, "po_amt": float(p_amt),
+                "payable_amt": float(pay_calc), # --- NEW LOGIC ADDED ---
                 "wcc_number": wcc_no, "wcc_status": wcc_st
             }
             try:
@@ -161,19 +168,29 @@ elif st.session_state.current_page == "Jajupro":
         fin_res = supabase.table("nr_finance").select("*").order('finance_id', desc=True).execute()
         df_fin = pd.DataFrame(fin_res.data) if fin_res.data else pd.DataFrame()
 
-        if not df_site.empty: df_site.columns = [c.lower() for c in df_site.columns]
-        if not df_fin.empty: df_fin.columns = [c.lower() for c in df_fin.columns]
+        if not df_site.empty: 
+            df_site.columns = [c.lower() for c in df_site.columns]
+            # Fallback mapping agar purani rows mein payable_amt na ho
+            if 'payable_amt' not in df_site.columns:
+                df_site['payable_amt'] = df_site['po_amt'] * 0.40
+        if not df_fin.empty: 
+            df_fin.columns = [c.lower() for c in df_fin.columns]
     except Exception as e:
         st.error(f"Fetch Error: {e}")
         df_site, df_fin = pd.DataFrame(), pd.DataFrame()
 
-    # METRICS CALCULATION
-    t_site = df_site['po_amt'].sum() if not df_site.empty else 0
+    # --- NEW LOGIC ADDED: METRICS CALCULATION (Approved Only) ---
+    t_site = 0
+    if not df_site.empty and 'wcc_status' in df_site.columns:
+        # Sirf 'Approved' status wale rows ka payable_amt sum hoga
+        t_site = df_site[df_site['wcc_status'] == 'Approved']['payable_amt'].sum()
+    
     t_paid = df_fin['payment_amt'].sum() if not df_fin.empty else 0
     balance = t_site - t_paid
+    # -------------------------------------------------------------
 
     m1, m2, m3 = st.columns(3)
-    m1.metric("Total Site Amount", f"₹ {t_site:,.2f}")
+    m1.metric("Total Site Amount (Approved)", f"₹ {t_site:,.2f}")
     m2.metric("Total Paid Amount", f"₹ {t_paid:,.2f}")
     
     # --- CONDITIONAL COLOR FOR PENDING BALANCE ---
@@ -197,6 +214,9 @@ elif st.session_state.current_page == "Jajupro":
             try:
                 b_df = pd.read_excel(up_site) if up_site.name.endswith('xlsx') else pd.read_csv(up_site)
                 b_df.columns = [c.lower().replace(' ', '_') for c in b_df.columns]
+                # --- NEW LOGIC ADDED: Calculate 40% on bulk upload ---
+                if 'po_amt' in b_df.columns:
+                    b_df['payable_amt'] = b_df['po_amt'] * 0.40
                 supabase.table("nr_calculation").upsert(b_df.to_dict(orient='records'), on_conflict="project_id").execute()
                 st.success("✅ Success!"); time.sleep(1); st.rerun()
             except Exception as e: st.error(f"Error: {e}")
@@ -209,14 +229,15 @@ elif st.session_state.current_page == "Jajupro":
             df_site = df_site[df_site.astype(str).apply(lambda x: x.str.contains(search_site, case=False)).any(axis=1)]
 
         if not df_site.empty:
-            # Header Bold & Bigger
-            st.markdown("""<div style='background-color: #1E3A8A; padding: 12px; border-radius: 5px; display: flex; color: white; font-size: 14px; font-weight: 800;'>
+            # Header Bold & Bigger with Payable column included
+            st.markdown("""<div style='background-color: #1E3A8A; padding: 12px; border-radius: 5px; display: flex; color: white; font-size: 13px; font-weight: 800;'>
                 <div style='flex: 0.4;'>Edit</div><div style='flex: 0.9;'>Project ID</div><div style='flex: 0.8;'>Site ID</div>
                 <div style='flex: 1.2;'>Site Name</div><div style='flex: 0.8;'>Cluster</div><div style='flex: 0.8;'>Date</div>
-                <div style='flex: 1;'>PO No</div><div style='flex: 0.8;'>Amount</div><div style='flex: 1;'>WCC No</div><div style='flex: 0.8;'>Status</div>
+                <div style='flex: 0.8;'>PO No</div><div style='flex: 0.8;'>PO Amt</div><div style='flex: 0.8;'>Payable</div><div style='flex: 1;'>WCC No</div><div style='flex: 0.8;'>Status</div>
                 </div>""", unsafe_allow_html=True)
             for idx, row in df_site.iterrows():
-                r = st.columns([0.4, 0.9, 0.8, 1.2, 0.8, 0.8, 1, 0.8, 1, 0.8])
+                # 11 columns matching header
+                r = st.columns([0.4, 0.9, 0.8, 1.2, 0.8, 0.8, 0.8, 0.8, 0.8, 1, 0.8])
                 if r[0].button("📝", key=f"ed_{row.get('sr_no', idx)}"): site_form_dialog(row.to_dict())
                 
                 # Row Text Bold & Bigger
@@ -228,8 +249,10 @@ elif st.session_state.current_page == "Jajupro":
                 r[5].markdown(f"<span {style}>{row.get('allocation_date', '-')}</span>", unsafe_allow_html=True)
                 r[6].markdown(f"<span {style}>{row.get('po_no', '-')}</span>", unsafe_allow_html=True)
                 r[7].markdown(f"<span {style}>₹{float(row.get('po_amt', 0)):,.0f}</span>", unsafe_allow_html=True)
-                r[8].markdown(f"<span {style}>{row.get('wcc_number', '-')}</span>", unsafe_allow_html=True)
-                r[9].markdown(f"<span {style}>{row.get('wcc_status', '-')}</span>", unsafe_allow_html=True)
+                # --- NEW LOGIC ADDED: Display Payable Amount ---
+                r[8].markdown(f"<span {style} style='color:#1E3A8A;'>₹{float(row.get('payable_amt', 0)):,.0f}</span>", unsafe_allow_html=True)
+                r[9].markdown(f"<span {style}>{row.get('wcc_number', '-')}</span>", unsafe_allow_html=True)
+                r[10].markdown(f"<span {style}>{row.get('wcc_status', '-')}</span>", unsafe_allow_html=True)
                 st.markdown("<hr style='margin:2px; opacity:0.1'>", unsafe_allow_html=True)
 
     with tab_finance:
