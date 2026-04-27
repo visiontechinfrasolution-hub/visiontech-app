@@ -230,7 +230,7 @@ with t3:
                             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                                 df_final[[c for c in mera_sequence if c in df_final.columns]].to_excel(writer, index=False)
                             st.download_button("📥 Download Bulk Excel", output.getvalue(), "Bulk_Report.xlsx")
-                            st.dataframe(df_final[[c for c in mera_sequence if c in df_final.columns]], use_container_width=True, hide_index=True, height=600)
+                            st.dataframe(df_final[[c for c in mera_sequence if c in df_final.columns]], use_container_width=True, hide_index=True, height=300)
                         else: st.warning("डेटा सापडला नाही.")
             else: st.error("Project Number कॉलम सापडला नाही.")
         except Exception as e: st.error(f"Error: {e}")
