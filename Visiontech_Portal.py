@@ -299,22 +299,28 @@ elif st.session_state.current_page != "Dashboard":
     elif cur_p == "PDFFormat":
         st.title("📜 Vintage PDF")
 
-    # --- 🛒 PURCHASE ORDER PAGE ---
+    # --- PURCHASE ORDER SECTION (FINAL ALIGNMENT) ---
     elif cur_p == "Purchase Order":
         st.markdown("<h1 style='color: #1E3A8A; text-align: center;'>🛒 Purchase Order System</h1>", unsafe_allow_html=True)
         tab_po, tab_v, tab_i, tab_t = st.tabs(["📝 Create PO", "🏢 Vendor Reg", "📦 Item Master", "👥 Team Reg"])
 
         def generate_po_pdf(po_data):
+            from fpdf import FPDF
+            # Helvetica (Arial) font use karke bold/regular properties set ki hain
             pdf = FPDF()
             pdf.add_page()
             
-            # Header
-            try: pdf.image("logo (1).png", 10, 10, 45)
-            except: pdf.set_font("Helvetica", 'B', 16); pdf.cell(50, 10, "ViS Visiontech")
-            
-            pdf.set_font("Helvetica", '', 8.5)
+            # 1. HEADER: Logo aur Company Information [cite: 25, 31, 32]
+            try:
+                pdf.image("logo (1).png", 10, 10, 50) # Exact Image 
+            except:
+                pdf.set_font("Helvetica", 'B', 16)
+                pdf.cell(50, 10, "ViS Visiontech")
+
+            pdf.set_font("Helvetica", 'B', 14)
             pdf.set_x(100)
-            pdf.cell(100, 5, "VISIONTECH INFRA SOLUTION PVT. LTD.", 0, 1, 'R')
+            pdf.cell(100, 6, "VISIONTECH INFRA SOLUTION PVT. LTD.", 0, 1, 'R') # Pura Naam [cite: 31]
+            pdf.set_font("Helvetica", '', 8.5)
             pdf.set_x(100)
             pdf.cell(100, 4, "Lane Number 2, Karve Nagar, Pune, Maharashtra, 411052", 0, 1, 'R')
             pdf.set_x(100)
@@ -322,39 +328,52 @@ elif st.session_state.current_page != "Dashboard":
             pdf.set_x(100)
             pdf.cell(100, 4, "Contact: 9552273181 | Email: vispltower@gmail.com", 0, 1, 'R')
             
-            pdf.ln(5)
-            pdf.set_fill_color(11, 61, 102) # Visiontech Blue
+            # 2. TITLE BAR [cite: 33]
+            pdf.ln(6)
+            pdf.set_fill_color(26, 58, 95) # Dark Blue Header [cite: 33]
             pdf.set_text_color(255, 255, 255)
             pdf.set_font("Helvetica", 'B', 14)
-            pdf.cell(190, 8, "PURCHASE ORDER", 0, 1, 'C', True)
+            pdf.cell(190, 10, "PURCHASE ORDER", 0, 1, 'C', True)
             
+            # 3. VENDOR & ORDER BOXES 
             pdf.set_text_color(0, 0, 0)
             pdf.ln(5)
-            y_start = pdf.get_y()
+            y_boxes = pdf.get_y()
             
-            # Details Boxes
-            pdf.set_font("Helvetica", 'B', 8)
-            pdf.cell(95, 5, "VENDOR DETAILS", 1, 1, 'L')
+            # Left Side: Vendor Box [cite: 26, 27, 30]
+            pdf.set_font("Helvetica", 'B', 9)
+            pdf.cell(92, 6, " VENDOR DETAILS", 1, 1, 'L', False)
             pdf.set_font("Helvetica", '', 9)
-            v_info = f"{po_data['vendor_name']}\n{po_data.get('vendor_address', 'N/A')}\nGSTIN: {po_data['vendor_gst']}"
-            pdf.multi_cell(95, 5, v_info, 1, 'L')
+            # Address handle 
+            v_addr_full = f"{po_data['vendor_name']}\n{po_data.get('vendor_address', 'N/A')}\nGSTIN: {po_data['vendor_gst']}"
+            pdf.multi_cell(92, 5, v_addr_full, 1, 'L')
             
-            pdf.set_y(y_start); pdf.set_x(105)
-            pdf.set_font("Helvetica", 'B', 8); pdf.cell(95, 5, "ORDER DETAILS", 1, 1, 'L')
-            pdf.set_x(105); pdf.set_font("Helvetica", '', 9)
-            o_info = f"PO Number: {po_data['po_number']}\nDate: {po_data['po_date']}\nHandover Team: {po_data.get('handover_team', 'N/A')}"
-            pdf.multi_cell(95, 5, o_info, 1, 'L')
+            # Right Side: Order Details Box [cite: 34, 35, 36, 37]
+            pdf.set_y(y_boxes)
+            pdf.set_x(108)
+            pdf.set_font("Helvetica", 'B', 9)
+            pdf.cell(92, 6, " ORDER INFORMATION", 1, 1, 'L', False)
+            pdf.set_x(108)
+            pdf.set_font("Helvetica", '', 9)
+            order_info = f"PO Number: {po_data['po_number']}\nDate: {po_data['po_date']}\nHandover Team: {po_data.get('handover_team', 'N/A')}"
+            pdf.multi_cell(92, 5, order_info, 1, 'L')
             
-            pdf.ln(5)
+            # 4. ITEMS TABLE [cite: 38]
+            pdf.ln(8)
+            pdf.set_font("Helvetica", 'B', 8.5)
+            pdf.set_fill_color(240, 240, 240)
+            # Headers [cite: 38]
+            pdf.cell(8, 8, "Sr.", 1, 0, 'C', True)
+            pdf.cell(62, 8, "Description", 1, 0, 'C', True)
+            pdf.cell(15, 8, "Qty", 1, 0, 'C', True)
+            pdf.cell(20, 8, "Price", 1, 0, 'C', True)
+            pdf.cell(22, 8, "Basic", 1, 0, 'C', True)
+            pdf.cell(18, 8, "CGST", 1, 0, 'C', True)
+            pdf.cell(18, 8, "SGST", 1, 0, 'C', True)
+            pdf.cell(27, 8, "Total", 1, 1, 'C', True)
             
-            # Table Header
-            pdf.set_font("Helvetica", 'B', 8); pdf.set_fill_color(242, 242, 242)
-            pdf.cell(8, 8, "Sr.", 1, 0, 'C', True); pdf.cell(62, 8, "Description", 1, 0, 'C', True)
-            pdf.cell(15, 8, "Qty", 1, 0, 'C', True); pdf.cell(20, 8, "Price", 1, 0, 'C', True)
-            pdf.cell(22, 8, "Basic", 1, 0, 'C', True); pdf.cell(18, 8, "CGST", 1, 0, 'C', True)
-            pdf.cell(18, 8, "SGST", 1, 0, 'C', True); pdf.cell(27, 8, "Total", 1, 1, 'C', True)
-            
-            pdf.set_font("Helvetica", '', 8)
+            # Body [cite: 38]
+            pdf.set_font("Helvetica", '', 8.5)
             for i, item in enumerate(po_data['items']):
                 pdf.cell(8, 7, str(i+1), 1, 0, 'C')
                 pdf.cell(62, 7, str(item['Description']), 1, 0, 'L')
@@ -365,31 +384,61 @@ elif st.session_state.current_page != "Dashboard":
                 pdf.cell(18, 7, f"{item['SGST']:.2f}", 1, 0, 'R')
                 pdf.cell(27, 7, f"{item['Total']:.2f}", 1, 1, 'R')
 
-            # Totals
-            pdf.ln(2); pdf.set_x(120); pdf.set_font("Helvetica", '', 9)
+            # 5. TOTALS SECTION [cite: 39]
+            pdf.ln(2)
+            pdf.set_x(120)
+            pdf.set_font("Helvetica", '', 9)
             t_basic = sum(item['Basic'] for item in po_data['items'])
             t_cgst = sum(item['CGST'] for item in po_data['items'])
             t_sgst = sum(item['SGST'] for item in po_data['items'])
             
-            pdf.cell(40, 6, "Total Basic:", 0, 0, 'R'); pdf.cell(40, 6, f" {t_basic:,.2f}", 1, 1, 'R')
-            pdf.set_x(120); pdf.cell(40, 6, "Total CGST:", 0, 0, 'R'); pdf.cell(40, 6, f" {t_cgst:,.2f}", 1, 1, 'R')
-            pdf.set_x(120); pdf.cell(40, 6, "Total SGST:", 0, 0, 'R'); pdf.cell(40, 6, f" {t_sgst:,.2f}", 1, 1, 'R')
+            pdf.cell(40, 6, "Total Basic:", 0, 0, 'R')
+            pdf.cell(40, 6, f" {t_basic:,.2f}", 1, 1, 'R')
+            pdf.set_x(120)
+            pdf.cell(40, 6, "Total CGST:", 0, 0, 'R')
+            pdf.cell(40, 6, f" {t_cgst:,.2f}", 1, 1, 'R')
+            pdf.set_x(120)
+            pdf.cell(40, 6, "Total SGST:", 0, 0, 'R')
+            pdf.cell(40, 6, f" {t_sgst:,.2f}", 1, 1, 'R')
             
-            pdf.set_x(120); pdf.set_font("Helvetica", 'B', 10); pdf.set_fill_color(11, 61, 102); pdf.set_text_color(255, 255, 255)
-            pdf.cell(40, 7, "Grand Total:", 0, 0, 'R', True); pdf.cell(40, 7, f" {po_data['grand_total']:,.2f}", 1, 1, 'R', True)
+            pdf.set_x(120)
+            pdf.set_font("Helvetica", 'B', 10)
+            pdf.set_fill_color(26, 58, 95)
+            pdf.set_text_color(255, 255, 255)
+            pdf.cell(40, 7, "Grand Total:", 0, 0, 'R', True)
+            pdf.cell(40, 7, f" {po_data['grand_total']:,.2f}", 1, 1, 'R', True)
             
-            pdf.set_text_color(0, 0, 0); pdf.ln(5); pdf.set_font("Helvetica", 'B', 8); pdf.cell(190, 5, "AMOUNT IN WORDS", 0, 1)
+            # 6. WORDS & SIGNATURE [cite: 40, 42, 45, 51]
+            pdf.set_text_color(0, 0, 0)
+            pdf.ln(5)
+            pdf.set_font("Helvetica", 'B', 8.5)
+            pdf.cell(190, 5, "AMOUNT IN WORDS", 0, 1) # [cite: 40]
             pdf.set_font("Helvetica", 'I', 9)
             words = num2words(po_data['grand_total'], lang='en_IN').title() + " Rupees Only."
             pdf.multi_cell(190, 5, words, 1)
             
-            pdf.ln(5); pdf.set_font("Helvetica", 'B', 8); pdf.cell(190, 5, "Terms & Conditions:", 0, 1)
-            pdf.set_font("Helvetica", '', 8); pdf.cell(190, 4, "1. Subject to Pune Jurisdiction.", 0, 1); pdf.cell(190, 4, "2. Material must match technical specs.", 0, 1)
+            pdf.ln(6)
+            pdf.set_font("Helvetica", 'B', 8.5)
+            pdf.cell(190, 5, "Terms & Conditions:", 0, 1) # [cite: 42]
+            pdf.set_font("Helvetica", '', 8.5)
+            pdf.cell(190, 4, "1. Subject to Pune Jurisdiction.", 0, 1) # [cite: 43]
+            pdf.cell(190, 4, "2. Material must match technical specs.", 0, 1) # [cite: 44]
             
-            pdf.ln(5); pdf.set_x(130); pdf.set_font("Helvetica", 'B', 9); pdf.cell(70, 5, "For Visiontech Infra Solution Pvt. Ltd.", 0, 1, 'C')
-            try: pdf.image("Signature in PNG.png", 145, pdf.get_y(), 35) 
-            except: pass
-            pdf.ln(20); pdf.set_x(130); pdf.cell(70, 5, "Authorized Signatory", 0, 1, 'C')
+            # Signature Box [cite: 45, 51]
+            pdf.ln(4)
+            pdf.set_x(130)
+            pdf.set_font("Helvetica", 'B', 10)
+            pdf.cell(70, 5, "For Visiontech Infra Solution Pvt. Ltd.", 0, 1, 'C') # [cite: 45]
+            
+            try:
+                # Stamp aur Signature exact place [cite: 47, 49]
+                pdf.image("Signature in PNG.png", 145, pdf.get_y(), 38)
+            except:
+                pass
+                
+            pdf.ln(22)
+            pdf.set_x(130)
+            pdf.cell(70, 5, "Authorized Signatory", 0, 1, 'C') # [cite: 51]
             
             return bytes(pdf.output())
 
@@ -417,7 +466,9 @@ elif st.session_state.current_page != "Dashboard":
             with c2:
                 po_date = st.date_input("PO Date", datetime.now())
                 h_team = st.selectbox("Handover Team", ["Select"] + [t['name'] for t in team_users], key="t_sel")
-                v_addr = st.text_area("Vendor Address", value=v_data['address'] if v_data else "", disabled=True, height=68)
+                # Address fetch fix 
+                v_addr_val = v_data['address'] if v_data else ""
+                v_addr = st.text_area("Vendor Address", value=v_addr_val, disabled=True, height=68)
 
             st.divider()
             if 'temp_items' not in st.session_state: st.session_state.temp_items = []
@@ -440,7 +491,8 @@ elif st.session_state.current_page != "Dashboard":
                 st.metric("Grand Total", f"₹ {gt:,.2f}")
                 b1, b2 = st.columns(2)
                 if b1.button("🚀 Save & Finalize PO", type="primary", use_container_width=True):
-                    payload = {"po_number": po_no, "po_date": str(po_date), "vendor_name": v_choice, "vendor_gst": v_gst, "handover_team": h_team, "vendor_address": v_addr, "items": st.session_state.temp_items, "grand_total": float(gt)}
+                    # Data payload mein address include kiya 
+                    payload = {"po_number": po_no, "po_date": str(po_date), "vendor_name": v_choice, "vendor_gst": v_gst, "handover_team": h_team, "vendor_address": v_addr_val, "items": st.session_state.temp_items, "grand_total": float(gt)}
                     supabase.table("purchase_orders").insert(payload).execute()
                     st.success("✅ PO Saved!"); st.session_state.temp_items = []; time.sleep(1); st.rerun()
                 if b2.button("🗑️ Clear All Items", use_container_width=True): st.session_state.temp_items = []; st.rerun()
@@ -454,6 +506,7 @@ elif st.session_state.current_page != "Dashboard":
                     pdf_bytes = generate_po_pdf(row)
                     r_col[4].download_button("📥", data=pdf_bytes, file_name=f"{row['po_number']}.pdf", mime="application/pdf", key=f"dl_{row['id']}")
                     wa_msg = f"Hello, please find Purchase Order: {row['po_number']} for Amount ₹{row['grand_total']:,.2f} from Visiontech Infra Solution."
+                    # WhatsApp desktop app protocol
                     wa_url = f"whatsapp://send?text={urllib.parse.quote(wa_msg)}"
                     r_col[5].markdown(f"<a href='{wa_url}'>📲</a>", unsafe_allow_html=True)
                     st.markdown("<hr style='margin:2px; opacity:0.1'>", unsafe_allow_html=True)
@@ -475,8 +528,7 @@ elif st.session_state.current_page != "Dashboard":
                 tn = st.text_input("Name"); tp = st.text_input("Phone")
                 if st.form_submit_button("Add Member", use_container_width=True):
                     supabase.table("allowed_users").insert({"name": tn, "phone_number": tp}).execute()
-                    st.success("✅ Member Added!"); time.sleep(1); st.rerun()
-    else:
+                    st.success("✅ Member Added!"); time.sleep(1); st.rerun()    else:
         st.write(f"Section {cur_p} is active.")
 # =====================================================================
     # 🟩 TAB 1: BOQ REPORT (3 Dedicated Sections - 0% Logic Change)
