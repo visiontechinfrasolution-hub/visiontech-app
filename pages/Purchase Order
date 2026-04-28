@@ -1,10 +1,9 @@
 import streamlit as st
+from supabase import create_client
 import pandas as pd
-from supabase import create_client, Client
-import datetime
-from fpdf import FPDF
+from fpdf import FPDF  # <--- Ise yahan sabse upar rakhein
 from num2words import num2words
-import base64
+# ... baaki saare imports
 
 # --- 1. CONFIGURATION ---
 st.set_page_config(page_title="Purchase Order", layout="wide")
