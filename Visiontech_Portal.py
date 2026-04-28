@@ -14,6 +14,7 @@ import os
 import random
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps
+from fpdf import FPDF # Ensure fpdf2 is in requirements.txt
 
 # --- 1. CONNECTION ---
 URL = "https://sckyflvukpmdqmdzjzhs.supabase.co"
@@ -97,7 +98,6 @@ def site_form_dialog(edit_data=None):
             wcc_st = st.selectbox("WCC Status", status_list, index=default_idx)
         
         if st.form_submit_button("Submit Data", use_container_width=True):
-            # Yahan Payable_Amt exact match karega Supabase se
             payload = {
                 "project_id": p_id, "site_id": s_id, "site_name": s_name,
                 "cluster": clstr, "allocation_date": str(a_date),
@@ -136,11 +136,11 @@ if st.session_state.current_page == "Dashboard":
         if st.button("🧾\nPO Report"): navigate_to("PO")
         if st.button("🚀\nJajupro"): navigate_to("Jajupro")
         if st.button("📡\nWCC Tracker"): st.switch_page("pages/wcc_tracker.py")
-        if st.button("🛒\nCreate PO"): navigate_to("Purchase Order")
     with c3:
         if st.button("📁\nData Entry"): st.switch_page("pages/data_entry.py")
         if st.button("📢\nRFAI Billing"): navigate_to("RFAI")
         if st.button("📜\nVintage PDF"): navigate_to("PDFFormat")
+        if st.button("🛒\nCreate PO"): navigate_to("Purchase Order") # NEW BUTTON
 
 # --- 4. JAJUPRO MANAGEMENT ---
 elif st.session_state.current_page == "Jajupro":
@@ -163,7 +163,6 @@ elif st.session_state.current_page == "Jajupro":
 
     st.title("🚀 Jajupro Management")
 
-    # FETCH DATA
     try:
         site_res = supabase.table("nr_calculation").select("*").order('sr_no', desc=True).execute()
         df_site = pd.DataFrame(site_res.data) if site_res.data else pd.DataFrame()
@@ -171,15 +170,11 @@ elif st.session_state.current_page == "Jajupro":
         df_fin = pd.DataFrame(fin_res.data) if fin_res.data else pd.DataFrame()
 
         if not df_site.empty: 
-            # Force everything to lowercase for pandas mapping
             df_site.columns = [c.lower() for c in df_site.columns]
             df_site['po_amt'] = pd.to_numeric(df_site.get('po_amt', 0), errors='coerce').fillna(0)
-            
-            # Agar purani rows mein Payable_Amt ki value blank ho, to 40% on the fly lagao
             if 'payable_amt' not in df_site.columns:
                 df_site['payable_amt'] = df_site['po_amt'] * 0.40
             else:
-                # Fill na with 40% value
                 df_site['payable_amt'] = pd.to_numeric(df_site['payable_amt'], errors='coerce').fillna(df_site['po_amt'] * 0.40)
 
         if not df_fin.empty: 
@@ -190,7 +185,6 @@ elif st.session_state.current_page == "Jajupro":
         st.error(f"Fetch Error: {e}")
         df_site, df_fin = pd.DataFrame(), pd.DataFrame()
 
-    # Metrics Calculation
     t_site = 0
     if not df_site.empty and 'wcc_status' in df_site.columns:
         t_site = df_site[df_site['wcc_status'] == 'Processed']['payable_amt'].sum()
@@ -221,16 +215,13 @@ elif st.session_state.current_page == "Jajupro":
         if up_site:
             try:
                 b_df = pd.read_excel(up_site) if up_site.name.endswith('xlsx') else pd.read_csv(up_site)
-                # Ensure we upload using the exact column names expected by DB
                 upload_records = []
                 for _, row in b_df.iterrows():
                     rec = row.to_dict()
-                    # Convert keys to match DB format just in case
                     new_rec = {k.lower().replace(' ', '_'): v for k, v in rec.items()}
                     po_v = float(new_rec.get('po_amt', 0))
-                    new_rec['Payable_Amt'] = po_v * 0.40 # DB matched
+                    new_rec['payable_amt'] = po_v * 0.40 
                     upload_records.append(new_rec)
-                
                 supabase.table("nr_calculation").upsert(upload_records, on_conflict="project_id").execute()
                 st.success("✅ Success!"); time.sleep(1); st.rerun()
             except Exception as e: st.error(f"Error: {e}")
@@ -274,7 +265,6 @@ elif st.session_state.current_page == "Jajupro":
         if cf1.button("➕ Add Payment", type="primary"): finance_form_dialog()
         if not df_fin.empty:
             cf3.download_button("📥 Download", data=df_fin.to_csv(index=False), file_name="Finance.csv")
-
             search_fin = st.text_input("🔍 Search Finance...")
             if search_fin:
                 df_fin = df_fin[df_fin.astype(str).apply(lambda x: x.str.contains(search_fin, case=False)).any(axis=1)]
@@ -297,7 +287,6 @@ elif st.session_state.current_page != "Dashboard":
     st.markdown("</div>", unsafe_allow_html=True)
     
     cur_p = st.session_state.current_page
-    
     if cur_p == "STN Manager":
         st.title("🚨 STN Manager")
     elif cur_p == "Audit":
@@ -308,74 +297,37 @@ elif st.session_state.current_page != "Dashboard":
         st.title("📢 RFAI Billing")
     elif cur_p == "PDFFormat":
         st.title("📜 Vintage PDF")
-        
-    # --- 🛒 NEW PURCHASE ORDER SECTION ---
+    
+    # --- 🛒 PURCHASE ORDER PAGE ---
     elif cur_p == "Purchase Order":
         st.markdown("<h1 style='color: #1E3A8A; text-align: center;'>🛒 Purchase Order System</h1>", unsafe_allow_html=True)
-        
         tab_po, tab_v, tab_i, tab_t = st.tabs(["📝 Create PO", "🏢 Vendor Reg", "📦 Item Master", "👥 Team Reg"])
 
-        # PDF Generation Function
         def generate_po_pdf(po_data):
-            from fpdf import FPDF
             pdf = FPDF()
             pdf.add_page()
-            
-            # Logo Handling
             try: pdf.image("logo (1).png", 10, 8, 40)
             except: pdf.set_font("Arial", 'B', 16); pdf.cell(40, 10, "VISIONTECH")
-            
-            pdf.set_font("Arial", 'B', 14)
-            pdf.cell(190, 10, "PURCHASE ORDER", 0, 1, 'C')
-            pdf.ln(10)
-            
-            # Company Details
-            pdf.set_font("Arial", '', 9)
-            pdf.cell(100, 5, "VISIONTECH INFRA SOLUTION PRIVATE LIMITED", 0, 0)
+            pdf.set_font("Arial", 'B', 14); pdf.cell(190, 10, "PURCHASE ORDER", 0, 1, 'C'); pdf.ln(10)
+            pdf.set_font("Arial", '', 9); pdf.cell(100, 5, "VISIONTECH INFRA SOLUTION PRIVATE LIMITED", 0, 0)
             pdf.cell(90, 5, f"PO NO: {po_data['po_number']}", 0, 1, 'R')
             pdf.cell(100, 5, "Karve Nagar, Pune, Maharashtra", 0, 0)
             pdf.cell(90, 5, f"Date: {po_data['po_date']}", 0, 1, 'R')
-            pdf.cell(100, 5, "GSTIN: 27AAICV3205F1ZI", 0, 1)
-            pdf.ln(10)
-            
-            # Vendor Details
-            pdf.set_font("Arial", 'B', 10)
-            pdf.cell(190, 7, f"To: {po_data['vendor_name']}", 1, 1)
-            pdf.set_font("Arial", '', 9)
-            pdf.multi_cell(190, 5, f"Address: {po_data.get('vendor_address', 'N/A')}\nGST: {po_data['vendor_gst']}", 1)
-            pdf.ln(5)
-            
-            # Table Header
-            pdf.set_font("Arial", 'B', 9)
-            pdf.cell(10, 8, "Sr", 1); pdf.cell(80, 8, "Description", 1); pdf.cell(20, 8, "Qty", 1)
-            pdf.cell(25, 8, "Price", 1); pdf.cell(25, 8, "GST", 1); pdf.cell(30, 8, "Total", 1, 1)
-            
-            # Table Body
+            pdf.cell(100, 5, "GSTIN: 27AAICV3205F1ZI", 0, 1); pdf.ln(10)
+            pdf.set_font("Arial", 'B', 10); pdf.cell(190, 7, f"To: {po_data['vendor_name']}", 1, 1)
+            pdf.set_font("Arial", '', 9); pdf.multi_cell(190, 5, f"Address: {po_data.get('vendor_address', 'N/A')}\nGST: {po_data['vendor_gst']}", 1); pdf.ln(5)
+            pdf.set_font("Arial", 'B', 9); pdf.cell(10, 8, "Sr", 1); pdf.cell(80, 8, "Description", 1); pdf.cell(20, 8, "Qty", 1); pdf.cell(25, 8, "Price", 1); pdf.cell(25, 8, "GST", 1); pdf.cell(30, 8, "Total", 1, 1)
             pdf.set_font("Arial", '', 8)
             for i, item in enumerate(po_data['items']):
-                pdf.cell(10, 7, str(i+1), 1)
-                pdf.cell(80, 7, str(item['Description']), 1)
-                pdf.cell(20, 7, str(item['Qty']), 1)
-                pdf.cell(25, 7, f"{item['Price']:.2f}", 1)
+                pdf.cell(10, 7, str(i+1), 1); pdf.cell(80, 7, str(item['Description']), 1); pdf.cell(20, 7, str(item['Qty']), 1); pdf.cell(25, 7, f"{item['Price']:.2f}", 1)
                 gst_total = item['CGST'] + item['SGST']
-                pdf.cell(25, 7, f"{gst_total:.2f}", 1)
-                pdf.cell(30, 7, f"{item['Total']:.2f}", 1, 1)
-            
-            # Total
-            pdf.set_font("Arial", 'B', 10)
-            pdf.cell(160, 8, "Grand Total", 1, 0, 'R')
-            pdf.cell(30, 8, f"{po_data['grand_total']:.2f}", 1, 1)
-            
-            # Signature
-            pdf.ln(10)
+                pdf.cell(25, 7, f"{gst_total:.2f}", 1); pdf.cell(30, 7, f"{item['Total']:.2f}", 1, 1)
+            pdf.set_font("Arial", 'B', 10); pdf.cell(160, 8, "Grand Total", 1, 0, 'R'); pdf.cell(30, 8, f"{po_data['grand_total']:.2f}", 1, 1); pdf.ln(10)
             try: pdf.image("Signature in PNG.png", 150, pdf.get_y(), 30)
             except: pass
-            pdf.ln(15)
-            pdf.cell(190, 5, "Authorized Signatory", 0, 1, 'R')
-            
-            return pdf.output(dest='S').encode('latin-1')
+            pdf.ln(15); pdf.cell(190, 5, "Authorized Signatory", 0, 1, 'R')
+            return bytes(pdf.output())
 
-        # --- 1. CREATE PO TAB ---
         with tab_po:
             def get_next_po():
                 try:
@@ -404,69 +356,43 @@ elif st.session_state.current_page != "Dashboard":
 
             st.divider()
             if 'temp_items' not in st.session_state: st.session_state.temp_items = []
-
-            st.subheader("Add Materials")
             i_col1, i_col2, i_col3, i_col4 = st.columns([2,1,1,1])
             sel_item = i_col1.selectbox("Select Item", [""] + [i['description'] for i in items_master], key="i_sel")
             i_data = next((i for i in items_master if i['description'] == sel_item), None)
             qty = i_col2.number_input("Qty", min_value=1, key="i_qty")
             price = i_col3.number_input("Price", min_value=0.0, step=1.0, key="i_price")
-            
             if i_col4.button("➕ Add Item", use_container_width=True):
                 if i_data and sel_item != "":
                     basic = qty * price
                     c_amt = (basic * float(i_data['cgst_pct'])) / 100
                     s_amt = (basic * float(i_data['sgst_pct'])) / 100
-                    st.session_state.temp_items.append({
-                        "Description": sel_item, "Qty": qty, "Price": price,
-                        "Basic": basic, "CGST": c_amt, "SGST": s_amt, "Total": basic + c_amt + s_amt
-                    })
+                    st.session_state.temp_items.append({"Description": sel_item, "Qty": qty, "Price": price, "Basic": basic, "CGST": c_amt, "SGST": s_amt, "Total": basic + c_amt + s_amt})
                     st.rerun()
 
             if st.session_state.temp_items:
                 st.table(pd.DataFrame(st.session_state.temp_items))
                 gt = sum(item['Total'] for item in st.session_state.temp_items)
                 st.metric("Grand Total", f"₹ {gt:,.2f}")
-                
                 b1, b2 = st.columns(2)
                 if b1.button("🚀 Save & Finalize PO", type="primary", use_container_width=True):
-                    payload = {
-                        "po_number": po_no, "po_date": str(po_date), "vendor_name": v_choice,
-                        "vendor_gst": v_gst, "handover_team": h_team, "vendor_address": v_addr,
-                        "items": st.session_state.temp_items, "grand_total": float(gt)
-                    }
+                    payload = {"po_number": po_no, "po_date": str(po_date), "vendor_name": v_choice, "vendor_gst": v_gst, "handover_team": h_team, "vendor_address": v_addr, "items": st.session_state.temp_items, "grand_total": float(gt)}
                     supabase.table("purchase_orders").insert(payload).execute()
-                    st.success("✅ PO Saved!")
-                    st.session_state.temp_items = []
-                    time.sleep(1); st.rerun()
-                
-                if b2.button("🗑️ Clear All Items", use_container_width=True):
-                    st.session_state.temp_items = []
-                    st.rerun()
+                    st.success("✅ PO Saved!"); st.session_state.temp_items = []; time.sleep(1); st.rerun()
+                if b2.button("🗑️ Clear All Items", use_container_width=True): st.session_state.temp_items = []; st.rerun()
 
-            # --- PO HISTORY LIST ---
-            st.divider()
-            st.subheader("📜 Recent Purchase Orders")
+            st.divider(); st.subheader("📜 Recent Purchase Orders")
             po_res = supabase.table("purchase_orders").select("*").order("id", desc=True).limit(10).execute()
             if po_res.data:
                 for row in po_res.data:
                     r_col = st.columns([1.5, 1.2, 1, 1, 0.6, 0.6])
-                    r_col[0].write(row['vendor_name'])
-                    r_col[1].write(row['po_number'])
-                    r_col[2].write(row['po_date'])
-                    r_col[3].write(f"₹{row['grand_total']:,.0f}")
-                    
-                    # --- FIXED PDF DOWNLOAD ---
+                    r_col[0].write(row['vendor_name']); r_col[1].write(row['po_number']); r_col[2].write(row['po_date']); r_col[3].write(f"₹{row['grand_total']:,.0f}")
                     pdf_bytes = generate_po_pdf(row)
                     r_col[4].download_button("📥", data=pdf_bytes, file_name=f"{row['po_number']}.pdf", mime="application/pdf", key=f"dl_{row['id']}")
-                    
-                    # --- FIXED WHATSAPP DESKTOP APP LINK ---
                     wa_msg = f"Hello, please find Purchase Order: {row['po_number']} for Amount ₹{row['grand_total']:,.2f}"
                     wa_url = f"whatsapp://send?text={urllib.parse.quote(wa_msg)}"
                     r_col[5].markdown(f"<a href='{wa_url}'>📲</a>", unsafe_allow_html=True)
                     st.markdown("<hr style='margin:2px; opacity:0.1'>", unsafe_allow_html=True)
 
-        # --- OTHER TABS (Vendor, Item, Team) ---
         with tab_v:
             with st.form("vendor_reg", clear_on_submit=True):
                 vn = st.text_input("Company Name"); va = st.text_area("Address"); vg = st.text_input("GST Number")
@@ -475,8 +401,7 @@ elif st.session_state.current_page != "Dashboard":
                     st.success("✅ Vendor Registered!"); time.sleep(1); st.rerun()
         with tab_i:
             with st.form("item_reg", clear_on_submit=True):
-                idsc = st.text_input("Item Name"); ic1, ic2 = st.columns(2)
-                icgst = ic1.number_input("CGST %", value=9.0); isgst = ic2.number_input("SGST %", value=9.0)
+                idsc = st.text_input("Item Name"); ic1, ic2 = st.columns(2); icgst = ic1.number_input("CGST %", value=9.0); isgst = ic2.number_input("SGST %", value=9.0)
                 if st.form_submit_button("Save Item", use_container_width=True):
                     supabase.table("items_master").insert({"description": idsc, "cgst_pct": icgst, "sgst_pct": isgst}).execute()
                     st.success("✅ Item Added!"); time.sleep(1); st.rerun()
@@ -486,7 +411,6 @@ elif st.session_state.current_page != "Dashboard":
                 if st.form_submit_button("Add Member", use_container_width=True):
                     supabase.table("allowed_users").insert({"name": tn, "phone_number": tp}).execute()
                     st.success("✅ Member Added!"); time.sleep(1); st.rerun()
-
     else:
         st.write(f"Section {cur_p} is active.")
 # =====================================================================
