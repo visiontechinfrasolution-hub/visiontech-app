@@ -309,13 +309,13 @@ elif st.session_state.current_page != "Dashboard":
     elif cur_p == "PDFFormat":
         st.title("📜 Vintage PDF")
         
-    # --- PURCHASE ORDER SECTION (EDITABLE RATE) ---
+    # --- 🛒 NEW PURCHASE ORDER SECTION ---
     elif cur_p == "Purchase Order":
-        st.markdown("<h1 style='color: #1E3A8A;'>🛒 Purchase Order System</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 style='color: #1E3A8A; text-align: center;'>🛒 Purchase Order System</h1>", unsafe_allow_html=True)
         
         tab_po, tab_v, tab_i, tab_t = st.tabs(["📝 Create PO", "🏢 Vendor Reg", "📦 Item Master", "👥 Team Reg"])
 
-        # 1. CREATE PO TAB
+        # --- 1. CREATE PO TAB ---
         with tab_po:
             def get_next_po():
                 try:
@@ -327,6 +327,7 @@ elif st.session_state.current_page != "Dashboard":
                     return "VISPL/26-27/001"
                 except: return "VISPL/26-27/001"
 
+            # Fetch Masters
             vendors = supabase.table("vendors").select("*").execute().data
             items_master = supabase.table("items_master").select("*").execute().data
             team_users = supabase.table("allowed_users").select("name").execute().data
@@ -334,89 +335,122 @@ elif st.session_state.current_page != "Dashboard":
             c1, c2 = st.columns(2)
             with c1:
                 po_no = st.text_input("PO Number", value=get_next_po())
-                v_choice = st.selectbox("Select Vendor", ["Select"] + [v['name'] for v in vendors])
+                v_choice = st.selectbox("Select Vendor", ["Select"] + [v['name'] for v in vendors], key="v_sel")
                 v_data = next((v for v in vendors if v['name'] == v_choice), None)
                 v_gst = st.text_input("Vendor GST", value=v_data['gst_number'] if v_data else "", disabled=True)
             with c2:
                 po_date = st.date_input("PO Date", datetime.now())
-                h_team = st.selectbox("Handover Team", [t['name'] for t in team_users])
+                h_team = st.selectbox("Handover Team", ["Select"] + [t['name'] for t in team_users], key="t_sel")
                 v_addr = st.text_area("Vendor Address", value=v_data['address'] if v_data else "", disabled=True, height=68)
 
             st.divider()
+            if 'temp_items' not in st.session_state: st.session_state.temp_items = []
+
             st.subheader("Add Materials")
             i_col1, i_col2, i_col3, i_col4 = st.columns([2,1,1,1])
-            
-            sel_item = i_col1.selectbox("Select Item", [""] + [i['description'] for i in items_master])
+            sel_item = i_col1.selectbox("Select Item", [""] + [i['description'] for i in items_master], key="i_sel")
             i_data = next((i for i in items_master if i['description'] == sel_item), None)
-            
-            qty = i_col2.number_input("Qty", min_value=1)
-            # RATE AB EDITABLE HAI (Default 0.0 rahega ya aap manually change kar sakte hain)
-            price = i_col3.number_input("Price", min_value=0.0, step=1.0)
-            
-            if 'temp_items' not in st.session_state: st.session_state.temp_items = []
+            qty = i_col2.number_input("Qty", min_value=1, key="i_qty")
+            price = i_col3.number_input("Price", min_value=0.0, step=1.0, key="i_price")
             
             if i_col4.button("➕ Add Item", use_container_width=True):
-                if i_data:
+                if i_data and sel_item != "":
                     basic = qty * price
-                    # GST Item master se hi uthayega, calculation automatic hogi
                     c_amt = (basic * float(i_data['cgst_pct'])) / 100
                     s_amt = (basic * float(i_data['sgst_pct'])) / 100
                     st.session_state.temp_items.append({
                         "Description": sel_item, "Qty": qty, "Price": price,
                         "Basic": basic, "CGST": c_amt, "SGST": s_amt, "Total": basic + c_amt + s_amt
                     })
+                    st.rerun()
 
             if st.session_state.temp_items:
-                df_temp = pd.DataFrame(st.session_state.temp_items)
-                # Table mein sirf wahi columns dikhayenge jo aapne pehle maange the
-                st.table(df_temp[['Description', 'Qty', 'Price', 'Basic', 'CGST', 'SGST', 'Total']])
-                gt = df_temp['Total'].sum()
+                st.table(pd.DataFrame(st.session_state.temp_items))
+                gt = sum(item['Total'] for item in st.session_state.temp_items)
                 st.metric("Grand Total", f"₹ {gt:,.2f}")
                 
-                if st.button("🚀 Save & Finalize PO", type="primary"):
+                b1, b2 = st.columns(2)
+                if b1.button("🚀 Save & Finalize PO", type="primary", use_container_width=True):
                     payload = {
                         "po_number": po_no, "po_date": str(po_date), "vendor_name": v_choice,
                         "vendor_gst": v_gst, "handover_team": h_team, 
                         "items": st.session_state.temp_items, "grand_total": float(gt)
                     }
                     supabase.table("purchase_orders").insert(payload).execute()
-                    st.success("✅ PO Saved!")
+                    st.success("✅ PO Saved to Supabase!")
                     st.session_state.temp_items = []
                     time.sleep(1); st.rerun()
+                
+                if b2.button("🗑️ Clear All Items", use_container_width=True):
+                    st.session_state.temp_items = []
+                    st.rerun()
 
-        # 2. VENDOR REGISTRATION TAB (No Change)
+            # --- PO HISTORY LIST ---
+            st.divider()
+            st.subheader("📜 Recent Purchase Orders")
+            po_res = supabase.table("purchase_orders").select("*").order("id", desc=True).limit(10).execute()
+            if po_res.data:
+                h_col = st.columns([1.5, 1.2, 1, 1, 0.6, 0.6])
+                h_col[0].markdown("**Vendor**")
+                h_col[1].markdown("**PO No**")
+                h_col[2].markdown("**Date**")
+                h_col[3].markdown("**Amount**")
+                h_col[4].markdown("**PDF**")
+                h_col[5].markdown("**WA**")
+
+                for row in po_res.data:
+                    r_col = st.columns([1.5, 1.2, 1, 1, 0.6, 0.6])
+                    r_col[0].write(f"<span class='row-text'>{row['vendor_name']}</span>", unsafe_allow_html=True)
+                    r_col[1].write(f"<span class='row-text'>{row['po_number']}</span>", unsafe_allow_html=True)
+                    r_col[2].write(f"<span class='row-text'>{row['po_date']}</span>", unsafe_allow_html=True)
+                    r_col[3].write(f"<span class='row-text'>₹{row['grand_total']:,.0f}</span>", unsafe_allow_html=True)
+                    
+                    if r_col[4].button("📥", key=f"pdf_{row['id']}"):
+                        st.info(f"PDF logic for {row['po_number']}")
+                    
+                    wa_msg = f"Hello, please find Purchase Order: {row['po_number']} for Amount ₹{row['grand_total']:,.2f} from Visiontech Infra Solution."
+                    wa_url = f"https://wa.me/?text={urllib.parse.quote(wa_msg)}"
+                    r_col[5].markdown(f"<a href='{wa_url}' target='_blank'>📲</a>", unsafe_allow_html=True)
+                    st.markdown("<hr style='margin:2px; opacity:0.1'>", unsafe_allow_html=True)
+
+        # --- 2. VENDOR REGISTRATION ---
         with tab_v:
-            with st.form("vendor_reg"):
+            with st.form("vendor_reg", clear_on_submit=True):
                 vn = st.text_input("Company Name")
                 va = st.text_area("Address")
                 vg = st.text_input("GST Number")
-                if st.form_submit_button("Register Vendor"):
-                    supabase.table("vendors").insert({"name": vn, "address": va, "gst_number": vg}).execute()
-                    st.success("Vendor Registered!")
+                if st.form_submit_button("Register Vendor", use_container_width=True):
+                    if vn and vg:
+                        supabase.table("vendors").insert({"name": vn, "address": va, "gst_number": vg}).execute()
+                        st.success("✅ Vendor Registered!")
+                        time.sleep(1); st.rerun()
+                    else: st.warning("Please fill required fields")
 
-        # 3. ITEM MASTER TAB (Rate field removed)
+        # --- 3. ITEM MASTER ---
         with tab_i:
-            st.info("Item Master mein sirf Description aur Tax set karein.")
-            with st.form("item_reg"):
-                idsc = st.text_input("Item Name")
+            with st.form("item_reg", clear_on_submit=True):
+                idsc = st.text_input("Item Name / Description")
                 ic1, ic2 = st.columns(2)
                 icgst = ic1.number_input("CGST %", value=9.0)
                 isgst = ic2.number_input("SGST %", value=9.0)
-                if st.form_submit_button("Save Item"):
-                    supabase.table("items_master").insert({"description": idsc, "cgst_pct": icgst, "sgst_pct": isgst}).execute()
-                    st.success("Item Added with Tax configuration!")
+                if st.form_submit_button("Save Item to Master", use_container_width=True):
+                    if idsc:
+                        supabase.table("items_master").insert({"description": idsc, "cgst_pct": icgst, "sgst_pct": isgst}).execute()
+                        st.success("✅ Item Added!")
+                        time.sleep(1); st.rerun()
 
-        # 4. TEAM REGISTRATION TAB (No Change)
+        # --- 4. TEAM REGISTRATION ---
         with tab_t:
-            with st.form("team_reg"):
+            with st.form("team_reg", clear_on_submit=True):
                 tn = st.text_input("Member Name")
                 tp = st.text_input("Phone Number")
-                if st.form_submit_button("Add Member"):
+                if st.form_submit_button("Register Team Member", use_container_width=True):
                     exists = supabase.table("allowed_users").select("*").eq("phone_number", tp).execute()
-                    if exists.data: st.error("Phone number already exists!")
+                    if exists.data: st.error("❌ Phone number already exists!")
                     else:
                         supabase.table("allowed_users").insert({"name": tn, "phone_number": tp}).execute()
-                        st.success("Member Added!")
+                        st.success("✅ Member Added!")
+                        time.sleep(1); st.rerun()
 
     else:
         st.write(f"Section {cur_p} is active.")
