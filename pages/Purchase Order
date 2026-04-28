@@ -1,0 +1,152 @@
+import streamlit as st
+import pandas as pd
+from supabase import create_client, Client
+import datetime
+from fpdf import FPDF
+from num2words import num2words
+import base64
+
+# --- 1. CONFIGURATION ---
+st.set_page_config(page_title="Purchase Order", layout="wide")
+
+# Supabase Credentials
+URL = "https://sckyflvukpmdqmdzjzhs.supabase.co"
+KEY = "sb_publishable_rAiegSkKYvM0Z9n7sUAI1w_WTgm1S4I"
+supabase: Client = create_client(URL, KEY)
+
+# Company Constant Details
+COMPANY_DETAILS = {
+    "name": "VISIONTECH INFRA SOLUTION PRIVATE LIMITED",
+    "address": "Lane Number 2, Karve Nagar, Pune, Maharashtra, 411052",
+    "gst": "27AAICV3205F1ZI",
+    "pan": "AAICV3205F",
+    "contact": "9552273181",
+    "email": "vispltower@gmail.com"
+}
+
+# --- 2. HELPER FUNCTIONS ---
+def get_next_po_number():
+    try:
+        res = supabase.table("purchase_orders").select("po_number").order("id", desc=True).limit(1).execute()
+        if res.data:
+            last_po = res.data[0]['po_number']
+            last_num = int(last_po.split('/')[-1])
+            return f"VISPL/26-27/{str(last_num + 1).zfill(3)}"
+        return "VISPL/26-27/001"
+    except:
+        return "VISPL/26-27/001"
+
+# --- 3. SIDEBAR NAVIGATION ---
+st.sidebar.image("logo (1).png", width=150)
+menu = st.sidebar.selectbox("Menu", ["Create PO", "Vendor Registration", "Item Master", "Team Registration"])
+
+# --- 4. VENDOR REGISTRATION ---
+if menu == "Vendor Registration":
+    st.header("Vendor Registration")
+    with st.form("v_form", clear_on_submit=True):
+        name = st.text_input("Vendor Name")
+        addr = st.text_area("Address")
+        gst = st.text_input("GST Number")
+        if st.form_submit_button("Register Vendor"):
+            supabase.table("vendors").insert({"name": name, "address": addr, "gst_number": gst}).execute()
+            st.success(f"Vendor {name} saved!")
+
+# --- 5. ITEM MASTER ---
+elif menu == "Item Master":
+    st.header("Item Master Registration")
+    with st.form("i_form", clear_on_submit=True):
+        desc = st.text_input("Item Description")
+        rate = st.number_input("Default Rate", min_value=0.0)
+        c1, c2 = st.columns(2)
+        with c1: cgst_p = st.number_input("CGST %", value=9.0)
+        with c2: sgst_p = st.number_input("SGST %", value=9.0)
+        if st.form_submit_button("Save Item"):
+            supabase.table("items_master").insert({"description": desc, "rate": rate, "cgst_pct": cgst_p, "sgst_pct": sgst_p}).execute()
+            st.success("Item saved with Tax settings!")
+
+# --- 6. TEAM REGISTRATION ---
+elif menu == "Team Registration":
+    st.header("Team Management (allowed_users)")
+    team_data = supabase.table("allowed_users").select("*").execute().data
+    df_team = pd.DataFrame(team_data)
+    if not df_team.empty:
+        st.dataframe(df_team[['name', 'phone_number']], use_container_width=True)
+
+    with st.form("t_form", clear_on_submit=True):
+        t_name = st.text_input("Full Name")
+        t_phone = st.text_input("Phone Number")
+        if st.form_submit_button("Add Member"):
+            if not df_team.empty and t_phone in df_team['phone_number'].values:
+                st.error("Duplicate Entry: Phone number already exists!")
+            else:
+                supabase.table("allowed_users").insert({"name": t_name, "phone_number": t_phone}).execute()
+                st.success("Member added!")
+                st.rerun()
+
+# --- 7. CREATE PURCHASE ORDER ---
+elif menu == "Create PO":
+    st.title("Purchase Order Generator")
+
+    # Data Fetching
+    vendors = supabase.table("vendors").select("*").execute().data
+    items_list = supabase.table("items_master").select("*").execute().data
+    team_list = supabase.table("allowed_users").select("name").execute().data
+
+    col1, col2 = st.columns(2)
+    with col1:
+        po_no = st.text_input("PO Number", value=get_next_po_number())
+        v_choice = st.selectbox("Select Vendor", ["Select"] + [v['name'] for v in vendors])
+        selected_v = next((v for v in vendors if v['name'] == v_choice), None)
+        v_gst = st.text_input("Vendor GST", value=selected_v['gst_number'] if selected_v else "", disabled=True)
+    
+    with col2:
+        po_date = st.date_input("PO Date", datetime.date.today())
+        h_team = st.selectbox("Handover Team", [t['name'] for t in team_list])
+        v_addr = st.text_area("Vendor Address", value=selected_v['address'] if selected_v else "", disabled=True)
+
+    st.divider()
+    
+    # Material Selection
+    st.subheader("Add Material")
+    selected_item_name = st.selectbox("Select Item", [""] + [i['description'] for i in items_list])
+    item_details = next((i for i in items_list if i['description'] == selected_item_name), None)
+    
+    cq, cr, cb = st.columns([1,1,1])
+    with cq: qty = st.number_input("Qty", min_value=1)
+    with cr: price = st.number_input("Price", value=float(item_details['rate']) if item_details else 0.0)
+    
+    if 'po_items' not in st.session_state: st.session_state.po_items = []
+
+    if cb.button("Add Item", use_container_width=True):
+        if item_details:
+            basic = qty * price
+            c_amt = (basic * float(item_details['cgst_pct'])) / 100
+            s_amt = (basic * float(item_details['sgst_pct'])) / 100
+            st.session_state.po_items.append({
+                "Description": selected_item_name, "Qty": qty, "Price": price,
+                "Basic": basic, "CGST": c_amt, "SGST": s_amt, "Total": basic + c_amt + s_amt
+            })
+
+    if st.session_state.po_items:
+        df_po = pd.DataFrame(st.session_state.po_items)
+        st.table(df_po)
+        
+        g_total = df_po['Total'].sum()
+        words = num2words(g_total, lang='en_IN').title() + " Rupees Only"
+        st.metric("Grand Total", f"₹ {g_total:,.2f}")
+
+        if st.button("Save & Share PO"):
+            po_data = {
+                "po_number": po_no, "vendor_name": v_choice, "vendor_gst": v_gst,
+                "handover_team": h_team, "items": st.session_state.po_items,
+                "grand_total": float(g_total), "amount_in_words": words
+            }
+            supabase.table("purchase_orders").insert(po_data).execute()
+            st.success("PO Saved in Supabase!")
+            
+            # Reset Session for next PO
+            # st.session_state.po_items = []
+            
+            # WhatsApp Option
+            wa_url = f"https://wa.me/?text=Hello {v_choice}, Please find PO {po_no} from Visiontech."
+            st.link_button("Share on WhatsApp", wa_url)
