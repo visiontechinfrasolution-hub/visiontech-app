@@ -309,7 +309,7 @@ elif st.session_state.current_page != "Dashboard":
     elif cur_p == "PDFFormat":
         st.title("📜 Vintage PDF")
         
-    # --- NAYA PURCHASE ORDER SECTION ---
+    # --- PURCHASE ORDER SECTION (EDITABLE RATE) ---
     elif cur_p == "Purchase Order":
         st.markdown("<h1 style='color: #1E3A8A;'>🛒 Purchase Order System</h1>", unsafe_allow_html=True)
         
@@ -317,7 +317,6 @@ elif st.session_state.current_page != "Dashboard":
 
         # 1. CREATE PO TAB
         with tab_po:
-            # Helper: Get Next PO Number
             def get_next_po():
                 try:
                     res = supabase.table("purchase_orders").select("po_number").order("id", desc=True).limit(1).execute()
@@ -328,7 +327,6 @@ elif st.session_state.current_page != "Dashboard":
                     return "VISPL/26-27/001"
                 except: return "VISPL/26-27/001"
 
-            # Fetch Data for Dropdowns
             vendors = supabase.table("vendors").select("*").execute().data
             items_master = supabase.table("items_master").select("*").execute().data
             team_users = supabase.table("allowed_users").select("name").execute().data
@@ -345,20 +343,22 @@ elif st.session_state.current_page != "Dashboard":
                 v_addr = st.text_area("Vendor Address", value=v_data['address'] if v_data else "", disabled=True, height=68)
 
             st.divider()
-            # Material Input
             st.subheader("Add Materials")
             i_col1, i_col2, i_col3, i_col4 = st.columns([2,1,1,1])
+            
             sel_item = i_col1.selectbox("Select Item", [""] + [i['description'] for i in items_master])
             i_data = next((i for i in items_master if i['description'] == sel_item), None)
             
             qty = i_col2.number_input("Qty", min_value=1)
-            price = i_col3.number_input("Price", value=float(i_data['rate']) if i_data else 0.0)
+            # RATE AB EDITABLE HAI (Default 0.0 rahega ya aap manually change kar sakte hain)
+            price = i_col3.number_input("Price", min_value=0.0, step=1.0)
             
             if 'temp_items' not in st.session_state: st.session_state.temp_items = []
             
             if i_col4.button("➕ Add Item", use_container_width=True):
                 if i_data:
                     basic = qty * price
+                    # GST Item master se hi uthayega, calculation automatic hogi
                     c_amt = (basic * float(i_data['cgst_pct'])) / 100
                     s_amt = (basic * float(i_data['sgst_pct'])) / 100
                     st.session_state.temp_items.append({
@@ -368,7 +368,8 @@ elif st.session_state.current_page != "Dashboard":
 
             if st.session_state.temp_items:
                 df_temp = pd.DataFrame(st.session_state.temp_items)
-                st.table(df_temp)
+                # Table mein sirf wahi columns dikhayenge jo aapne pehle maange the
+                st.table(df_temp[['Description', 'Qty', 'Price', 'Basic', 'CGST', 'SGST', 'Total']])
                 gt = df_temp['Total'].sum()
                 st.metric("Grand Total", f"₹ {gt:,.2f}")
                 
@@ -379,11 +380,11 @@ elif st.session_state.current_page != "Dashboard":
                         "items": st.session_state.temp_items, "grand_total": float(gt)
                     }
                     supabase.table("purchase_orders").insert(payload).execute()
-                    st.success("✅ PO Saved Successfully!")
+                    st.success("✅ PO Saved!")
                     st.session_state.temp_items = []
                     time.sleep(1); st.rerun()
 
-        # 2. VENDOR REGISTRATION TAB
+        # 2. VENDOR REGISTRATION TAB (No Change)
         with tab_v:
             with st.form("vendor_reg"):
                 vn = st.text_input("Company Name")
@@ -393,26 +394,24 @@ elif st.session_state.current_page != "Dashboard":
                     supabase.table("vendors").insert({"name": vn, "address": va, "gst_number": vg}).execute()
                     st.success("Vendor Registered!")
 
-        # 3. ITEM MASTER TAB
+        # 3. ITEM MASTER TAB (Rate field removed)
         with tab_i:
+            st.info("Item Master mein sirf Description aur Tax set karein.")
             with st.form("item_reg"):
                 idsc = st.text_input("Item Name")
-                irt = st.number_input("Standard Rate", min_value=0.0)
                 ic1, ic2 = st.columns(2)
                 icgst = ic1.number_input("CGST %", value=9.0)
                 isgst = ic2.number_input("SGST %", value=9.0)
                 if st.form_submit_button("Save Item"):
-                    supabase.table("items_master").insert({"description": idsc, "rate": irt, "cgst_pct": icgst, "sgst_pct": isgst}).execute()
-                    st.success("Item Added to Master!")
+                    supabase.table("items_master").insert({"description": idsc, "cgst_pct": icgst, "sgst_pct": isgst}).execute()
+                    st.success("Item Added with Tax configuration!")
 
-        # 4. TEAM REGISTRATION TAB
+        # 4. TEAM REGISTRATION TAB (No Change)
         with tab_t:
-            st.info("Managing 'allowed_users' table")
             with st.form("team_reg"):
                 tn = st.text_input("Member Name")
                 tp = st.text_input("Phone Number")
                 if st.form_submit_button("Add Member"):
-                    # Check duplicate
                     exists = supabase.table("allowed_users").select("*").eq("phone_number", tp).execute()
                     if exists.data: st.error("Phone number already exists!")
                     else:
