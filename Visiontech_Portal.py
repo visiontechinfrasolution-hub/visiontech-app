@@ -14,7 +14,8 @@ import os
 import random
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps
-from fpdf import FPDF # Ensure fpdf2 is in requirements.txt
+from fpdf import FPDF 
+from num2words import num2words
 
 # --- 1. CONNECTION ---
 URL = "https://sckyflvukpmdqmdzjzhs.supabase.co"
@@ -140,7 +141,7 @@ if st.session_state.current_page == "Dashboard":
         if st.button("📁\nData Entry"): st.switch_page("pages/data_entry.py")
         if st.button("📢\nRFAI Billing"): navigate_to("RFAI")
         if st.button("📜\nVintage PDF"): navigate_to("PDFFormat")
-        if st.button("🛒\nCreate PO"): navigate_to("Purchase Order") # NEW BUTTON
+        if st.button("🛒\nCreate PO"): navigate_to("Purchase Order")
 
 # --- 4. JAJUPRO MANAGEMENT ---
 elif st.session_state.current_page == "Jajupro":
@@ -297,7 +298,7 @@ elif st.session_state.current_page != "Dashboard":
         st.title("📢 RFAI Billing")
     elif cur_p == "PDFFormat":
         st.title("📜 Vintage PDF")
-    
+
     # --- 🛒 PURCHASE ORDER PAGE ---
     elif cur_p == "Purchase Order":
         st.markdown("<h1 style='color: #1E3A8A; text-align: center;'>🛒 Purchase Order System</h1>", unsafe_allow_html=True)
@@ -306,30 +307,94 @@ elif st.session_state.current_page != "Dashboard":
         def generate_po_pdf(po_data):
             pdf = FPDF()
             pdf.add_page()
-            try: pdf.image("logo (1).png", 10, 8, 40)
-            except: pdf.set_font("Arial", 'B', 16); pdf.cell(40, 10, "VISIONTECH")
-            pdf.set_font("Arial", 'B', 14); pdf.cell(190, 10, "PURCHASE ORDER", 0, 1, 'C'); pdf.ln(10)
-            pdf.set_font("Arial", '', 9); pdf.cell(100, 5, "VISIONTECH INFRA SOLUTION PRIVATE LIMITED", 0, 0)
-            pdf.cell(90, 5, f"PO NO: {po_data['po_number']}", 0, 1, 'R')
-            pdf.cell(100, 5, "Karve Nagar, Pune, Maharashtra", 0, 0)
-            pdf.cell(90, 5, f"Date: {po_data['po_date']}", 0, 1, 'R')
-            pdf.cell(100, 5, "GSTIN: 27AAICV3205F1ZI", 0, 1); pdf.ln(10)
-            pdf.set_font("Arial", 'B', 10); pdf.cell(190, 7, f"To: {po_data['vendor_name']}", 1, 1)
-            pdf.set_font("Arial", '', 9); pdf.multi_cell(190, 5, f"Address: {po_data.get('vendor_address', 'N/A')}\nGST: {po_data['vendor_gst']}", 1); pdf.ln(5)
-            pdf.set_font("Arial", 'B', 9); pdf.cell(10, 8, "Sr", 1); pdf.cell(80, 8, "Description", 1); pdf.cell(20, 8, "Qty", 1); pdf.cell(25, 8, "Price", 1); pdf.cell(25, 8, "GST", 1); pdf.cell(30, 8, "Total", 1, 1)
-            pdf.set_font("Arial", '', 8)
+            
+            # Header
+            try: pdf.image("logo (1).png", 10, 10, 45)
+            except: pdf.set_font("Helvetica", 'B', 16); pdf.cell(50, 10, "ViS Visiontech")
+            
+            pdf.set_font("Helvetica", '', 8.5)
+            pdf.set_x(100)
+            pdf.cell(100, 5, "VISIONTECH INFRA SOLUTION PVT. LTD.", 0, 1, 'R')
+            pdf.set_x(100)
+            pdf.cell(100, 4, "Lane Number 2, Karve Nagar, Pune, Maharashtra, 411052", 0, 1, 'R')
+            pdf.set_x(100)
+            pdf.cell(100, 4, "GSTIN: 27AAICV3205F1ZI | PAN: AAICV3205F", 0, 1, 'R')
+            pdf.set_x(100)
+            pdf.cell(100, 4, "Contact: 9552273181 | Email: vispltower@gmail.com", 0, 1, 'R')
+            
+            pdf.ln(5)
+            pdf.set_fill_color(11, 61, 102) # Visiontech Blue
+            pdf.set_text_color(255, 255, 255)
+            pdf.set_font("Helvetica", 'B', 14)
+            pdf.cell(190, 8, "PURCHASE ORDER", 0, 1, 'C', True)
+            
+            pdf.set_text_color(0, 0, 0)
+            pdf.ln(5)
+            y_start = pdf.get_y()
+            
+            # Details Boxes
+            pdf.set_font("Helvetica", 'B', 8)
+            pdf.cell(95, 5, "VENDOR DETAILS", 1, 1, 'L')
+            pdf.set_font("Helvetica", '', 9)
+            v_info = f"{po_data['vendor_name']}\n{po_data.get('vendor_address', 'N/A')}\nGSTIN: {po_data['vendor_gst']}"
+            pdf.multi_cell(95, 5, v_info, 1, 'L')
+            
+            pdf.set_y(y_start); pdf.set_x(105)
+            pdf.set_font("Helvetica", 'B', 8); pdf.cell(95, 5, "ORDER DETAILS", 1, 1, 'L')
+            pdf.set_x(105); pdf.set_font("Helvetica", '', 9)
+            o_info = f"PO Number: {po_data['po_number']}\nDate: {po_data['po_date']}\nHandover Team: {po_data.get('handover_team', 'N/A')}"
+            pdf.multi_cell(95, 5, o_info, 1, 'L')
+            
+            pdf.ln(5)
+            
+            # Table Header
+            pdf.set_font("Helvetica", 'B', 8); pdf.set_fill_color(242, 242, 242)
+            pdf.cell(8, 8, "Sr.", 1, 0, 'C', True); pdf.cell(62, 8, "Description", 1, 0, 'C', True)
+            pdf.cell(15, 8, "Qty", 1, 0, 'C', True); pdf.cell(20, 8, "Price", 1, 0, 'C', True)
+            pdf.cell(22, 8, "Basic", 1, 0, 'C', True); pdf.cell(18, 8, "CGST", 1, 0, 'C', True)
+            pdf.cell(18, 8, "SGST", 1, 0, 'C', True); pdf.cell(27, 8, "Total", 1, 1, 'C', True)
+            
+            pdf.set_font("Helvetica", '', 8)
             for i, item in enumerate(po_data['items']):
-                pdf.cell(10, 7, str(i+1), 1); pdf.cell(80, 7, str(item['Description']), 1); pdf.cell(20, 7, str(item['Qty']), 1); pdf.cell(25, 7, f"{item['Price']:.2f}", 1)
-                gst_total = item['CGST'] + item['SGST']
-                pdf.cell(25, 7, f"{gst_total:.2f}", 1); pdf.cell(30, 7, f"{item['Total']:.2f}", 1, 1)
-            pdf.set_font("Arial", 'B', 10); pdf.cell(160, 8, "Grand Total", 1, 0, 'R'); pdf.cell(30, 8, f"{po_data['grand_total']:.2f}", 1, 1); pdf.ln(10)
-            try: pdf.image("Signature in PNG.png", 150, pdf.get_y(), 30)
+                pdf.cell(8, 7, str(i+1), 1, 0, 'C')
+                pdf.cell(62, 7, str(item['Description']), 1, 0, 'L')
+                pdf.cell(15, 7, str(item['Qty']), 1, 0, 'C')
+                pdf.cell(20, 7, f"{item['Price']:.2f}", 1, 0, 'R')
+                pdf.cell(22, 7, f"{item['Basic']:.2f}", 1, 0, 'R')
+                pdf.cell(18, 7, f"{item['CGST']:.2f}", 1, 0, 'R')
+                pdf.cell(18, 7, f"{item['SGST']:.2f}", 1, 0, 'R')
+                pdf.cell(27, 7, f"{item['Total']:.2f}", 1, 1, 'R')
+
+            # Totals
+            pdf.ln(2); pdf.set_x(120); pdf.set_font("Helvetica", '', 9)
+            t_basic = sum(item['Basic'] for item in po_data['items'])
+            t_cgst = sum(item['CGST'] for item in po_data['items'])
+            t_sgst = sum(item['SGST'] for item in po_data['items'])
+            
+            pdf.cell(40, 6, "Total Basic:", 0, 0, 'R'); pdf.cell(40, 6, f" {t_basic:,.2f}", 1, 1, 'R')
+            pdf.set_x(120); pdf.cell(40, 6, "Total CGST:", 0, 0, 'R'); pdf.cell(40, 6, f" {t_cgst:,.2f}", 1, 1, 'R')
+            pdf.set_x(120); pdf.cell(40, 6, "Total SGST:", 0, 0, 'R'); pdf.cell(40, 6, f" {t_sgst:,.2f}", 1, 1, 'R')
+            
+            pdf.set_x(120); pdf.set_font("Helvetica", 'B', 10); pdf.set_fill_color(11, 61, 102); pdf.set_text_color(255, 255, 255)
+            pdf.cell(40, 7, "Grand Total:", 0, 0, 'R', True); pdf.cell(40, 7, f" {po_data['grand_total']:,.2f}", 1, 1, 'R', True)
+            
+            pdf.set_text_color(0, 0, 0); pdf.ln(5); pdf.set_font("Helvetica", 'B', 8); pdf.cell(190, 5, "AMOUNT IN WORDS", 0, 1)
+            pdf.set_font("Helvetica", 'I', 9)
+            words = num2words(po_data['grand_total'], lang='en_IN').title() + " Rupees Only."
+            pdf.multi_cell(190, 5, words, 1)
+            
+            pdf.ln(5); pdf.set_font("Helvetica", 'B', 8); pdf.cell(190, 5, "Terms & Conditions:", 0, 1)
+            pdf.set_font("Helvetica", '', 8); pdf.cell(190, 4, "1. Subject to Pune Jurisdiction.", 0, 1); pdf.cell(190, 4, "2. Material must match technical specs.", 0, 1)
+            
+            pdf.ln(5); pdf.set_x(130); pdf.set_font("Helvetica", 'B', 9); pdf.cell(70, 5, "For Visiontech Infra Solution Pvt. Ltd.", 0, 1, 'C')
+            try: pdf.image("Signature in PNG.png", 145, pdf.get_y(), 35) 
             except: pass
-            pdf.ln(15); pdf.cell(190, 5, "Authorized Signatory", 0, 1, 'R')
+            pdf.ln(20); pdf.set_x(130); pdf.cell(70, 5, "Authorized Signatory", 0, 1, 'C')
+            
             return bytes(pdf.output())
 
         with tab_po:
-            def get_next_po():
+            def get_next_po_func():
                 try:
                     res = supabase.table("purchase_orders").select("po_number").order("id", desc=True).limit(1).execute()
                     if res.data:
@@ -345,7 +410,7 @@ elif st.session_state.current_page != "Dashboard":
 
             c1, c2 = st.columns(2)
             with c1:
-                po_no = st.text_input("PO Number", value=get_next_po())
+                po_no = st.text_input("PO Number", value=get_next_po_func())
                 v_choice = st.selectbox("Select Vendor", ["Select"] + [v['name'] for v in vendors], key="v_sel")
                 v_data = next((v for v in vendors if v['name'] == v_choice), None)
                 v_gst = st.text_input("Vendor GST", value=v_data['gst_number'] if v_data else "", disabled=True)
@@ -388,7 +453,7 @@ elif st.session_state.current_page != "Dashboard":
                     r_col[0].write(row['vendor_name']); r_col[1].write(row['po_number']); r_col[2].write(row['po_date']); r_col[3].write(f"₹{row['grand_total']:,.0f}")
                     pdf_bytes = generate_po_pdf(row)
                     r_col[4].download_button("📥", data=pdf_bytes, file_name=f"{row['po_number']}.pdf", mime="application/pdf", key=f"dl_{row['id']}")
-                    wa_msg = f"Hello, please find Purchase Order: {row['po_number']} for Amount ₹{row['grand_total']:,.2f}"
+                    wa_msg = f"Hello, please find Purchase Order: {row['po_number']} for Amount ₹{row['grand_total']:,.2f} from Visiontech Infra Solution."
                     wa_url = f"whatsapp://send?text={urllib.parse.quote(wa_msg)}"
                     r_col[5].markdown(f"<a href='{wa_url}'>📲</a>", unsafe_allow_html=True)
                     st.markdown("<hr style='margin:2px; opacity:0.1'>", unsafe_allow_html=True)
