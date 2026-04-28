@@ -13,3 +13,5 @@ pytz
 pymupdf
 pillow
 numpy
+fpdf2
+num2words
