@@ -136,6 +136,8 @@ if st.session_state.current_page == "Dashboard":
         if st.button("🧾\nPO Report"): navigate_to("PO")
         if st.button("🚀\nJajupro"): navigate_to("Jajupro")
         if st.button("📡\nWCC Tracker"): st.switch_page("pages/wcc_tracker.py")
+        # Niche wala button naya add karein:
+        if st.button("🛒\nCreate PO"): navigate_to("Purchase Order")
     with c3:
         if st.button("📁\nData Entry"): st.switch_page("pages/data_entry.py")
         if st.button("📢\nRFAI Billing"): navigate_to("RFAI")
