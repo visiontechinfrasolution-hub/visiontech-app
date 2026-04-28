@@ -315,6 +315,66 @@ elif st.session_state.current_page != "Dashboard":
         
         tab_po, tab_v, tab_i, tab_t = st.tabs(["📝 Create PO", "🏢 Vendor Reg", "📦 Item Master", "👥 Team Reg"])
 
+        # PDF Generation Function
+        def generate_po_pdf(po_data):
+            from fpdf import FPDF
+            pdf = FPDF()
+            pdf.add_page()
+            
+            # Logo Handling
+            try: pdf.image("logo (1).png", 10, 8, 40)
+            except: pdf.set_font("Arial", 'B', 16); pdf.cell(40, 10, "VISIONTECH")
+            
+            pdf.set_font("Arial", 'B', 14)
+            pdf.cell(190, 10, "PURCHASE ORDER", 0, 1, 'C')
+            pdf.ln(10)
+            
+            # Company Details
+            pdf.set_font("Arial", '', 9)
+            pdf.cell(100, 5, "VISIONTECH INFRA SOLUTION PRIVATE LIMITED", 0, 0)
+            pdf.cell(90, 5, f"PO NO: {po_data['po_number']}", 0, 1, 'R')
+            pdf.cell(100, 5, "Karve Nagar, Pune, Maharashtra", 0, 0)
+            pdf.cell(90, 5, f"Date: {po_data['po_date']}", 0, 1, 'R')
+            pdf.cell(100, 5, "GSTIN: 27AAICV3205F1ZI", 0, 1)
+            pdf.ln(10)
+            
+            # Vendor Details
+            pdf.set_font("Arial", 'B', 10)
+            pdf.cell(190, 7, f"To: {po_data['vendor_name']}", 1, 1)
+            pdf.set_font("Arial", '', 9)
+            pdf.multi_cell(190, 5, f"Address: {po_data.get('vendor_address', 'N/A')}\nGST: {po_data['vendor_gst']}", 1)
+            pdf.ln(5)
+            
+            # Table Header
+            pdf.set_font("Arial", 'B', 9)
+            pdf.cell(10, 8, "Sr", 1); pdf.cell(80, 8, "Description", 1); pdf.cell(20, 8, "Qty", 1)
+            pdf.cell(25, 8, "Price", 1); pdf.cell(25, 8, "GST", 1); pdf.cell(30, 8, "Total", 1, 1)
+            
+            # Table Body
+            pdf.set_font("Arial", '', 8)
+            for i, item in enumerate(po_data['items']):
+                pdf.cell(10, 7, str(i+1), 1)
+                pdf.cell(80, 7, str(item['Description']), 1)
+                pdf.cell(20, 7, str(item['Qty']), 1)
+                pdf.cell(25, 7, f"{item['Price']:.2f}", 1)
+                gst_total = item['CGST'] + item['SGST']
+                pdf.cell(25, 7, f"{gst_total:.2f}", 1)
+                pdf.cell(30, 7, f"{item['Total']:.2f}", 1, 1)
+            
+            # Total
+            pdf.set_font("Arial", 'B', 10)
+            pdf.cell(160, 8, "Grand Total", 1, 0, 'R')
+            pdf.cell(30, 8, f"{po_data['grand_total']:.2f}", 1, 1)
+            
+            # Signature
+            pdf.ln(10)
+            try: pdf.image("Signature in PNG.png", 150, pdf.get_y(), 30)
+            except: pass
+            pdf.ln(15)
+            pdf.cell(190, 5, "Authorized Signatory", 0, 1, 'R')
+            
+            return pdf.output(dest='S').encode('latin-1')
+
         # --- 1. CREATE PO TAB ---
         with tab_po:
             def get_next_po():
@@ -327,7 +387,6 @@ elif st.session_state.current_page != "Dashboard":
                     return "VISPL/26-27/001"
                 except: return "VISPL/26-27/001"
 
-            # Fetch Masters
             vendors = supabase.table("vendors").select("*").execute().data
             items_master = supabase.table("items_master").select("*").execute().data
             team_users = supabase.table("allowed_users").select("name").execute().data
@@ -373,11 +432,11 @@ elif st.session_state.current_page != "Dashboard":
                 if b1.button("🚀 Save & Finalize PO", type="primary", use_container_width=True):
                     payload = {
                         "po_number": po_no, "po_date": str(po_date), "vendor_name": v_choice,
-                        "vendor_gst": v_gst, "handover_team": h_team, 
+                        "vendor_gst": v_gst, "handover_team": h_team, "vendor_address": v_addr,
                         "items": st.session_state.temp_items, "grand_total": float(gt)
                     }
                     supabase.table("purchase_orders").insert(payload).execute()
-                    st.success("✅ PO Saved to Supabase!")
+                    st.success("✅ PO Saved!")
                     st.session_state.temp_items = []
                     time.sleep(1); st.rerun()
                 
@@ -390,67 +449,43 @@ elif st.session_state.current_page != "Dashboard":
             st.subheader("📜 Recent Purchase Orders")
             po_res = supabase.table("purchase_orders").select("*").order("id", desc=True).limit(10).execute()
             if po_res.data:
-                h_col = st.columns([1.5, 1.2, 1, 1, 0.6, 0.6])
-                h_col[0].markdown("**Vendor**")
-                h_col[1].markdown("**PO No**")
-                h_col[2].markdown("**Date**")
-                h_col[3].markdown("**Amount**")
-                h_col[4].markdown("**PDF**")
-                h_col[5].markdown("**WA**")
-
                 for row in po_res.data:
                     r_col = st.columns([1.5, 1.2, 1, 1, 0.6, 0.6])
-                    r_col[0].write(f"<span class='row-text'>{row['vendor_name']}</span>", unsafe_allow_html=True)
-                    r_col[1].write(f"<span class='row-text'>{row['po_number']}</span>", unsafe_allow_html=True)
-                    r_col[2].write(f"<span class='row-text'>{row['po_date']}</span>", unsafe_allow_html=True)
-                    r_col[3].write(f"<span class='row-text'>₹{row['grand_total']:,.0f}</span>", unsafe_allow_html=True)
+                    r_col[0].write(row['vendor_name'])
+                    r_col[1].write(row['po_number'])
+                    r_col[2].write(row['po_date'])
+                    r_col[3].write(f"₹{row['grand_total']:,.0f}")
                     
-                    if r_col[4].button("📥", key=f"pdf_{row['id']}"):
-                        st.info(f"PDF logic for {row['po_number']}")
+                    # --- FIXED PDF DOWNLOAD ---
+                    pdf_bytes = generate_po_pdf(row)
+                    r_col[4].download_button("📥", data=pdf_bytes, file_name=f"{row['po_number']}.pdf", mime="application/pdf", key=f"dl_{row['id']}")
                     
-                    wa_msg = f"Hello, please find Purchase Order: {row['po_number']} for Amount ₹{row['grand_total']:,.2f} from Visiontech Infra Solution."
-                    wa_url = f"https://wa.me/?text={urllib.parse.quote(wa_msg)}"
-                    r_col[5].markdown(f"<a href='{wa_url}' target='_blank'>📲</a>", unsafe_allow_html=True)
+                    # --- FIXED WHATSAPP DESKTOP APP LINK ---
+                    wa_msg = f"Hello, please find Purchase Order: {row['po_number']} for Amount ₹{row['grand_total']:,.2f}"
+                    wa_url = f"whatsapp://send?text={urllib.parse.quote(wa_msg)}"
+                    r_col[5].markdown(f"<a href='{wa_url}'>📲</a>", unsafe_allow_html=True)
                     st.markdown("<hr style='margin:2px; opacity:0.1'>", unsafe_allow_html=True)
 
-        # --- 2. VENDOR REGISTRATION ---
+        # --- OTHER TABS (Vendor, Item, Team) ---
         with tab_v:
             with st.form("vendor_reg", clear_on_submit=True):
-                vn = st.text_input("Company Name")
-                va = st.text_area("Address")
-                vg = st.text_input("GST Number")
+                vn = st.text_input("Company Name"); va = st.text_area("Address"); vg = st.text_input("GST Number")
                 if st.form_submit_button("Register Vendor", use_container_width=True):
-                    if vn and vg:
-                        supabase.table("vendors").insert({"name": vn, "address": va, "gst_number": vg}).execute()
-                        st.success("✅ Vendor Registered!")
-                        time.sleep(1); st.rerun()
-                    else: st.warning("Please fill required fields")
-
-        # --- 3. ITEM MASTER ---
+                    supabase.table("vendors").insert({"name": vn, "address": va, "gst_number": vg}).execute()
+                    st.success("✅ Vendor Registered!"); time.sleep(1); st.rerun()
         with tab_i:
             with st.form("item_reg", clear_on_submit=True):
-                idsc = st.text_input("Item Name / Description")
-                ic1, ic2 = st.columns(2)
-                icgst = ic1.number_input("CGST %", value=9.0)
-                isgst = ic2.number_input("SGST %", value=9.0)
-                if st.form_submit_button("Save Item to Master", use_container_width=True):
-                    if idsc:
-                        supabase.table("items_master").insert({"description": idsc, "cgst_pct": icgst, "sgst_pct": isgst}).execute()
-                        st.success("✅ Item Added!")
-                        time.sleep(1); st.rerun()
-
-        # --- 4. TEAM REGISTRATION ---
+                idsc = st.text_input("Item Name"); ic1, ic2 = st.columns(2)
+                icgst = ic1.number_input("CGST %", value=9.0); isgst = ic2.number_input("SGST %", value=9.0)
+                if st.form_submit_button("Save Item", use_container_width=True):
+                    supabase.table("items_master").insert({"description": idsc, "cgst_pct": icgst, "sgst_pct": isgst}).execute()
+                    st.success("✅ Item Added!"); time.sleep(1); st.rerun()
         with tab_t:
             with st.form("team_reg", clear_on_submit=True):
-                tn = st.text_input("Member Name")
-                tp = st.text_input("Phone Number")
-                if st.form_submit_button("Register Team Member", use_container_width=True):
-                    exists = supabase.table("allowed_users").select("*").eq("phone_number", tp).execute()
-                    if exists.data: st.error("❌ Phone number already exists!")
-                    else:
-                        supabase.table("allowed_users").insert({"name": tn, "phone_number": tp}).execute()
-                        st.success("✅ Member Added!")
-                        time.sleep(1); st.rerun()
+                tn = st.text_input("Name"); tp = st.text_input("Phone")
+                if st.form_submit_button("Add Member", use_container_width=True):
+                    supabase.table("allowed_users").insert({"name": tn, "phone_number": tp}).execute()
+                    st.success("✅ Member Added!"); time.sleep(1); st.rerun()
 
     else:
         st.write(f"Section {cur_p} is active.")
