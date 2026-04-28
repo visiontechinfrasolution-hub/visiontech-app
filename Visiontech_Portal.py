@@ -136,7 +136,6 @@ if st.session_state.current_page == "Dashboard":
         if st.button("🧾\nPO Report"): navigate_to("PO")
         if st.button("🚀\nJajupro"): navigate_to("Jajupro")
         if st.button("📡\nWCC Tracker"): st.switch_page("pages/wcc_tracker.py")
-        # Niche wala button naya add karein:
         if st.button("🛒\nCreate PO"): navigate_to("Purchase Order")
     with c3:
         if st.button("📁\nData Entry"): st.switch_page("pages/data_entry.py")
@@ -296,9 +295,9 @@ elif st.session_state.current_page != "Dashboard":
     st.markdown("<div class='back-btn'>", unsafe_allow_html=True)
     if st.button("⬅️ Dashboard"): navigate_to("Dashboard")
     st.markdown("</div>", unsafe_allow_html=True)
-    st.title(f"Section {st.session_state.current_page}")
     
     cur_p = st.session_state.current_page
+    
     if cur_p == "STN Manager":
         st.title("🚨 STN Manager")
     elif cur_p == "Audit":
@@ -309,6 +308,117 @@ elif st.session_state.current_page != "Dashboard":
         st.title("📢 RFAI Billing")
     elif cur_p == "PDFFormat":
         st.title("📜 Vintage PDF")
+        
+    # --- NAYA PURCHASE ORDER SECTION ---
+    elif cur_p == "Purchase Order":
+        st.markdown("<h1 style='color: #1E3A8A;'>🛒 Purchase Order System</h1>", unsafe_allow_html=True)
+        
+        tab_po, tab_v, tab_i, tab_t = st.tabs(["📝 Create PO", "🏢 Vendor Reg", "📦 Item Master", "👥 Team Reg"])
+
+        # 1. CREATE PO TAB
+        with tab_po:
+            # Helper: Get Next PO Number
+            def get_next_po():
+                try:
+                    res = supabase.table("purchase_orders").select("po_number").order("id", desc=True).limit(1).execute()
+                    if res.data:
+                        last_po = res.data[0]['po_number']
+                        num = int(last_po.split('/')[-1]) + 1
+                        return f"VISPL/26-27/{str(num).zfill(3)}"
+                    return "VISPL/26-27/001"
+                except: return "VISPL/26-27/001"
+
+            # Fetch Data for Dropdowns
+            vendors = supabase.table("vendors").select("*").execute().data
+            items_master = supabase.table("items_master").select("*").execute().data
+            team_users = supabase.table("allowed_users").select("name").execute().data
+
+            c1, c2 = st.columns(2)
+            with c1:
+                po_no = st.text_input("PO Number", value=get_next_po())
+                v_choice = st.selectbox("Select Vendor", ["Select"] + [v['name'] for v in vendors])
+                v_data = next((v for v in vendors if v['name'] == v_choice), None)
+                v_gst = st.text_input("Vendor GST", value=v_data['gst_number'] if v_data else "", disabled=True)
+            with c2:
+                po_date = st.date_input("PO Date", datetime.now())
+                h_team = st.selectbox("Handover Team", [t['name'] for t in team_users])
+                v_addr = st.text_area("Vendor Address", value=v_data['address'] if v_data else "", disabled=True, height=68)
+
+            st.divider()
+            # Material Input
+            st.subheader("Add Materials")
+            i_col1, i_col2, i_col3, i_col4 = st.columns([2,1,1,1])
+            sel_item = i_col1.selectbox("Select Item", [""] + [i['description'] for i in items_master])
+            i_data = next((i for i in items_master if i['description'] == sel_item), None)
+            
+            qty = i_col2.number_input("Qty", min_value=1)
+            price = i_col3.number_input("Price", value=float(i_data['rate']) if i_data else 0.0)
+            
+            if 'temp_items' not in st.session_state: st.session_state.temp_items = []
+            
+            if i_col4.button("➕ Add Item", use_container_width=True):
+                if i_data:
+                    basic = qty * price
+                    c_amt = (basic * float(i_data['cgst_pct'])) / 100
+                    s_amt = (basic * float(i_data['sgst_pct'])) / 100
+                    st.session_state.temp_items.append({
+                        "Description": sel_item, "Qty": qty, "Price": price,
+                        "Basic": basic, "CGST": c_amt, "SGST": s_amt, "Total": basic + c_amt + s_amt
+                    })
+
+            if st.session_state.temp_items:
+                df_temp = pd.DataFrame(st.session_state.temp_items)
+                st.table(df_temp)
+                gt = df_temp['Total'].sum()
+                st.metric("Grand Total", f"₹ {gt:,.2f}")
+                
+                if st.button("🚀 Save & Finalize PO", type="primary"):
+                    payload = {
+                        "po_number": po_no, "po_date": str(po_date), "vendor_name": v_choice,
+                        "vendor_gst": v_gst, "handover_team": h_team, 
+                        "items": st.session_state.temp_items, "grand_total": float(gt)
+                    }
+                    supabase.table("purchase_orders").insert(payload).execute()
+                    st.success("✅ PO Saved Successfully!")
+                    st.session_state.temp_items = []
+                    time.sleep(1); st.rerun()
+
+        # 2. VENDOR REGISTRATION TAB
+        with tab_v:
+            with st.form("vendor_reg"):
+                vn = st.text_input("Company Name")
+                va = st.text_area("Address")
+                vg = st.text_input("GST Number")
+                if st.form_submit_button("Register Vendor"):
+                    supabase.table("vendors").insert({"name": vn, "address": va, "gst_number": vg}).execute()
+                    st.success("Vendor Registered!")
+
+        # 3. ITEM MASTER TAB
+        with tab_i:
+            with st.form("item_reg"):
+                idsc = st.text_input("Item Name")
+                irt = st.number_input("Standard Rate", min_value=0.0)
+                ic1, ic2 = st.columns(2)
+                icgst = ic1.number_input("CGST %", value=9.0)
+                isgst = ic2.number_input("SGST %", value=9.0)
+                if st.form_submit_button("Save Item"):
+                    supabase.table("items_master").insert({"description": idsc, "rate": irt, "cgst_pct": icgst, "sgst_pct": isgst}).execute()
+                    st.success("Item Added to Master!")
+
+        # 4. TEAM REGISTRATION TAB
+        with tab_t:
+            st.info("Managing 'allowed_users' table")
+            with st.form("team_reg"):
+                tn = st.text_input("Member Name")
+                tp = st.text_input("Phone Number")
+                if st.form_submit_button("Add Member"):
+                    # Check duplicate
+                    exists = supabase.table("allowed_users").select("*").eq("phone_number", tp).execute()
+                    if exists.data: st.error("Phone number already exists!")
+                    else:
+                        supabase.table("allowed_users").insert({"name": tn, "phone_number": tp}).execute()
+                        st.success("Member Added!")
+
     else:
         st.write(f"Section {cur_p} is active.")
 # =====================================================================
