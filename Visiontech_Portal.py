@@ -310,13 +310,18 @@ elif st.session_state.current_page != "Dashboard":
             pdf = FPDF()
             pdf.add_page()
             
-            # 1. LOGO RENDER
+            # 1. LOGO RENDER (Direct Path D:\VISPL)
             try:
-                pdf.image("logo (1).png", 10, 10, 50) 
+                if os.path.exists(r"D:\VISPL\logo (1).png"):
+                    pdf.image(r"D:\VISPL\logo (1).png", 10, 10, 50) 
+                else:
+                    pdf.set_font("Helvetica", 'B', 10)
+                    pdf.set_text_color(255, 0, 0)
+                    pdf.text(10, 20, "Logo missing: Path D:\VISPL\logo (1).png not found")
             except Exception as e:
                 pdf.set_font("Helvetica", 'B', 10)
                 pdf.set_text_color(255, 0, 0)
-                pdf.text(10, 20, "Logo missing: Check file name")
+                pdf.text(10, 20, "Logo error: Check file format")
 
             # 2. VISIONTECH Name in Blue (RGB Force)
             pdf.set_text_color(11, 61, 102) 
@@ -346,7 +351,7 @@ elif st.session_state.current_page != "Dashboard":
             pdf.ln(5)
             y_start = pdf.get_y()
             
-            # VENDOR DETAILS (Live Address Fetch Logic)
+            # VENDOR DETAILS
             pdf.set_font("Helvetica", 'B', 9)
             pdf.cell(92, 6, " VENDOR DETAILS", 1, 1, 'L', False)
             pdf.set_font("Helvetica", '', 9)
@@ -364,7 +369,7 @@ elif st.session_state.current_page != "Dashboard":
             pdf.multi_cell(92, 5, v_info, 1, 'L')
             y_v = pdf.get_y()
             
-            # ORDER INFORMATION (Date Format Fix: 28-Apr-2026)
+            # ORDER INFORMATION
             pdf.set_y(y_start)
             pdf.set_x(108)
             pdf.set_font("Helvetica", 'B', 9)
@@ -451,12 +456,18 @@ elif st.session_state.current_page != "Dashboard":
             pdf.set_font("Helvetica", 'B', 10)
             pdf.cell(70, 5, "For Visiontech Infra Solution Pvt. Ltd.", 0, 1, 'C')
             
+            # SIGNATURE RENDER (Direct Path D:\VISPL)
             try:
-                pdf.image("Signature in PNG.png", 148, pdf.get_y() - 2, 35)
+                if os.path.exists(r"D:\VISPL\Signature in PNG.png"):
+                    pdf.image(r"D:\VISPL\Signature in PNG.png", 148, pdf.get_y() - 2, 35)
+                else:
+                    pdf.set_font("Helvetica", '', 8)
+                    pdf.set_text_color(255, 0, 0)
+                    pdf.text(148, pdf.get_y() + 10, "Sign missing: Path not found")
             except Exception as e:
                 pdf.set_font("Helvetica", '', 8)
                 pdf.set_text_color(255, 0, 0)
-                pdf.text(148, pdf.get_y() + 10, "Sign Error: Check file")
+                pdf.text(148, pdf.get_y() + 10, "Sign Error: Check file format")
 
             pdf.ln(20)
             pdf.set_x(130)
