@@ -308,23 +308,22 @@ elif st.session_state.current_page != "Dashboard":
             from fpdf import FPDF
             import os
             import requests
-            import tempfile
             
             pdf = FPDF()
             pdf.add_page()
             
-            # --- CLOUD SAFE IMAGE DOWNLOADER (Using Temp Directory) ---
-            temp_dir = tempfile.gettempdir()
-            logo_path = os.path.join(temp_dir, "VISPL_Logo.jpg")
-            sign_path = os.path.join(temp_dir, "Signature.png")
+            # --- SUPABASE PUBLIC URL DOWNLOADER (Saved Locally to avoid Temp Error) ---
+            logo_path = "logo_vispl.jpg"
+            sign_path = "sign_vispl.png"
             
+            # Please ensure "Logo" bucket is set to PUBLIC in Supabase
             logo_url = "https://sckyflvukpmdqmdzjzhs.supabase.co/storage/v1/object/public/Logo/VISPL%20Logo.jpg"
             sign_url = "https://sckyflvukpmdqmdzjzhs.supabase.co/storage/v1/object/public/Logo/Signature.png"
             headers = {'User-Agent': 'Mozilla/5.0'}
             
             try:
                 if not os.path.exists(logo_path):
-                    res = requests.get(logo_url, headers=headers, timeout=10)
+                    res = requests.get(logo_url, headers=headers, timeout=5)
                     if res.status_code == 200:
                         with open(logo_path, 'wb') as f:
                             f.write(res.content)
@@ -332,7 +331,7 @@ elif st.session_state.current_page != "Dashboard":
                 
             try:
                 if not os.path.exists(sign_path):
-                    res = requests.get(sign_url, headers=headers, timeout=10)
+                    res = requests.get(sign_url, headers=headers, timeout=5)
                     if res.status_code == 200:
                         with open(sign_path, 'wb') as f:
                             f.write(res.content)
@@ -344,7 +343,7 @@ elif st.session_state.current_page != "Dashboard":
             else:
                 pdf.set_font("Helvetica", 'B', 10)
                 pdf.set_text_color(255, 0, 0)
-                pdf.text(10, 20, "Logo missing: Cloud Temp Write Error")
+                pdf.text(10, 20, "Logo Error: Make 'Logo' bucket PUBLIC in Supabase")
 
             # 2. VISIONTECH Name in Blue
             pdf.set_text_color(11, 61, 102) 
@@ -497,7 +496,7 @@ elif st.session_state.current_page != "Dashboard":
             else:
                 pdf.set_font("Helvetica", '', 8)
                 pdf.set_text_color(255, 0, 0)
-                pdf.text(148, pdf.get_y() + 10, "Sign missing: Cloud Temp Write Error")
+                pdf.text(148, pdf.get_y() + 10, "Sign Error: Make 'Logo' bucket PUBLIC")
 
             pdf.ln(20)
             pdf.set_x(130)
