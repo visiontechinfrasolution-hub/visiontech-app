@@ -312,38 +312,33 @@ elif st.session_state.current_page != "Dashboard":
             pdf = FPDF()
             pdf.add_page()
             
-            # --- SUPABASE PUBLIC URL DOWNLOADER (Saved Locally to avoid Temp Error) ---
-            logo_path = "logo_vispl.jpg"
-            sign_path = "sign_vispl.png"
+            # --- 100% BULLETPROOF IMAGE HANDLER ---
+            logo_file = "logo (1).png"
+            sign_file = "Signature in PNG.png"
             
-            # Please ensure "Logo" bucket is set to PUBLIC in Supabase
-            logo_url = "https://sckyflvukpmdqmdzjzhs.supabase.co/storage/v1/object/public/Logo/VISPL%20Logo.jpg"
-            sign_url = "https://sckyflvukpmdqmdzjzhs.supabase.co/storage/v1/object/public/Logo/Signature.png"
-            headers = {'User-Agent': 'Mozilla/5.0'}
-            
-            try:
-                if not os.path.exists(logo_path):
-                    res = requests.get(logo_url, headers=headers, timeout=5)
+            if not os.path.exists(logo_file):
+                try:
+                    res = requests.get("https://sckyflvukpmdqmdzjzhs.supabase.co/storage/v1/object/public/Logo/VISPL%20Logo.jpg", timeout=5)
                     if res.status_code == 200:
-                        with open(logo_path, 'wb') as f:
-                            f.write(res.content)
-            except: pass
+                        with open("cloud_logo.jpg", 'wb') as f: f.write(res.content)
+                        logo_file = "cloud_logo.jpg"
+                except: pass
                 
-            try:
-                if not os.path.exists(sign_path):
-                    res = requests.get(sign_url, headers=headers, timeout=5)
+            if not os.path.exists(sign_file):
+                try:
+                    res = requests.get("https://sckyflvukpmdqmdzjzhs.supabase.co/storage/v1/object/public/Logo/Signature.png", timeout=5)
                     if res.status_code == 200:
-                        with open(sign_path, 'wb') as f:
-                            f.write(res.content)
-            except: pass
+                        with open("cloud_sign.png", 'wb') as f: f.write(res.content)
+                        sign_file = "cloud_sign.png"
+                except: pass
 
-            # 1. LOGO RENDER
-            if os.path.exists(logo_path):
-                pdf.image(logo_path, 10, 10, 50) 
+            # 1. LOGO RENDER (30% Smaller: Width reduced from 50 to 35)
+            if os.path.exists(logo_file):
+                pdf.image(logo_file, 10, 10, 35) 
             else:
                 pdf.set_font("Helvetica", 'B', 10)
                 pdf.set_text_color(255, 0, 0)
-                pdf.text(10, 20, "Logo Error: Make 'Logo' bucket PUBLIC in Supabase")
+                pdf.text(10, 20, "Logo Error: Missing file or URL")
 
             # 2. VISIONTECH Name in Blue
             pdf.set_text_color(11, 61, 102) 
@@ -386,12 +381,12 @@ elif st.session_state.current_page != "Dashboard":
                     actual_address = v.get('address', 'N/A')
                     break
             
-            # Vendor Name Explicitly BOLD
+            # --- VENDOR NAME IN BOLD ---
             pdf.set_font("Helvetica", 'B', 9)
             pdf.set_x(10)
             pdf.cell(92, 5, f" {v_name}", 0, 1, 'L')
             
-            # Address and GST in REGULAR
+            # ADDRESS AND GST IN REGULAR
             pdf.set_font("Helvetica", '', 9)
             pdf.set_x(10)
             pdf.multi_cell(92, 5, f" {actual_address}\n GSTIN: {v_gst}", 0, 'L')
@@ -416,7 +411,7 @@ elif st.session_state.current_page != "Dashboard":
             pdf.multi_cell(92, 5, o_info, 0, 'L')
             y_o_end = pdf.get_y()
             
-            # Draw Borders
+            # DRAW BORDERS
             max_y = max(y_v_end, y_o_end)
             pdf.rect(10, y_addr_start, 92, max_y - y_addr_start)
             pdf.rect(108, y_addr_start, 92, max_y - y_addr_start)
@@ -491,18 +486,24 @@ elif st.session_state.current_page != "Dashboard":
             pdf.set_font("Helvetica", 'B', 10)
             pdf.cell(70, 5, "For Visiontech Infra Solution Pvt. Ltd.", 0, 1, 'C')
             
-            if os.path.exists(sign_path):
-                pdf.image(sign_path, 148, pdf.get_y() - 2, 35)
+            # SIGNATURE RENDER (30% Smaller: Width reduced from 35 to 25)
+            if os.path.exists(sign_file):
+                pdf.image(sign_file, 148, pdf.get_y() - 2, 25)
             else:
                 pdf.set_font("Helvetica", '', 8)
                 pdf.set_text_color(255, 0, 0)
-                pdf.text(148, pdf.get_y() + 10, "Sign Error: Make 'Logo' bucket PUBLIC")
+                pdf.text(148, pdf.get_y() + 10, "Sign Error: Missing file or URL")
 
             pdf.ln(20)
             pdf.set_x(130)
             pdf.set_text_color(0, 0, 0)
             pdf.cell(70, 5, "Authorized Signatory", 0, 1, 'C')
             return bytes(pdf.output())
+
+        # MASTER DATA FETCH (Used for tables and dropdowns)
+        vendors_data = supabase.table("vendors").select("*").execute().data
+        items_data = supabase.table("items_master").select("*").execute().data
+        team_data = supabase.table("allowed_users").select("*").execute().data
 
         with tab_po:
             def get_next_po_func():
@@ -515,27 +516,23 @@ elif st.session_state.current_page != "Dashboard":
                     return "VISPL/26-27/001"
                 except: return "VISPL/26-27/001"
 
-            vendors = supabase.table("vendors").select("*").execute().data
-            items_master = supabase.table("items_master").select("*").execute().data
-            team_users = supabase.table("allowed_users").select("name").execute().data
-
             c1, c2 = st.columns(2)
             with c1:
                 po_no = st.text_input("PO Number", value=get_next_po_func())
-                v_choice = st.selectbox("Select Vendor", ["Select"] + [v['name'] for v in vendors], key="v_sel")
-                v_data = next((v for v in vendors if v['name'] == v_choice), None)
+                v_choice = st.selectbox("Select Vendor", ["Select"] + [v['name'] for v in vendors_data] if vendors_data else ["Select"], key="v_sel")
+                v_data = next((v for v in vendors_data if v['name'] == v_choice), None) if vendors_data else None
                 v_gst = st.text_input("Vendor GST", value=v_data['gst_number'] if v_data else "", disabled=True)
             with c2:
                 po_date = st.date_input("PO Date", datetime.now())
-                h_team = st.selectbox("Handover Team", ["Select"] + [t['name'] for t in team_users], key="t_sel")
+                h_team = st.selectbox("Handover Team", ["Select"] + [t['name'] for t in team_data] if team_data else ["Select"], key="t_sel")
                 v_addr_val = v_data['address'] if v_data else ""
                 v_addr = st.text_area("Vendor Address", value=v_addr_val, disabled=True, height=68)
 
             st.divider()
             st.subheader("Add Materials")
             i_col1, i_col2, i_col3, i_col4 = st.columns([2,1,1,1])
-            sel_item = i_col1.selectbox("Select Item", [""] + [i['description'] for i in items_master], key="i_sel")
-            i_data = next((i for i in items_master if i['description'] == sel_item), None)
+            sel_item = i_col1.selectbox("Select Item", [""] + [i['description'] for i in items_data] if items_data else [""], key="i_sel")
+            i_data = next((i for i in items_data if i['description'] == sel_item), None) if items_data else None
             qty = i_col2.number_input("Qty", min_value=1, key="i_qty")
             price = i_col3.number_input("Price", min_value=0.0, step=1.0, key="i_price")
             
@@ -585,7 +582,7 @@ elif st.session_state.current_page != "Dashboard":
                     r_col[2].write(row['po_date'])
                     r_col[3].write(f"₹{row['grand_total']:,.0f}")
                     
-                    pdf_bytes = generate_po_pdf(row, vendors)
+                    pdf_bytes = generate_po_pdf(row, vendors_data)
                     
                     r_col[4].download_button("📥", data=pdf_bytes, file_name=f"{row['po_number']}.pdf", mime="application/pdf", key=f"dl_{row['id']}")
                     wa_msg = f"Hello, please find Purchase Order: {row['po_number']} for Amount ₹{row['grand_total']:,.2f} from Visiontech Infra Solution."
@@ -602,6 +599,21 @@ elif st.session_state.current_page != "Dashboard":
                     supabase.table("vendors").insert({"name": vn, "address": va, "gst_number": vg}).execute()
                     st.success("✅ Vendor Registered!")
                     time.sleep(1); st.rerun()
+            
+            st.divider()
+            st.subheader("🏢 Registered Vendors")
+            if vendors_data:
+                df_v = pd.DataFrame(vendors_data)
+                search_v = st.text_input("🔍 Search Vendor", key="sv")
+                if search_v:
+                    df_v = df_v[df_v.astype(str).apply(lambda x: x.str.contains(search_v, case=False)).any(axis=1)]
+                
+                csv_v = df_v.to_csv(index=False).encode('utf-8')
+                st.download_button("📥 Download Excel/CSV", data=csv_v, file_name="Vendors.csv", mime="text/csv")
+                st.dataframe(df_v, use_container_width=True)
+            else:
+                st.info("No vendor data available.")
+
         with tab_i:
             with st.form("item_reg", clear_on_submit=True):
                 idsc = st.text_input("Item Name")
@@ -612,6 +624,21 @@ elif st.session_state.current_page != "Dashboard":
                     supabase.table("items_master").insert({"description": idsc, "cgst_pct": icgst, "sgst_pct": isgst}).execute()
                     st.success("✅ Item Added!")
                     time.sleep(1); st.rerun()
+            
+            st.divider()
+            st.subheader("📦 Registered Items")
+            if items_data:
+                df_i = pd.DataFrame(items_data)
+                search_i = st.text_input("🔍 Search Item", key="si")
+                if search_i:
+                    df_i = df_i[df_i.astype(str).apply(lambda x: x.str.contains(search_i, case=False)).any(axis=1)]
+                
+                csv_i = df_i.to_csv(index=False).encode('utf-8')
+                st.download_button("📥 Download Excel/CSV", data=csv_i, file_name="Items_Master.csv", mime="text/csv")
+                st.dataframe(df_i, use_container_width=True)
+            else:
+                st.info("No item data available.")
+
         with tab_t:
             with st.form("team_reg", clear_on_submit=True):
                 tn = st.text_input("Name")
@@ -620,6 +647,20 @@ elif st.session_state.current_page != "Dashboard":
                     supabase.table("allowed_users").insert({"name": tn, "phone_number": tp}).execute()
                     st.success("✅ Member Added!")
                     time.sleep(1); st.rerun()
+            
+            st.divider()
+            st.subheader("👥 Registered Team Members")
+            if team_data:
+                df_t = pd.DataFrame(team_data)
+                search_t = st.text_input("🔍 Search Team Member", key="st")
+                if search_t:
+                    df_t = df_t[df_t.astype(str).apply(lambda x: x.str.contains(search_t, case=False)).any(axis=1)]
+                
+                csv_t = df_t.to_csv(index=False).encode('utf-8')
+                st.download_button("📥 Download Excel/CSV", data=csv_t, file_name="Team_Members.csv", mime="text/csv")
+                st.dataframe(df_t, use_container_width=True)
+            else:
+                st.info("No team data available.")
     else:
         st.write(f"Section {cur_p} is active.")
         
