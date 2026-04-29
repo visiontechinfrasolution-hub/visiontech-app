@@ -299,7 +299,7 @@ elif st.session_state.current_page != "Dashboard":
     elif cur_p == "PDFFormat":
         st.title("📜 Vintage PDF")
 
-    # --- 🛒 PURCHASE ORDER PAGE (FINAL FIX) ---
+    # --- 🛒 PURCHASE ORDER PAGE (FINAL STICK TO FORMAT) ---
     elif cur_p == "Purchase Order":
         st.markdown("<h1 style='color: #1E3A8A; text-align: center;'>🛒 Purchase Order System</h1>", unsafe_allow_html=True)
         tab_po, tab_v, tab_i, tab_t = st.tabs(["📝 Create PO", "🏢 Vendor Reg", "📦 Item Master", "👥 Team Reg"])
@@ -310,22 +310,19 @@ elif st.session_state.current_page != "Dashboard":
             pdf = FPDF()
             pdf.add_page()
             
-            # 1. LOGO RENDER
-            if os.path.exists("logo (1).png"):
-                pdf.image("logo (1).png", 10, 10, 50)
-            else:
-                pdf.set_font("Helvetica", 'B', 16)
-                pdf.set_text_color(11, 61, 102)
-                pdf.text(10, 20, "ViS Visiontech")
+            # 1. LOGO & BLUE HEADER
+            try:
+                if os.path.exists("logo (1).png"):
+                    pdf.image("logo (1).png", 10, 10, 50) 
+            except:
+                pass
 
-            # VISIONTECH Name in Blue (Exact Match)
-            pdf.set_text_color(11, 61, 102) 
+            pdf.set_text_color(11, 61, 102) # Blue Color [cite: 56]
             pdf.set_font("Helvetica", 'B', 14)
             pdf.set_x(100)
             pdf.cell(100, 6, "VISIONTECH INFRA SOLUTION PVT. LTD.", 0, 1, 'R')
             
-            # Header Details
-            pdf.set_text_color(0, 0, 0)
+            pdf.set_text_color(0, 0, 0) # Back to Black
             pdf.set_font("Helvetica", '', 8.5)
             pdf.set_x(100)
             pdf.cell(100, 4, "Lane Number 2, Karve Nagar, Pune, Maharashtra, 411052", 0, 1, 'R')
@@ -334,48 +331,42 @@ elif st.session_state.current_page != "Dashboard":
             pdf.set_x(100)
             pdf.cell(100, 4, "Contact: 9552273181 | Email: vispltower@gmail.com", 0, 1, 'R')
             
-            # 2. TITLE BAR
+            # 2. TITLE
             pdf.ln(8)
             pdf.set_fill_color(26, 58, 95) 
             pdf.set_text_color(255, 255, 255)
             pdf.set_font("Helvetica", 'B', 14)
             pdf.cell(190, 10, "PURCHASE ORDER", 0, 1, 'C', True)
             
-            # 3. VENDOR & ORDER INFO BOXES
+            # 3. VENDOR & ORDER BOXES
             pdf.set_text_color(0, 0, 0)
             pdf.ln(5)
             y_start = pdf.get_y()
             
-            # VENDOR DETAILS (Fixed Box & Address)
+            # Vendor Box (Address Fixed) [cite: 54]
             pdf.set_font("Helvetica", 'B', 9)
             pdf.cell(92, 6, " VENDOR DETAILS", 1, 1, 'L', False)
             pdf.set_font("Helvetica", '', 9)
-            v_n = str(po_data.get('vendor_name', ''))
-            v_a = str(po_data.get('vendor_address', 'N/A'))
-            v_g = str(po_data.get('vendor_gst', ''))
-            v_full = f"{v_n}\n{v_a}\nGSTIN: {v_g}"
-            pdf.multi_cell(92, 5, v_full, 1, 'L')
-            y_end_v = pdf.get_y()
+            v_info = f"{po_data['vendor_name']}\n{po_data.get('vendor_address', 'N/A')}\nGSTIN: {po_data['vendor_gst']}"
+            pdf.multi_cell(92, 5, v_info, 1, 'L')
+            y_v = pdf.get_y()
             
-            # ORDER INFORMATION (Date Format Fix: 28-Apr-2026)
-            pdf.set_y(y_start)
-            pdf.set_x(108)
-            pdf.set_font("Helvetica", 'B', 9)
-            pdf.cell(92, 6, " ORDER INFORMATION", 1, 1, 'L', False)
-            pdf.set_x(108)
-            pdf.set_font("Helvetica", '', 9)
+            # Order Box (Date Format Fixed) 
+            pdf.set_y(y_start); pdf.set_x(108)
+            pdf.set_font("Helvetica", 'B', 9); pdf.cell(92, 6, " ORDER INFORMATION", 1, 1, 'L', False)
+            pdf.set_x(108); pdf.set_font("Helvetica", '', 9)
             try:
-                raw_d = datetime.strptime(po_data['po_date'], '%Y-%m-%d')
-                fmt_d = raw_d.strftime('%d-%b-%Y')
+                dt_obj = datetime.strptime(po_data['po_date'], '%Y-%m-%d')
+                dt_fmt = dt_obj.strftime('%d-%b-%Y')
             except:
-                fmt_d = po_data['po_date']
-            order_txt = f"PO Number: {po_data['po_number']}\nDate: {fmt_d}\nHandover Team: {po_data.get('handover_team', 'N/A')}"
-            pdf.multi_cell(92, 5, order_txt, 1, 'L')
-            y_end_o = pdf.get_y()
+                dt_fmt = po_data['po_date']
+            o_info = f"PO Number: {po_data['po_number']}\nDate: {dt_fmt}\nHandover Team: {po_data.get('handover_team', 'N/A')}"
+            pdf.multi_cell(92, 5, o_info, 1, 'L')
+            y_o = pdf.get_y()
             
-            pdf.set_y(max(y_end_v, y_end_o) + 5)
+            pdf.set_y(max(y_v, y_o) + 5)
             
-            # 4. ITEMS TABLE
+            # 4. TABLE
             pdf.set_font("Helvetica", 'B', 8.5); pdf.set_fill_color(240, 240, 240)
             pdf.cell(8, 8, "Sr.", 1, 0, 'C', True); pdf.cell(62, 8, "Description", 1, 0, 'C', True)
             pdf.cell(15, 8, "Qty", 1, 0, 'C', True); pdf.cell(20, 8, "Price", 1, 0, 'C', True)
@@ -400,13 +391,15 @@ elif st.session_state.current_page != "Dashboard":
             pdf.set_x(120); pdf.set_font("Helvetica", 'B', 10); pdf.set_fill_color(26, 58, 95); pdf.set_text_color(255, 255, 255)
             pdf.cell(40, 7, "Grand Total:", 0, 0, 'R', True); pdf.cell(40, 7, f" {po_data['grand_total']:,.2f}", 1, 1, 'R', True)
             
-            # 6. SIGNATURE STAMP & WORDS
-            pdf.set_text_color(0, 0, 0); pdf.ln(5); pdf.set_font("Helvetica", 'B', 8.5); pdf.cell(190, 5, "AMOUNT IN WORDS", 0, 1)
+            # 6. SIGNATURE 
+            pdf.set_text_color(0, 0, 0); pdf.ln(5); pdf.set_font("Helvetica", 'B', 8.5)
+            pdf.cell(190, 5, "AMOUNT IN WORDS", 0, 1)
             pdf.set_font("Helvetica", 'I', 9)
             words = num2words(int(po_data['grand_total']), lang='en_IN').title() + " Rupees Only."
             pdf.multi_cell(190, 5, words, 1)
             
-            pdf.ln(10); pdf.set_x(130); pdf.set_font("Helvetica", 'B', 10); pdf.cell(70, 5, "For Visiontech Infra Solution Pvt. Ltd.", 0, 1, 'C')
+            pdf.ln(10); pdf.set_x(130); pdf.set_font("Helvetica", 'B', 10)
+            pdf.cell(70, 5, "For Visiontech Infra Solution Pvt. Ltd.", 0, 1, 'C')
             if os.path.exists("Signature in PNG.png"):
                 pdf.image("Signature in PNG.png", 148, pdf.get_y() - 2, 35)
             pdf.ln(20); pdf.set_x(130); pdf.cell(70, 5, "Authorized Signatory", 0, 1, 'C')
@@ -417,8 +410,7 @@ elif st.session_state.current_page != "Dashboard":
                 try:
                     res = supabase.table("purchase_orders").select("po_number").order("id", desc=True).limit(1).execute()
                     if res.data:
-                        last_po = res.data[0]['po_number']
-                        num = int(last_po.split('/')[-1]) + 1
+                        last_po = res.data[0]['po_number']; num = int(last_po.split('/')[-1]) + 1
                         return f"VISPL/26-27/{str(num).zfill(3)}"
                     return "VISPL/26-27/001"
                 except: return "VISPL/26-27/001"
