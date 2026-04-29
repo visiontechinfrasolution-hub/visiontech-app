@@ -310,20 +310,28 @@ elif st.session_state.current_page != "Dashboard":
             pdf = FPDF()
             pdf.add_page()
             
-            # 1. LOGO RENDER (Direct Path D:\VISPL)
-            try:
-                if os.path.exists(r"D:\VISPL\logo (1).png"):
-                    pdf.image(r"D:\VISPL\logo (1).png", 10, 10, 50) 
-                else:
-                    pdf.set_font("Helvetica", 'B', 10)
-                    pdf.set_text_color(255, 0, 0)
-                    pdf.text(10, 20, "Logo missing: Path D:\VISPL\logo (1).png not found")
-            except Exception as e:
+            # --- SMART IMAGE PATH FINDER ---
+            def get_img(filename):
+                paths = [
+                    rf"D:\VISPL\{filename}",
+                    f"/mount/src/visiontech-app/{filename}",
+                    filename
+                ]
+                for p in paths:
+                    if os.path.exists(p):
+                        return p
+                return None
+
+            # 1. LOGO RENDER
+            logo_path = get_img("logo (1).png")
+            if logo_path:
+                pdf.image(logo_path, 10, 10, 50) 
+            else:
                 pdf.set_font("Helvetica", 'B', 10)
                 pdf.set_text_color(255, 0, 0)
-                pdf.text(10, 20, "Logo error: Check file format")
+                pdf.text(10, 20, "Logo missing: Upload image to Github")
 
-            # 2. VISIONTECH Name in Blue (RGB Force)
+            # 2. VISIONTECH Name in Blue
             pdf.set_text_color(11, 61, 102) 
             pdf.set_font("Helvetica", 'B', 14)
             pdf.set_x(100)
@@ -349,31 +357,39 @@ elif st.session_state.current_page != "Dashboard":
             # 4. VENDOR & ORDER INFO BOXES
             pdf.set_text_color(0, 0, 0)
             pdf.ln(5)
-            y_start = pdf.get_y()
+            y_boxes = pdf.get_y()
             
-            # VENDOR DETAILS
+            # --- VENDOR DETAILS BOX ---
             pdf.set_font("Helvetica", 'B', 9)
             pdf.cell(92, 6, " VENDOR DETAILS", 1, 1, 'L', False)
-            pdf.set_font("Helvetica", '', 9)
+            y_addr_start = pdf.get_y()
             
             v_name = str(po_data.get('vendor_name', ''))
             v_gst = str(po_data.get('vendor_gst', ''))
-            
             actual_address = "N/A"
             for v in vendors_list:
                 if v['name'] == v_name:
                     actual_address = v.get('address', 'N/A')
                     break
-                    
-            v_info = f"{v_name}\n{actual_address}\nGSTIN: {v_gst}"
-            pdf.multi_cell(92, 5, v_info, 1, 'L')
-            y_v = pdf.get_y()
             
-            # ORDER INFORMATION
-            pdf.set_y(y_start)
+            # Vendor Name in BOLD
+            pdf.set_font("Helvetica", 'B', 9)
+            pdf.set_x(10)
+            pdf.cell(92, 5, f" {v_name}", 0, 1, 'L')
+            
+            # Address and GST in REGULAR
+            pdf.set_font("Helvetica", '', 9)
+            pdf.set_x(10)
+            pdf.multi_cell(92, 5, f" {actual_address}\n GSTIN: {v_gst}", 0, 'L')
+            y_v_end = pdf.get_y()
+            
+            # --- ORDER INFORMATION BOX ---
+            pdf.set_y(y_boxes)
             pdf.set_x(108)
             pdf.set_font("Helvetica", 'B', 9)
             pdf.cell(92, 6, " ORDER INFORMATION", 1, 1, 'L', False)
+            
+            pdf.set_y(y_addr_start)
             pdf.set_x(108)
             pdf.set_font("Helvetica", '', 9)
             try:
@@ -382,11 +398,16 @@ elif st.session_state.current_page != "Dashboard":
             except:
                 dt_fmt = po_data['po_date']
                 
-            o_info = f"PO Number: {po_data['po_number']}\nDate: {dt_fmt}\nHandover Team: {po_data.get('handover_team', 'N/A')}"
-            pdf.multi_cell(92, 5, o_info, 1, 'L')
-            y_o = pdf.get_y()
+            o_info = f" PO Number: {po_data['po_number']}\n Date: {dt_fmt}\n Handover Team: {po_data.get('handover_team', 'N/A')}"
+            pdf.multi_cell(92, 5, o_info, 0, 'L')
+            y_o_end = pdf.get_y()
             
-            pdf.set_y(max(y_v, y_o) + 5)
+            # Draw Borders properly
+            max_y = max(y_v_end, y_o_end)
+            pdf.rect(10, y_addr_start, 92, max_y - y_addr_start)
+            pdf.rect(108, y_addr_start, 92, max_y - y_addr_start)
+            
+            pdf.set_y(max_y + 5)
             
             # 5. ITEMS TABLE
             pdf.set_font("Helvetica", 'B', 8.5)
@@ -456,18 +477,13 @@ elif st.session_state.current_page != "Dashboard":
             pdf.set_font("Helvetica", 'B', 10)
             pdf.cell(70, 5, "For Visiontech Infra Solution Pvt. Ltd.", 0, 1, 'C')
             
-            # SIGNATURE RENDER (Direct Path D:\VISPL)
-            try:
-                if os.path.exists(r"D:\VISPL\Signature in PNG.png"):
-                    pdf.image(r"D:\VISPL\Signature in PNG.png", 148, pdf.get_y() - 2, 35)
-                else:
-                    pdf.set_font("Helvetica", '', 8)
-                    pdf.set_text_color(255, 0, 0)
-                    pdf.text(148, pdf.get_y() + 10, "Sign missing: Path not found")
-            except Exception as e:
+            sign_path = get_img("Signature in PNG.png")
+            if sign_path:
+                pdf.image(sign_path, 148, pdf.get_y() - 2, 35)
+            else:
                 pdf.set_font("Helvetica", '', 8)
                 pdf.set_text_color(255, 0, 0)
-                pdf.text(148, pdf.get_y() + 10, "Sign Error: Check file format")
+                pdf.text(148, pdf.get_y() + 10, "Sign missing: Upload to Github")
 
             pdf.ln(20)
             pdf.set_x(130)
