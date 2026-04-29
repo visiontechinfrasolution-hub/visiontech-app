@@ -495,7 +495,9 @@ elif st.session_state.current_page != "Dashboard":
                     supabase.table("allowed_users").insert({"name": tn, "phone_number": tp}).execute()
                     st.success("✅ Member Added!"); time.sleep(1); st.rerun()
     else:
-        st.write(f"Section {cur_p} is active.")# =====================================================================
+        st.write(f"Section {cur_p} is active.")
+        
+    # =====================================================================
     # 🟩 TAB 1: BOQ REPORT (3 Dedicated Sections - 0% Logic Change)
     # =====================================================================
     if st.session_state.current_page == "BOQ":
