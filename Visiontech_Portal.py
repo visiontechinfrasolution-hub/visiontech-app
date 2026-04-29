@@ -307,29 +307,36 @@ elif st.session_state.current_page != "Dashboard":
         def generate_po_pdf(po_data, vendors_list):
             from fpdf import FPDF
             import os
+            import urllib.request
             pdf = FPDF()
             pdf.add_page()
             
-            # --- SMART IMAGE PATH FINDER ---
-            def get_img(filename):
-                paths = [
-                    rf"D:\VISPL\{filename}",
-                    f"/mount/src/visiontech-app/{filename}",
-                    filename
-                ]
-                for p in paths:
-                    if os.path.exists(p):
-                        return p
-                return None
+            # --- SUPABASE STORAGE IMAGE DOWNLOADER ---
+            logo_url = "https://sckyflvukpmdqmdzjzhs.supabase.co/storage/v1/object/public/Logo/VISPL%20Logo.jpg"
+            sign_url = "https://sckyflvukpmdqmdzjzhs.supabase.co/storage/v1/object/public/Logo/Signature.png"
+            
+            logo_path = "VISPL_Logo_Temp.jpg"
+            sign_path = "Signature_Temp.png"
+            
+            try:
+                if not os.path.exists(logo_path):
+                    urllib.request.urlretrieve(logo_url, logo_path)
+            except:
+                pass
+                
+            try:
+                if not os.path.exists(sign_path):
+                    urllib.request.urlretrieve(sign_url, sign_path)
+            except:
+                pass
 
             # 1. LOGO RENDER
-            logo_path = get_img("logo (1).png")
-            if logo_path:
+            if os.path.exists(logo_path):
                 pdf.image(logo_path, 10, 10, 50) 
             else:
                 pdf.set_font("Helvetica", 'B', 10)
                 pdf.set_text_color(255, 0, 0)
-                pdf.text(10, 20, "Logo missing: Upload image to Github")
+                pdf.text(10, 20, "Logo missing: Supabase URL Failed")
 
             # 2. VISIONTECH Name in Blue
             pdf.set_text_color(11, 61, 102) 
@@ -477,13 +484,12 @@ elif st.session_state.current_page != "Dashboard":
             pdf.set_font("Helvetica", 'B', 10)
             pdf.cell(70, 5, "For Visiontech Infra Solution Pvt. Ltd.", 0, 1, 'C')
             
-            sign_path = get_img("Signature in PNG.png")
-            if sign_path:
+            if os.path.exists(sign_path):
                 pdf.image(sign_path, 148, pdf.get_y() - 2, 35)
             else:
                 pdf.set_font("Helvetica", '', 8)
                 pdf.set_text_color(255, 0, 0)
-                pdf.text(148, pdf.get_y() + 10, "Sign missing: Upload to Github")
+                pdf.text(148, pdf.get_y() + 10, "Sign missing: Supabase URL Failed")
 
             pdf.ln(20)
             pdf.set_x(130)
