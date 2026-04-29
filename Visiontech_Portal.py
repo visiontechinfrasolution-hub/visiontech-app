@@ -299,31 +299,32 @@ elif st.session_state.current_page != "Dashboard":
     elif cur_p == "PDFFormat":
         st.title("📜 Vintage PDF")
 
-    # --- 🛒 PURCHASE ORDER PAGE (STRICT ALIGNMENT) ---
+    # --- 🛒 PURCHASE ORDER PAGE ---
     elif cur_p == "Purchase Order":
         st.markdown("<h1 style='color: #1E3A8A; text-align: center;'>🛒 Purchase Order System</h1>", unsafe_allow_html=True)
         tab_po, tab_v, tab_i, tab_t = st.tabs(["📝 Create PO", "🏢 Vendor Reg", "📦 Item Master", "👥 Team Reg"])
 
-        def generate_po_pdf(po_data):
+        def generate_po_pdf(po_data, vendors_list):
             from fpdf import FPDF
             import os
             pdf = FPDF()
             pdf.add_page()
             
-            # 1. LOGO & HEADER
+            # 1. LOGO RENDER
             try:
-                if os.path.exists("logo (1).png"):
-                    pdf.image("logo (1).png", 10, 10, 50) 
-            except:
-                pass
+                pdf.image("logo (1).png", 10, 10, 50) 
+            except Exception as e:
+                pdf.set_font("Helvetica", 'B', 10)
+                pdf.set_text_color(255, 0, 0)
+                pdf.text(10, 20, "Logo missing: Check file name")
 
-            # Visiontech Name in Blue
+            # 2. VISIONTECH Name in Blue (RGB Force)
             pdf.set_text_color(11, 61, 102) 
             pdf.set_font("Helvetica", 'B', 14)
             pdf.set_x(100)
             pdf.cell(100, 6, "VISIONTECH INFRA SOLUTION PVT. LTD.", 0, 1, 'R')
             
-            # Header Details in Black
+            # Header Details
             pdf.set_text_color(0, 0, 0)
             pdf.set_font("Helvetica", '', 8.5)
             pdf.set_x(100)
@@ -333,80 +334,134 @@ elif st.session_state.current_page != "Dashboard":
             pdf.set_x(100)
             pdf.cell(100, 4, "Contact: 9552273181 | Email: vispltower@gmail.com", 0, 1, 'R')
             
-            # 2. TITLE BAR
+            # 3. TITLE BAR
             pdf.ln(8)
             pdf.set_fill_color(26, 58, 95) 
             pdf.set_text_color(255, 255, 255)
             pdf.set_font("Helvetica", 'B', 14)
             pdf.cell(190, 10, "PURCHASE ORDER", 0, 1, 'C', True)
             
-            # 3. VENDOR & ORDER INFO
+            # 4. VENDOR & ORDER INFO BOXES
             pdf.set_text_color(0, 0, 0)
             pdf.ln(5)
             y_start = pdf.get_y()
             
-            # Vendor Details with Address
+            # VENDOR DETAILS (Live Address Fetch Logic)
             pdf.set_font("Helvetica", 'B', 9)
             pdf.cell(92, 6, " VENDOR DETAILS", 1, 1, 'L', False)
             pdf.set_font("Helvetica", '', 9)
+            
             v_name = str(po_data.get('vendor_name', ''))
-            v_addr = str(po_data.get('vendor_address', 'N/A'))
             v_gst = str(po_data.get('vendor_gst', ''))
-            pdf.multi_cell(92, 5, f"{v_name}\n{v_addr}\nGSTIN: {v_gst}", 1, 'L')
+            
+            actual_address = "N/A"
+            for v in vendors_list:
+                if v['name'] == v_name:
+                    actual_address = v.get('address', 'N/A')
+                    break
+                    
+            v_info = f"{v_name}\n{actual_address}\nGSTIN: {v_gst}"
+            pdf.multi_cell(92, 5, v_info, 1, 'L')
             y_v = pdf.get_y()
             
-            # Order Information with Date Format (28-Apr-2026)
-            pdf.set_y(y_start); pdf.set_x(108)
-            pdf.set_font("Helvetica", 'B', 9); pdf.cell(92, 6, " ORDER INFORMATION", 1, 1, 'L', False)
-            pdf.set_x(108); pdf.set_font("Helvetica", '', 9)
+            # ORDER INFORMATION (Date Format Fix: 28-Apr-2026)
+            pdf.set_y(y_start)
+            pdf.set_x(108)
+            pdf.set_font("Helvetica", 'B', 9)
+            pdf.cell(92, 6, " ORDER INFORMATION", 1, 1, 'L', False)
+            pdf.set_x(108)
+            pdf.set_font("Helvetica", '', 9)
             try:
-                dt_obj = datetime.strptime(po_data['po_date'], '%Y-%m-%d')
+                dt_obj = datetime.strptime(str(po_data['po_date']), '%Y-%m-%d')
                 dt_fmt = dt_obj.strftime('%d-%b-%Y')
             except:
                 dt_fmt = po_data['po_date']
+                
             o_info = f"PO Number: {po_data['po_number']}\nDate: {dt_fmt}\nHandover Team: {po_data.get('handover_team', 'N/A')}"
             pdf.multi_cell(92, 5, o_info, 1, 'L')
             y_o = pdf.get_y()
             
             pdf.set_y(max(y_v, y_o) + 5)
             
-            # 4. ITEMS TABLE
-            pdf.set_font("Helvetica", 'B', 8.5); pdf.set_fill_color(240, 240, 240)
-            pdf.cell(8, 8, "Sr.", 1, 0, 'C', True); pdf.cell(62, 8, "Description", 1, 0, 'C', True)
-            pdf.cell(15, 8, "Qty", 1, 0, 'C', True); pdf.cell(20, 8, "Price", 1, 0, 'C', True)
-            pdf.cell(22, 8, "Basic", 1, 0, 'C', True); pdf.cell(18, 8, "CGST", 1, 0, 'C', True)
-            pdf.cell(18, 8, "SGST", 1, 0, 'C', True); pdf.cell(27, 8, "Total", 1, 1, 'C', True)
+            # 5. ITEMS TABLE
+            pdf.set_font("Helvetica", 'B', 8.5)
+            pdf.set_fill_color(240, 240, 240)
+            pdf.cell(8, 8, "Sr.", 1, 0, 'C', True)
+            pdf.cell(62, 8, "Description", 1, 0, 'C', True)
+            pdf.cell(15, 8, "Qty", 1, 0, 'C', True)
+            pdf.cell(20, 8, "Price", 1, 0, 'C', True)
+            pdf.cell(22, 8, "Basic", 1, 0, 'C', True)
+            pdf.cell(18, 8, "CGST", 1, 0, 'C', True)
+            pdf.cell(18, 8, "SGST", 1, 0, 'C', True)
+            pdf.cell(27, 8, "Total", 1, 1, 'C', True)
             
             pdf.set_font("Helvetica", '', 8.5)
             for i, item in enumerate(po_data['items']):
-                pdf.cell(8, 7, str(i+1), 1, 0, 'C'); pdf.cell(62, 7, str(item['Description']), 1, 0, 'L')
-                pdf.cell(15, 7, str(item['Qty']), 1, 0, 'C'); pdf.cell(20, 7, f"{item['Price']:.2f}", 1, 0, 'R')
-                pdf.cell(22, 7, f"{item['Basic']:.2f}", 1, 0, 'R'); pdf.cell(18, 7, f"{item['CGST']:.2f}", 1, 0, 'R')
-                pdf.cell(18, 7, f"{item['SGST']:.2f}", 1, 0, 'R'); pdf.cell(27, 7, f"{item['Total']:.2f}", 1, 1, 'R')
+                pdf.cell(8, 7, str(i+1), 1, 0, 'C')
+                pdf.cell(62, 7, str(item['Description']), 1, 0, 'L')
+                pdf.cell(15, 7, str(item['Qty']), 1, 0, 'C')
+                pdf.cell(20, 7, f"{float(item['Price']):.2f}", 1, 0, 'R')
+                pdf.cell(22, 7, f"{float(item['Basic']):.2f}", 1, 0, 'R')
+                pdf.cell(18, 7, f"{float(item['CGST']):.2f}", 1, 0, 'R')
+                pdf.cell(18, 7, f"{float(item['SGST']):.2f}", 1, 0, 'R')
+                pdf.cell(27, 7, f"{float(item['Total']):.2f}", 1, 1, 'R')
 
-            # 5. TOTALS
-            pdf.ln(2); pdf.set_x(120); pdf.set_font("Helvetica", '', 9)
-            t_b = sum(item['Basic'] for item in po_data['items'])
-            t_c = sum(item['CGST'] for item in po_data['items'])
-            t_s = sum(item['SGST'] for item in po_data['items'])
-            pdf.cell(40, 6, "Total Basic:", 0, 0, 'R'); pdf.cell(40, 6, f" {t_b:,.2f}", 1, 1, 'R')
-            pdf.set_x(120); pdf.cell(40, 6, "Total CGST:", 0, 0, 'R'); pdf.cell(40, 6, f" {t_c:,.2f}", 1, 1, 'R')
-            pdf.set_x(120); pdf.cell(40, 6, "Total SGST:", 0, 0, 'R'); pdf.cell(40, 6, f" {t_s:,.2f}", 1, 1, 'R')
-            pdf.set_x(120); pdf.set_font("Helvetica", 'B', 10); pdf.set_fill_color(26, 58, 95); pdf.set_text_color(255, 255, 255)
-            pdf.cell(40, 7, "Grand Total:", 0, 0, 'R', True); pdf.cell(40, 7, f" {po_data['grand_total']:,.2f}", 1, 1, 'R', True)
+            # 6. SUMMARY TOTALS
+            pdf.ln(2)
+            pdf.set_x(120)
+            pdf.set_font("Helvetica", '', 9)
+            t_b = sum(float(item['Basic']) for item in po_data['items'])
+            t_c = sum(float(item['CGST']) for item in po_data['items'])
+            t_s = sum(float(item['SGST']) for item in po_data['items'])
             
-            # 6. SIGNATURE & STAMP
-            pdf.set_text_color(0, 0, 0); pdf.ln(5); pdf.set_font("Helvetica", 'B', 8.5)
+            pdf.cell(40, 6, "Total Basic:", 0, 0, 'R')
+            pdf.cell(40, 6, f" {t_b:,.2f}", 1, 1, 'R')
+            pdf.set_x(120)
+            pdf.cell(40, 6, "Total CGST:", 0, 0, 'R')
+            pdf.cell(40, 6, f" {t_c:,.2f}", 1, 1, 'R')
+            pdf.set_x(120)
+            pdf.cell(40, 6, "Total SGST:", 0, 0, 'R')
+            pdf.cell(40, 6, f" {t_s:,.2f}", 1, 1, 'R')
+            
+            pdf.set_x(120)
+            pdf.set_font("Helvetica", 'B', 10)
+            pdf.set_fill_color(26, 58, 95)
+            pdf.set_text_color(255, 255, 255)
+            pdf.cell(40, 7, "Grand Total:", 0, 0, 'R', True)
+            pdf.cell(40, 7, f" {float(po_data['grand_total']):,.2f}", 1, 1, 'R', True)
+            
+            # 7. SIGNATURE STAMP & TERMS
+            pdf.set_text_color(0, 0, 0)
+            pdf.ln(5)
+            pdf.set_font("Helvetica", 'B', 8.5)
             pdf.cell(190, 5, "AMOUNT IN WORDS", 0, 1)
             pdf.set_font("Helvetica", 'I', 9)
             words = num2words(int(po_data['grand_total']), lang='en_IN').title() + " Rupees Only."
             pdf.multi_cell(190, 5, words, 1)
             
-            pdf.ln(10); pdf.set_x(130); pdf.set_font("Helvetica", 'B', 10)
+            pdf.ln(6)
+            pdf.set_font("Helvetica", 'B', 8.5)
+            pdf.cell(190, 5, "Terms & Conditions:", 0, 1)
+            pdf.set_font("Helvetica", '', 8.5)
+            pdf.cell(190, 4, "1. Subject to Pune Jurisdiction.", 0, 1)
+            pdf.cell(190, 4, "2. Material must match technical specs.", 0, 1)
+
+            pdf.ln(4)
+            pdf.set_x(130)
+            pdf.set_font("Helvetica", 'B', 10)
             pdf.cell(70, 5, "For Visiontech Infra Solution Pvt. Ltd.", 0, 1, 'C')
-            if os.path.exists("Signature in PNG.png"):
+            
+            try:
                 pdf.image("Signature in PNG.png", 148, pdf.get_y() - 2, 35)
-            pdf.ln(20); pdf.set_x(130); pdf.cell(70, 5, "Authorized Signatory", 0, 1, 'C')
+            except Exception as e:
+                pdf.set_font("Helvetica", '', 8)
+                pdf.set_text_color(255, 0, 0)
+                pdf.text(148, pdf.get_y() + 10, "Sign Error: Check file")
+
+            pdf.ln(20)
+            pdf.set_x(130)
+            pdf.set_text_color(0, 0, 0)
+            pdf.cell(70, 5, "Authorized Signatory", 0, 1, 'C')
             return bytes(pdf.output())
 
         with tab_po:
@@ -414,7 +469,8 @@ elif st.session_state.current_page != "Dashboard":
                 try:
                     res = supabase.table("purchase_orders").select("po_number").order("id", desc=True).limit(1).execute()
                     if res.data:
-                        last_po = res.data[0]['po_number']; num = int(last_po.split('/')[-1]) + 1
+                        last_po = res.data[0]['po_number']
+                        num = int(last_po.split('/')[-1]) + 1
                         return f"VISPL/26-27/{str(num).zfill(3)}"
                     return "VISPL/26-27/001"
                 except: return "VISPL/26-27/001"
@@ -435,17 +491,25 @@ elif st.session_state.current_page != "Dashboard":
                 v_addr_val = v_data['address'] if v_data else ""
                 v_addr = st.text_area("Vendor Address", value=v_addr_val, disabled=True, height=68)
 
-            st.divider(); st.subheader("Add Materials")
+            st.divider()
+            st.subheader("Add Materials")
             i_col1, i_col2, i_col3, i_col4 = st.columns([2,1,1,1])
             sel_item = i_col1.selectbox("Select Item", [""] + [i['description'] for i in items_master], key="i_sel")
             i_data = next((i for i in items_master if i['description'] == sel_item), None)
             qty = i_col2.number_input("Qty", min_value=1, key="i_qty")
             price = i_col3.number_input("Price", min_value=0.0, step=1.0, key="i_price")
+            
             if 'temp_items' not in st.session_state: st.session_state.temp_items = []
+            
             if i_col4.button("➕ Add Item", use_container_width=True):
                 if i_data and sel_item != "":
-                    basic = qty * price; c_amt = (basic * float(i_data['cgst_pct'])) / 100; s_amt = (basic * float(i_data['sgst_pct'])) / 100
-                    st.session_state.temp_items.append({"Description": sel_item, "Qty": qty, "Price": price, "Basic": basic, "CGST": c_amt, "SGST": s_amt, "Total": basic + c_amt + s_amt})
+                    basic = qty * price
+                    c_amt = (basic * float(i_data['cgst_pct'])) / 100
+                    s_amt = (basic * float(i_data['sgst_pct'])) / 100
+                    st.session_state.temp_items.append({
+                        "Description": sel_item, "Qty": qty, "Price": price, 
+                        "Basic": basic, "CGST": c_amt, "SGST": s_amt, "Total": basic + c_amt + s_amt
+                    })
                     st.rerun()
 
             if st.session_state.temp_items:
@@ -453,19 +517,36 @@ elif st.session_state.current_page != "Dashboard":
                 gt = sum(item['Total'] for item in st.session_state.temp_items)
                 st.metric("Grand Total", f"₹ {gt:,.2f}")
                 b1, b2 = st.columns(2)
+                
                 if b1.button("🚀 Save & Finalize PO", type="primary", use_container_width=True):
-                    payload = {"po_number": po_no, "po_date": str(po_date), "vendor_name": v_choice, "vendor_gst": v_gst, "handover_team": h_team, "vendor_address": v_addr_val, "items": st.session_state.temp_items, "grand_total": float(gt)}
+                    payload = {
+                        "po_number": po_no, "po_date": str(po_date), "vendor_name": v_choice, 
+                        "vendor_gst": v_gst, "handover_team": h_team, 
+                        "items": st.session_state.temp_items, "grand_total": float(gt)
+                    }
                     supabase.table("purchase_orders").insert(payload).execute()
-                    st.success("✅ PO Saved!"); st.session_state.temp_items = []; time.sleep(1); st.rerun()
-                if b2.button("🗑️ Clear All Items", use_container_width=True): st.session_state.temp_items = []; st.rerun()
+                    st.success("✅ PO Saved!")
+                    st.session_state.temp_items = []
+                    time.sleep(1); st.rerun()
+                    
+                if b2.button("🗑️ Clear All Items", use_container_width=True): 
+                    st.session_state.temp_items = []
+                    st.rerun()
 
-            st.divider(); st.subheader("📜 Recent Purchase Orders")
+            st.divider()
+            st.subheader("📜 Recent Purchase Orders")
             po_res = supabase.table("purchase_orders").select("*").order("id", desc=True).limit(10).execute()
+            
             if po_res.data:
                 for row in po_res.data:
                     r_col = st.columns([1.5, 1.2, 1, 1, 0.6, 0.6])
-                    r_col[0].write(row['vendor_name']); r_col[1].write(row['po_number']); r_col[2].write(row['po_date']); r_col[3].write(f"₹{row['grand_total']:,.0f}")
-                    pdf_bytes = generate_po_pdf(row)
+                    r_col[0].write(row['vendor_name'])
+                    r_col[1].write(row['po_number'])
+                    r_col[2].write(row['po_date'])
+                    r_col[3].write(f"₹{row['grand_total']:,.0f}")
+                    
+                    pdf_bytes = generate_po_pdf(row, vendors)
+                    
                     r_col[4].download_button("📥", data=pdf_bytes, file_name=f"{row['po_number']}.pdf", mime="application/pdf", key=f"dl_{row['id']}")
                     wa_msg = f"Hello, please find Purchase Order: {row['po_number']} for Amount ₹{row['grand_total']:,.2f} from Visiontech Infra Solution."
                     wa_url = f"whatsapp://send?text={urllib.parse.quote(wa_msg)}"
@@ -474,22 +555,31 @@ elif st.session_state.current_page != "Dashboard":
 
         with tab_v:
             with st.form("vendor_reg", clear_on_submit=True):
-                vn = st.text_input("Company Name"); va = st.text_area("Address"); vg = st.text_input("GST Number")
+                vn = st.text_input("Company Name")
+                va = st.text_area("Address")
+                vg = st.text_input("GST Number")
                 if st.form_submit_button("Register Vendor", use_container_width=True):
                     supabase.table("vendors").insert({"name": vn, "address": va, "gst_number": vg}).execute()
-                    st.success("✅ Vendor Registered!"); time.sleep(1); st.rerun()
+                    st.success("✅ Vendor Registered!")
+                    time.sleep(1); st.rerun()
         with tab_i:
             with st.form("item_reg", clear_on_submit=True):
-                idsc = st.text_input("Item Name"); ic1, ic2 = st.columns(2); icgst = ic1.number_input("CGST %", value=9.0); isgst = ic2.number_input("SGST %", value=9.0)
+                idsc = st.text_input("Item Name")
+                ic1, ic2 = st.columns(2)
+                icgst = ic1.number_input("CGST %", value=9.0)
+                isgst = ic2.number_input("SGST %", value=9.0)
                 if st.form_submit_button("Save Item", use_container_width=True):
                     supabase.table("items_master").insert({"description": idsc, "cgst_pct": icgst, "sgst_pct": isgst}).execute()
-                    st.success("✅ Item Added!"); time.sleep(1); st.rerun()
+                    st.success("✅ Item Added!")
+                    time.sleep(1); st.rerun()
         with tab_t:
             with st.form("team_reg", clear_on_submit=True):
-                tn = st.text_input("Name"); tp = st.text_input("Phone")
+                tn = st.text_input("Name")
+                tp = st.text_input("Phone")
                 if st.form_submit_button("Add Member", use_container_width=True):
                     supabase.table("allowed_users").insert({"name": tn, "phone_number": tp}).execute()
-                    st.success("✅ Member Added!"); time.sleep(1); st.rerun()
+                    st.success("✅ Member Added!")
+                    time.sleep(1); st.rerun()
     else:
         st.write(f"Section {cur_p} is active.")
         
