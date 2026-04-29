@@ -307,32 +307,29 @@ elif st.session_state.current_page != "Dashboard":
         def generate_po_pdf(po_data, vendors_list):
             from fpdf import FPDF
             import os
-            import requests
             pdf = FPDF()
             pdf.add_page()
             
-            # --- SUPABASE STORAGE IMAGE DOWNLOADER (Fixed with Requests) ---
-            logo_url = "https://sckyflvukpmdqmdzjzhs.supabase.co/storage/v1/object/public/Logo/VISPL%20Logo.jpg"
-            sign_url = "https://sckyflvukpmdqmdzjzhs.supabase.co/storage/v1/object/public/Logo/Signature.png"
-            
+            # --- SUPABASE NATIVE STORAGE DOWNLOADER ---
             logo_path = "VISPL_Logo_Temp.jpg"
             sign_path = "Signature_Temp.png"
             
             try:
                 if not os.path.exists(logo_path):
-                    res = requests.get(logo_url, timeout=10)
-                    if res.status_code == 200:
-                        with open(logo_path, 'wb') as f:
-                            f.write(res.content)
-            except: pass
+                    # Direct Supabase Client se image fetch
+                    logo_data = supabase.storage.from_("Logo").download("VISPL Logo.jpg")
+                    with open(logo_path, "wb") as f:
+                        f.write(logo_data)
+            except Exception as e:
+                pass
                 
             try:
                 if not os.path.exists(sign_path):
-                    res = requests.get(sign_url, timeout=10)
-                    if res.status_code == 200:
-                        with open(sign_path, 'wb') as f:
-                            f.write(res.content)
-            except: pass
+                    sign_data = supabase.storage.from_("Logo").download("Signature.png")
+                    with open(sign_path, "wb") as f:
+                        f.write(sign_data)
+            except Exception as e:
+                pass
 
             # 1. LOGO RENDER
             if os.path.exists(logo_path):
@@ -340,7 +337,7 @@ elif st.session_state.current_page != "Dashboard":
             else:
                 pdf.set_font("Helvetica", 'B', 10)
                 pdf.set_text_color(255, 0, 0)
-                pdf.text(10, 20, "Logo missing: Check Supabase URL/File")
+                pdf.text(10, 20, "Logo missing: Supabase Bucket Error")
 
             # 2. VISIONTECH Name in Blue
             pdf.set_text_color(11, 61, 102) 
@@ -383,7 +380,7 @@ elif st.session_state.current_page != "Dashboard":
                     actual_address = v.get('address', 'N/A')
                     break
             
-            # Vendor Name Explicitly BOLD
+            # Vendor Name in BOLD
             pdf.set_font("Helvetica", 'B', 9)
             pdf.set_x(10)
             pdf.cell(92, 5, f" {v_name}", 0, 1, 'L')
@@ -493,7 +490,7 @@ elif st.session_state.current_page != "Dashboard":
             else:
                 pdf.set_font("Helvetica", '', 8)
                 pdf.set_text_color(255, 0, 0)
-                pdf.text(148, pdf.get_y() + 10, "Sign missing: Check Supabase URL/File")
+                pdf.text(148, pdf.get_y() + 10, "Sign missing: Supabase Bucket Error")
 
             pdf.ln(20)
             pdf.set_x(130)
