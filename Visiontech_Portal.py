@@ -282,7 +282,6 @@ elif st.session_state.current_page == "Jajupro":
                 st.markdown("<hr style='margin:2px; opacity:0.1'>", unsafe_allow_html=True)
 
 # --- OTHER PAGES ---
-# --- OTHER PAGES ---
 elif st.session_state.current_page != "Dashboard":
     st.markdown("<div class='back-btn'>", unsafe_allow_html=True)
     if st.button("⬅️ Dashboard"): navigate_to("Dashboard")
@@ -300,30 +299,33 @@ elif st.session_state.current_page != "Dashboard":
     elif cur_p == "PDFFormat":
         st.title("📜 Vintage PDF")
 
-    # --- 🛒 PURCHASE ORDER PAGE ---
+    # --- PURCHASE ORDER PAGE (FINAL FIX) ---
     elif cur_p == "Purchase Order":
         st.markdown("<h1 style='color: #1E3A8A; text-align: center;'>🛒 Purchase Order System</h1>", unsafe_allow_html=True)
         tab_po, tab_v, tab_i, tab_t = st.tabs(["📝 Create PO", "🏢 Vendor Reg", "📦 Item Master", "👥 Team Reg"])
 
         def generate_po_pdf(po_data):
             from fpdf import FPDF
+            import os
             pdf = FPDF()
             pdf.add_page()
             
-            # 1. LOGO & HEADER
-            try:
-                pdf.image("logo (1).png", 10, 10, 50) 
-            except:
+            # 1. LOGO CHECK & RENDER
+            # Logo position matching Visiontech_PO_Final_Format.pdf
+            if os.path.exists("logo (1).png"):
+                pdf.image("logo (1).png", 10, 8, 45)
+            else:
                 pdf.set_font("Helvetica", 'B', 16)
-                pdf.cell(50, 10, "ViS Visiontech")
+                pdf.set_text_color(11, 61, 102)
+                pdf.text(10, 20, "ViS Visiontech")
 
-            # VISIONTECH Name in Blue
+            # VISIONTECH Name in Blue (Exact Match)
             pdf.set_text_color(11, 61, 102) 
             pdf.set_font("Helvetica", 'B', 14)
             pdf.set_x(100)
             pdf.cell(100, 6, "VISIONTECH INFRA SOLUTION PVT. LTD.", 0, 1, 'R')
             
-            # Other details in Black
+            # Header Details
             pdf.set_text_color(0, 0, 0)
             pdf.set_font("Helvetica", '', 8.5)
             pdf.set_x(100)
@@ -334,82 +336,118 @@ elif st.session_state.current_page != "Dashboard":
             pdf.cell(100, 4, "Contact: 9552273181 | Email: vispltower@gmail.com", 0, 1, 'R')
             
             # 2. TITLE BAR
-            pdf.ln(6)
+            pdf.ln(8)
             pdf.set_fill_color(26, 58, 95) 
             pdf.set_text_color(255, 255, 255)
             pdf.set_font("Helvetica", 'B', 14)
             pdf.cell(190, 10, "PURCHASE ORDER", 0, 1, 'C', True)
             
-            # 3. VENDOR & ORDER INFO
+            # 3. VENDOR & ORDER INFO BOXES
             pdf.set_text_color(0, 0, 0)
             pdf.ln(5)
-            y_boxes = pdf.get_y()
+            y_start = pdf.get_y()
             
-            # Vendor details (Including Address)
+            # VENDOR BOX (Fixed Address Logic)
             pdf.set_font("Helvetica", 'B', 9)
             pdf.cell(92, 6, " VENDOR DETAILS", 1, 1, 'L', False)
             pdf.set_font("Helvetica", '', 9)
-            v_addr_full = f"{po_data['vendor_name']}\n{po_data.get('vendor_address', 'N/A')}\nGSTIN: {po_data['vendor_gst']}"
-            pdf.multi_cell(92, 5, v_addr_full, 1, 'L')
             
-            # Order details (Formatted Date)
-            pdf.set_y(y_boxes)
+            # Vendor address display fix
+            v_name = str(po_data.get('vendor_name', ''))
+            v_addr = str(po_data.get('vendor_address', 'N/A'))
+            v_gst = str(po_data.get('vendor_gst', ''))
+            v_display = f"{v_name}\n{v_addr}\nGSTIN: {v_gst}"
+            
+            # Box height should match content
+            pdf.multi_cell(92, 5, v_display, 1, 'L')
+            y_end_vendor = pdf.get_y()
+            
+            # ORDER INFORMATION BOX
+            pdf.set_y(y_start)
             pdf.set_x(108)
             pdf.set_font("Helvetica", 'B', 9)
             pdf.cell(92, 6, " ORDER INFORMATION", 1, 1, 'L', False)
             pdf.set_x(108)
             pdf.set_font("Helvetica", '', 9)
-            # Date Formatting to 28-Apr-2026
-            raw_date = datetime.strptime(po_data['po_date'], '%Y-%m-%d')
-            fmt_date = raw_date.strftime('%d-%b-%Y')
-            order_info = f"PO Number: {po_data['po_number']}\nDate: {fmt_date}\nHandover Team: {po_data.get('handover_team', 'N/A')}"
-            pdf.multi_cell(92, 5, order_info, 1, 'L')
+            
+            # Date Formatting (28-Apr-2026)
+            try:
+                raw_dt = datetime.strptime(po_data['po_date'], '%Y-%m-%d')
+                fmt_dt = raw_dt.strftime('%d-%b-%Y')
+            except:
+                fmt_dt = po_data['po_date']
+                
+            order_txt = f"PO Number: {po_data['po_number']}\nDate: {fmt_dt}\nHandover Team: {po_data.get('handover_team', 'N/A')}"
+            pdf.multi_cell(92, 5, order_txt, 1, 'L')
+            y_end_order = pdf.get_y()
+            
+            # Set Y to the lower of the two boxes
+            pdf.set_y(max(y_end_vendor, y_end_order) + 5)
             
             # 4. ITEMS TABLE
-            pdf.ln(8)
-            pdf.set_font("Helvetica", 'B', 8.5); pdf.set_fill_color(240, 240, 240)
-            pdf.cell(8, 8, "Sr.", 1, 0, 'C', True); pdf.cell(62, 8, "Description", 1, 0, 'C', True)
-            pdf.cell(15, 8, "Qty", 1, 0, 'C', True); pdf.cell(20, 8, "Price", 1, 0, 'C', True)
-            pdf.cell(22, 8, "Basic", 1, 0, 'C', True); pdf.cell(18, 8, "CGST", 1, 0, 'C', True)
-            pdf.cell(18, 8, "SGST", 1, 0, 'C', True); pdf.cell(27, 8, "Total", 1, 1, 'C', True)
+            pdf.set_font("Helvetica", 'B', 8.5)
+            pdf.set_fill_color(240, 240, 240)
+            pdf.cell(8, 8, "Sr.", 1, 0, 'C', True)
+            pdf.cell(62, 8, "Description", 1, 0, 'C', True)
+            pdf.cell(15, 8, "Qty", 1, 0, 'C', True)
+            pdf.cell(20, 8, "Price", 1, 0, 'C', True)
+            pdf.cell(22, 8, "Basic", 1, 0, 'C', True)
+            pdf.cell(18, 8, "CGST", 1, 0, 'C', True)
+            pdf.cell(18, 8, "SGST", 1, 0, 'C', True)
+            pdf.cell(27, 8, "Total", 1, 1, 'C', True)
             
             pdf.set_font("Helvetica", '', 8.5)
             for i, item in enumerate(po_data['items']):
-                pdf.cell(8, 7, str(i+1), 1, 0, 'C'); pdf.cell(62, 7, str(item['Description']), 1, 0, 'L')
-                pdf.cell(15, 7, str(item['Qty']), 1, 0, 'C'); pdf.cell(20, 7, f"{item['Price']:.2f}", 1, 0, 'R')
-                pdf.cell(22, 7, f"{item['Basic']:.2f}", 1, 0, 'R'); pdf.cell(18, 7, f"{item['CGST']:.2f}", 1, 0, 'R')
-                pdf.cell(18, 7, f"{item['SGST']:.2f}", 1, 0, 'R'); pdf.cell(27, 7, f"{item['Total']:.2f}", 1, 1, 'R')
+                pdf.cell(8, 7, str(i+1), 1, 0, 'C')
+                pdf.cell(62, 7, str(item['Description']), 1, 0, 'L')
+                pdf.cell(15, 7, str(item['Qty']), 1, 0, 'C')
+                pdf.cell(20, 7, f"{item['Price']:.2f}", 1, 0, 'R')
+                pdf.cell(22, 7, f"{item['Basic']:.2f}", 1, 0, 'R')
+                pdf.cell(18, 7, f"{item['CGST']:.2f}", 1, 0, 'R')
+                pdf.cell(18, 7, f"{item['SGST']:.2f}", 1, 0, 'R')
+                pdf.cell(27, 7, f"{item['Total']:.2f}", 1, 1, 'R')
 
             # 5. TOTALS
-            pdf.ln(2); pdf.set_x(120); pdf.set_font("Helvetica", '', 9)
+            pdf.ln(2)
+            pdf.set_x(120)
             t_basic = sum(item['Basic'] for item in po_data['items'])
             t_cgst = sum(item['CGST'] for item in po_data['items'])
             t_sgst = sum(item['SGST'] for item in po_data['items'])
             
             pdf.cell(40, 6, "Total Basic:", 0, 0, 'R'); pdf.cell(40, 6, f" {t_basic:,.2f}", 1, 1, 'R')
-            pdf.set_x(120); pdf.cell(40, 6, "Total CGST:", 0, 0, 'R'); pdf.cell(40, 6, f" {t_cgst:,.2f}", 1, 1, 'R')
-            pdf.set_x(120); pdf.cell(40, 6, "Total SGST:", 0, 0, 'R'); pdf.cell(40, 6, f" {t_sgst:,.2f}", 1, 1, 'R')
+            pdf.set_x(120)
+            pdf.cell(40, 6, "Total CGST:", 0, 0, 'R'); pdf.cell(40, 6, f" {t_cgst:,.2f}", 1, 1, 'R')
+            pdf.set_x(120)
+            pdf.cell(40, 6, "Total SGST:", 0, 0, 'R'); pdf.cell(40, 6, f" {t_sgst:,.2f}", 1, 1, 'R')
             
-            pdf.set_x(120); pdf.set_font("Helvetica", 'B', 10); pdf.set_fill_color(26, 58, 95); pdf.set_text_color(255, 255, 255)
-            pdf.cell(40, 7, "Grand Total:", 0, 0, 'R', True); pdf.cell(40, 7, f" {po_data['grand_total']:,.2f}", 1, 1, 'R', True)
+            pdf.set_x(120); pdf.set_font("Helvetica", 'B', 10)
+            pdf.set_fill_color(26, 58, 95); pdf.set_text_color(255, 255, 255)
+            pdf.cell(40, 7, "Grand Total:", 0, 0, 'R', True)
+            pdf.cell(40, 7, f" {po_data['grand_total']:,.2f}", 1, 1, 'R', True)
             
-            # 6. WORDS, TERMS & SIGNATURE
-            pdf.set_text_color(0, 0, 0); pdf.ln(5); pdf.set_font("Helvetica", 'B', 8.5)
+            # 6. SIGNATURE STAMP & WORDS
+            pdf.set_text_color(0, 0, 0)
+            pdf.ln(5)
+            pdf.set_font("Helvetica", 'B', 8.5)
             pdf.cell(190, 5, "AMOUNT IN WORDS", 0, 1)
             pdf.set_font("Helvetica", 'I', 9)
             words = num2words(int(po_data['grand_total']), lang='en_IN').title() + " Rupees Only."
             pdf.multi_cell(190, 5, words, 1)
             
-            pdf.ln(6); pdf.set_font("Helvetica", 'B', 8.5); pdf.cell(190, 5, "Terms & Conditions:", 0, 1)
-            pdf.set_font("Helvetica", '', 8.5)
-            pdf.cell(190, 4, "1. Subject to Pune Jurisdiction.", 0, 1)
-            pdf.cell(190, 4, "2. Material must match technical specs.", 0, 1)
-            
-            pdf.ln(4); pdf.set_x(130); pdf.set_font("Helvetica", 'B', 10)
+            # Final Section
+            pdf.ln(10)
+            pdf.set_x(130)
+            pdf.set_font("Helvetica", 'B', 10)
             pdf.cell(70, 5, "For Visiontech Infra Solution Pvt. Ltd.", 0, 1, 'C')
-            try: pdf.image("Signature in PNG.png", 145, pdf.get_y(), 38)
-            except: pass
-            pdf.ln(22); pdf.set_x(130); pdf.cell(70, 5, "Authorized Signatory", 0, 1, 'C')
+            
+            # Stamp/Signature Logic
+            if os.path.exists("Signature in PNG.png"):
+                pdf.image("Signature in PNG.png", 148, pdf.get_y() - 2, 35)
+            
+            pdf.ln(20)
+            pdf.set_x(130)
+            pdf.cell(70, 5, "Authorized Signatory", 0, 1, 'C')
+            
             return bytes(pdf.output())
 
         with tab_po:
