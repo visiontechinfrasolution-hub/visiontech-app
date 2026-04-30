@@ -1,0 +1,78 @@
+import streamlit as st
+import pandas as pd
+from io import BytesIO
+
+# Page Configuration
+st.set_page_config(page_title="Excel to Streamlit Dashboard", layout="wide")
+
+st.title("📊 CSV/Excel Data Viewer")
+
+# 1. UPLOAD SECTION
+uploaded_file = st.file_uploader("Upload your Excel or CSV file", type=['csv', 'xlsx'])
+
+if uploaded_file is not None:
+    # Check file type and read data
+    try:
+        if uploaded_file.name.endswith('.csv'):
+            # CSV ke liye single dataframe
+            df_sheet1 = pd.read_csv(uploaded_file)
+            df_sheet2 = None 
+        else:
+            # Excel ke liye dono sheets read karna
+            excel_data = pd.ExcelFile(uploaded_file)
+            sheet_names = excel_data.sheet_names
+            
+            df_sheet1 = pd.read_excel(uploaded_file, sheet_name=0)
+            df_sheet2 = pd.read_excel(uploaded_file, sheet_name=1) if len(sheet_names) > 1 else None
+
+        # 2. PROCEED BUTTON
+        if st.button("🚀 Proceed"):
+            st.success("Data Loaded Successfully!")
+
+        st.divider()
+
+        # 3. TABS SETUP (For 2 Pages/Sheets)
+        tab1, tab2 = st.tabs(["📄 Sheet 1 / Page 1", "📄 Sheet 2 / Page 2"])
+
+        # Function for Search and Download
+        def display_table(df, key_prefix):
+            # --- Search Box ---
+            search_query = st.text_input(f"🔍 Search in {key_prefix}...", key=f"search_{key_prefix}")
+            
+            if search_query:
+                # Filtering logic
+                df = df[df.astype(str).apply(lambda x: x.str.contains(search_query, case=False)).any(axis=1)]
+
+            # --- Excel Download Button ---
+            output = BytesIO()
+            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                df.to_excel(writer, index=False, sheet_name='Data')
+            
+            st.download_button(
+                label=f"📥 Download {key_prefix} as Excel",
+                data=output.getvalue(),
+                file_name=f"{key_prefix}_filtered.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key=f"dl_{key_prefix}"
+            )
+
+            # --- Display Table ---
+            st.dataframe(df, use_container_width=True)
+
+        with tab1:
+            if df_sheet1 is not None:
+                display_table(df_sheet1, "Sheet_1")
+            else:
+                st.info("Sheet 1 khali hai.")
+
+        with tab2:
+            if df_sheet2 is not None:
+                display_table(df_sheet2, "Sheet_2")
+            else:
+                st.warning("Excel mein doosri sheet nahi mili (Ya aapne CSV upload kiya hai).")
+
+    except Exception as e:
+        st.error(f"Error: {e}")
+
+else:
+    st.info("Kripya Excel ya CSV file upload karein.")
