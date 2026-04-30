@@ -298,49 +298,56 @@ elif st.session_state.current_page != "Dashboard":
         st.title("📢 RFAI Billing")
     elif cur_p == "PDFFormat":
         st.markdown("<h1 style='color: #1E3A8A; text-align: center;'>📜 Vintage PO & Working Dashboard</h1>", unsafe_allow_html=True)
-        # --- UPLOAD SECTION FOR DASHBOARD ---
-        up_po = st.file_uploader("📂 Upload 'PO Format' Excel file", type=['xlsx', 'csv'])
-        if up_po:
+        
+        # --- UPLOAD SECTION WITH PROCEED BUTTON ---
+        up_po = st.file_uploader("📂 Upload 'export.tsv' or 'PO Format' Excel", type=['xlsx', 'csv', 'tsv', 'txt'])
+        
+        btn_proceed = st.button("🚀 Process & Show Tables", use_container_width=True)
+
+        if up_po and btn_proceed:
             try:
+                # File Handling based on extension
                 if up_po.name.endswith('.xlsx'):
                     xls = pd.ExcelFile(up_po)
                     df_master = pd.read_excel(xls, sheet_name=0)
                     df_po_items = pd.read_excel(xls, sheet_name=1) if len(xls.sheet_names) > 1 else pd.DataFrame()
+                elif up_po.name.endswith(('.tsv', '.txt')):
+                    df_master = pd.read_csv(up_po, sep='\t', encoding='ISO-8859-1')
+                    df_po_items = pd.DataFrame()
                 else:
                     df_master = pd.read_csv(up_po)
                     df_po_items = pd.DataFrame()
-                
+
                 st.divider()
-                # --- ADDING THE NEW TAB HERE ---
+                # --- TABS DISPLAY ---
                 t1, t2, t3 = st.tabs(["📋 Master Sheet", "📦 PO Items", "🛠️ PO Working"])
 
                 with t1:
-                    s1 = st.text_input("🔍 Search Master Data...", key="v_s1")
+                    s1 = st.text_input("🔍 Search in Master...", key="v_m_s_v2")
                     d1 = df_master.copy()
                     if s1: d1 = d1[d1.astype(str).apply(lambda x: x.str.contains(s1, case=False)).any(axis=1)]
-                    st.download_button("📥 Export Master", d1.to_csv(index=False), "Master.csv")
+                    st.download_button("📥 Export Master", d1.to_csv(index=False), "Master_Export.csv", key="v_m_dl_v2")
                     st.dataframe(d1, use_container_width=True, hide_index=True)
 
                 with t2:
                     if not df_po_items.empty:
-                        s2 = st.text_input("🔍 Search PO Items Data...", key="v_s2")
+                        s2 = st.text_input("🔍 Search in PO Items...", key="v_i_s_v2")
                         d2 = df_po_items.copy()
                         if s2: d2 = d2[d2.astype(str).apply(lambda x: x.str.contains(s2, case=False)).any(axis=1)]
-                        st.download_button("📥 Export PO Items", d2.to_csv(index=False), "PO_Items.csv")
+                        st.download_button("📥 Export PO Items", d2.to_csv(index=False), "Items_Export.csv", key="v_i_dl_v2")
                         st.dataframe(d2, use_container_width=True, hide_index=True)
                     else:
-                        st.info("No PO Items sheet found.")
+                        st.info("Additional PO Items sheet not detected.")
 
                 with t3:
-                    st.markdown("### 🛠️ Working Area (PO Analytics)")
-                    if st.button("🚀 Process & Proceed Working"):
-                        st.success("Working data successfully initialized!")
-                    
-                    st.info("Yahan aap apne upload kiye gaye data par custom filters aur additional analysis kar sakte hain.")
-                    # Aap yahan koi bhi specific analytics logic add kar sakte hain.
+                    st.markdown("### 🛠️ Analytics Area")
+                    st.success("File processed successfully!")
+                    st.write("Current Data Shape:", df_master.shape)
 
             except Exception as e:
-                st.error(f"Error loading file: {e}")
+                st.error(f"Error processing file: {e}")
+        elif up_po and not btn_proceed:
+            st.info("Click the 'Process' button above to generate tables.")
 
     # --- 🛒 PURCHASE ORDER PAGE ---
     elif cur_p == "Purchase Order":
