@@ -297,42 +297,50 @@ elif st.session_state.current_page != "Dashboard":
     elif cur_p == "RFAI":
         st.title("📢 RFAI Billing")
     elif cur_p == "PDFFormat":
-        st.markdown("<h1 style='color: #1E3A8A; text-align: center;'>📜 Vintage PO Viewer</h1>", unsafe_allow_html=True)
-        # --- NEW PO FORMAT LOGIC ---
+        st.markdown("<h1 style='color: #1E3A8A; text-align: center;'>📜 Vintage PO & Working Dashboard</h1>", unsafe_allow_html=True)
+        # --- UPLOAD SECTION FOR DASHBOARD ---
         up_po = st.file_uploader("📂 Upload 'PO Format' Excel file", type=['xlsx', 'csv'])
         if up_po:
             try:
                 if up_po.name.endswith('.xlsx'):
-                    df_master = pd.read_excel(up_po, sheet_name=0)
-                    df_po_items = pd.read_excel(up_po, sheet_name=1)
+                    xls = pd.ExcelFile(up_po)
+                    df_master = pd.read_excel(xls, sheet_name=0)
+                    df_po_items = pd.read_excel(xls, sheet_name=1) if len(xls.sheet_names) > 1 else pd.DataFrame()
                 else:
                     df_master = pd.read_csv(up_po)
-                    df_po_items = None
+                    df_po_items = pd.DataFrame()
                 
-                if st.button("🚀 Process Data"):
-                    st.success("File Processed Successfully!")
-
                 st.divider()
-                t1, t2 = st.tabs(["📋 Master Sheet", "📦 PO Items"])
+                # --- ADDING THE NEW TAB HERE ---
+                t1, t2, t3 = st.tabs(["📋 Master Sheet", "📦 PO Items", "🛠️ PO Working"])
 
                 with t1:
-                    s1 = st.text_input("🔍 Search Master...")
+                    s1 = st.text_input("🔍 Search Master Data...", key="v_s1")
                     d1 = df_master.copy()
                     if s1: d1 = d1[d1.astype(str).apply(lambda x: x.str.contains(s1, case=False)).any(axis=1)]
                     st.download_button("📥 Export Master", d1.to_csv(index=False), "Master.csv")
-                    st.dataframe(d1, use_container_width=True)
+                    st.dataframe(d1, use_container_width=True, hide_index=True)
 
                 with t2:
-                    if df_po_items is not None:
-                        s2 = st.text_input("🔍 Search PO Items...")
+                    if not df_po_items.empty:
+                        s2 = st.text_input("🔍 Search PO Items Data...", key="v_s2")
                         d2 = df_po_items.copy()
                         if s2: d2 = d2[d2.astype(str).apply(lambda x: x.str.contains(s2, case=False)).any(axis=1)]
                         st.download_button("📥 Export PO Items", d2.to_csv(index=False), "PO_Items.csv")
-                        st.dataframe(d2, use_container_width=True)
+                        st.dataframe(d2, use_container_width=True, hide_index=True)
                     else:
-                        st.info("Second sheet not found in the uploaded file.")
+                        st.info("No PO Items sheet found.")
+
+                with t3:
+                    st.markdown("### 🛠️ Working Area (PO Analytics)")
+                    if st.button("🚀 Process & Proceed Working"):
+                        st.success("Working data successfully initialized!")
+                    
+                    st.info("Yahan aap apne upload kiye gaye data par custom filters aur additional analysis kar sakte hain.")
+                    # Aap yahan koi bhi specific analytics logic add kar sakte hain.
+
             except Exception as e:
-                st.error(f"Error: {e}")
+                st.error(f"Error loading file: {e}")
 
     # --- 🛒 PURCHASE ORDER PAGE ---
     elif cur_p == "Purchase Order":
