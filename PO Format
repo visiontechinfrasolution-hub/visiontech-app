@@ -1,0 +1,70 @@
+import streamlit as st
+import pandas as pd
+from io import BytesIO
+
+# Page Configuration
+st.set_page_config(page_title="PO Analyzer Dashboard", layout="wide")
+
+st.title("📊 PO Data Analyzer")
+
+# 1. UPLOAD SECTION
+uploaded_file = st.file_uploader("Upload 'PO Format' Excel file", type=['xlsx', 'csv'])
+
+if uploaded_file:
+    try:
+        # Excel read logic (Dono sheets uthane ke liye)
+        if uploaded_file.name.endswith('.xlsx'):
+            df_master = pd.read_excel(uploaded_file, sheet_name=0) # Pehli sheet (Master)
+            df_po = pd.read_excel(uploaded_file, sheet_name=1)     # Doosri sheet (PO)
+        else:
+            # Agar CSV hai toh sirf ek hi dataframe banega
+            df_master = pd.read_csv(uploaded_file)
+            df_po = None
+
+        # 2. PROCEED BUTTON
+        if st.button("🚀 Proceed & Analyze"):
+            st.toast("Data Loaded Successfully!", icon="✅")
+
+        st.divider()
+
+        # 3. TABS SETUP (Excel ki 2 sheets ke liye 2 Pages)
+        tab1, tab2 = st.tabs(["📋 Master Data", "📦 PO Details"])
+
+        # Helper function for Search, Download and Table display
+        def render_page(df, sheet_name):
+            if df is not None:
+                # --- Search Box (Table ke upar) ---
+                search_query = st.text_input(f"🔍 Search in {sheet_name}...", key=f"search_{sheet_name}")
+                
+                # Filter Logic
+                if search_query:
+                    df = df[df.astype(str).apply(lambda x: x.str.contains(search_query, case=False)).any(axis=1)]
+
+                # --- Excel Download Button ---
+                output = BytesIO()
+                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                    df.to_excel(writer, index=False)
+                
+                st.download_button(
+                    label=f"📥 Download {sheet_name} as Excel",
+                    data=output.getvalue(),
+                    file_name=f"{sheet_name}_filtered.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key=f"dl_{sheet_name}"
+                )
+
+                # --- Display Table ---
+                st.dataframe(df, use_container_width=True, hide_index=True)
+            else:
+                st.info(f"{sheet_name} ka data available nahi hai.")
+
+        with tab1:
+            render_page(df_master, "Master_Sheet")
+
+        with tab2:
+            render_page(df_po, "PO_Sheet")
+
+    except Exception as e:
+        st.error(f"Error: File read karne mein dikkat hui. {e}")
+else:
+    st.info("Kripya Excel file upload karein jisme 'Master' aur 'PO' sheets hon.")
