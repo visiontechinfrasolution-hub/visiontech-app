@@ -297,7 +297,42 @@ elif st.session_state.current_page != "Dashboard":
     elif cur_p == "RFAI":
         st.title("📢 RFAI Billing")
     elif cur_p == "PDFFormat":
-        st.title("📜 Vintage PDF")
+        st.markdown("<h1 style='color: #1E3A8A; text-align: center;'>📜 Vintage PO Viewer</h1>", unsafe_allow_html=True)
+        # --- NEW PO FORMAT LOGIC ---
+        up_po = st.file_uploader("📂 Upload 'PO Format' Excel file", type=['xlsx', 'csv'])
+        if up_po:
+            try:
+                if up_po.name.endswith('.xlsx'):
+                    df_master = pd.read_excel(up_po, sheet_name=0)
+                    df_po_items = pd.read_excel(up_po, sheet_name=1)
+                else:
+                    df_master = pd.read_csv(up_po)
+                    df_po_items = None
+                
+                if st.button("🚀 Process Data"):
+                    st.success("File Processed Successfully!")
+
+                st.divider()
+                t1, t2 = st.tabs(["📋 Master Sheet", "📦 PO Items"])
+
+                with t1:
+                    s1 = st.text_input("🔍 Search Master...")
+                    d1 = df_master.copy()
+                    if s1: d1 = d1[d1.astype(str).apply(lambda x: x.str.contains(s1, case=False)).any(axis=1)]
+                    st.download_button("📥 Export Master", d1.to_csv(index=False), "Master.csv")
+                    st.dataframe(d1, use_container_width=True)
+
+                with t2:
+                    if df_po_items is not None:
+                        s2 = st.text_input("🔍 Search PO Items...")
+                        d2 = df_po_items.copy()
+                        if s2: d2 = d2[d2.astype(str).apply(lambda x: x.str.contains(s2, case=False)).any(axis=1)]
+                        st.download_button("📥 Export PO Items", d2.to_csv(index=False), "PO_Items.csv")
+                        st.dataframe(d2, use_container_width=True)
+                    else:
+                        st.info("Second sheet not found in the uploaded file.")
+            except Exception as e:
+                st.error(f"Error: {e}")
 
     # --- 🛒 PURCHASE ORDER PAGE ---
     elif cur_p == "Purchase Order":
