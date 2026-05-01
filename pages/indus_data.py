@@ -72,7 +72,7 @@ if sub_ind:
             f"➡️ *Site Name* :- {row_in.get('Site Name','-')}\n"
             f"➡️ *Site ID* :- {row_in.get('Site ID','-')}\n"
             f"➡️ *District* :- {row_in.get('District','-')}\n"
-            f"➡️ *Cluster* :- {row_in.get('Cluster','-')}\n\n"
+            f"➡️ *Cluster* :- {row_in.get('Area Name','-')}\n\n"
             f"👨‍🔧 *Technician* :- {row_in.get('Tech Name','-')} ({row_in.get('Tech Number','-')})\n"
             f"👷 *FSE* :- {row_in.get('FSE','-')} ({row_in.get('FSE Number','-')})\n"
             f"👨‍💼 *AOM* :- {row_in.get('AOM Name','-')} ({row_in.get('AOM Number','-')})\n\n"
