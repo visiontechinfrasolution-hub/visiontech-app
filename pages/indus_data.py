@@ -65,7 +65,23 @@ if sub_ind:
             else: st.markdown(f"📍 **Lat/Long** :- {lat if lat else '-'} / {lon if lon else '-'}")
         
         maps_dir = f"https://www.google.com/maps/dir/{base_lat},{base_lon}/{lat},{lon}"
-        msg_body = f"*{row_in.get('Site ID','-')}*\n*{row_in.get('Project ID','-')}*\n*{row_in.get('Site Name','-')}*\n\n👨‍🔧 Tech: {row_in.get('Tech Name','-')} ({row_in.get('Tech Number','-')})\n📍 Lat/Long: {lat}/{lon}\n\n🗺️ Map:\n{maps_dir}"
+        
+        # --- NEW FORMATTED WHATSAPP MESSAGE ---
+        msg_body = (
+            f"*Namaskar,*\n\n"
+            f"➡️ *Site Name* :- {row_in.get('Site Name','-')}\n"
+            f"➡️ *Site ID* :- {row_in.get('Site ID','-')}\n"
+            f"➡️ *District* :- {row_in.get('District','-')}\n"
+            f"➡️ *Cluster* :- {row_in.get('Cluster','-')}\n\n"
+            f"👨‍🔧 *Technician* :- {row_in.get('Tech Name','-')} ({row_in.get('Tech Number','-')})\n"
+            f"👷 *FSE* :- {row_in.get('FSE','-')} ({row_in.get('FSE Number','-')})\n"
+            f"👨‍💼 *AOM* :- {row_in.get('AOM Name','-')} ({row_in.get('AOM Number','-')})\n\n"
+            f"📍 *Lat Long* :- {lat} / {lon}\n\n"
+            f"🛣️ *Site Location* :- {maps_dir}\n\n"
+            f"🚩 Thanks,\n"
+            f"*Visiontech AI Team*"
+        )
+        
         wa_encoded = urllib.parse.quote(msg_body)
         st.link_button("🚀 Send to WhatsApp Desktop App", f"whatsapp://send?text={wa_encoded}", use_container_width=True)
     else: st.info("No Indus data found.")
