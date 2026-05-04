@@ -149,7 +149,7 @@ if st.session_state.current_page == "Dashboard":
     with c5:
         if st.button("📊\nPO line Working"): navigate_to("PO_Line_Working_Page") # New Button
 
-# --- 4. PO LINE WORKING PAGE (NEW SECTION) ---
+# --- 4. PO LINE WORKING PAGE (STRICT CLEANING) ---
 elif st.session_state.current_page == "PO_Line_Working_Page":
     st.markdown("<div class='back-btn'>", unsafe_allow_html=True)
     if st.button("⬅️ Dashboard"): navigate_to("Dashboard")
@@ -169,7 +169,8 @@ elif st.session_state.current_page == "PO_Line_Working_Page":
         clear_work = col_btn2.form_submit_button("🗑️ Clear All", use_container_width=True)
 
     if clear_work:
-        st.session_state.pop('standalone_line_df', None)
+        st.session_state.pop('standalone_master_df', None)
+        st.session_state.pop('standalone_items_df', None)
         st.rerun()
 
     if submit_work:
@@ -177,6 +178,7 @@ elif st.session_state.current_page == "PO_Line_Working_Page":
             st.warning("Kripya PO Number aur File dono upload karein!")
         else:
             try:
+                # 1. Processing TSV
                 content = uploaded_tsv.getvalue().decode('ISO-8859-1').splitlines()
                 header_index = -1
                 for idx, line in enumerate(content):
@@ -186,30 +188,42 @@ elif st.session_state.current_page == "PO_Line_Working_Page":
                 
                 if header_index != -1:
                     uploaded_tsv.seek(0)
-                    df_final = pd.read_csv(uploaded_tsv, sep='\t', skiprows=header_index, quoting=3, encoding='ISO-8859-1', engine='python')
+                    df_raw = pd.read_csv(uploaded_tsv, sep='\t', skiprows=header_index, quoting=3, encoding='ISO-8859-1', engine='python')
                     
-                    # Cleanup headers
-                    df_final.columns = [str(c).replace('"', '').strip() for c in df_final.columns]
-                    
-                    # Numeric Helper for cleaning
-                    def clean_numeric(val):
-                        if pd.isna(val) or str(val).strip().lower() in ['nan', 'none', '']: return 0.0
-                        n = str(val).replace('"', '').replace(',', '').strip()
+                    # Cleanup headers and remove double quotes
+                    df_raw.columns = [str(c).replace('"', '').strip() for c in df_raw.columns]
+                    for col in df_raw.columns:
+                        df_raw[col] = df_raw[col].astype(str).str.replace('"', '', regex=False).str.strip()
+
+                    # Numeric Cleaning Helper
+                    def clean_numeric_val(val):
+                        if pd.isna(val) or str(val).lower() in ['nan', 'none', '', ' ']: return 0.0
+                        n = str(val).replace(',', '').strip()
                         return pd.to_numeric(n, errors='coerce') or 0.0
 
-                    # Logic for Page 2 (PO Items View): Delete rows where Qty is blank/0 and delete blank columns
-                    df_items = df_final.copy()
-                    df_items['Qty_Val'] = df_items['Qty'].apply(clean_numeric)
-                    df_items = df_items[df_items['Qty_Val'] > 0]
-                    df_items = df_items.drop(columns=['Qty_Val'])
-                    # Delete columns where all values are blank/NaN
-                    df_items = df_items.replace(['nan', 'None', '', ' '], pd.NA).dropna(axis=1, how='all')
+                    # --- PAGE 2 LOGIC (PO Items View) ---
+                    df_items = df_raw.copy()
+                    # Delete rows where Qty is blank or 0
+                    df_items['Qty_Check'] = df_items['Qty'].apply(clean_numeric_val)
+                    df_items = df_items[df_items['Qty_Check'] > 0]
+                    # Drop helper and drop columns that are entirely empty or just whitespace
+                    df_items = df_items.drop(columns=['Qty_Check'])
+                    df_items = df_items.replace(['', ' ', 'nan', 'None'], pd.NA).dropna(axis=1, how='all')
 
-                    # Logic for Page 1 (Master View): Project wise total
-                    df_final['Amount_Val'] = df_final['Amount'].apply(clean_numeric)
-                    df_master = df_final.groupby(['Site ID', 'Project Name'])['Amount_Val'].sum().reset_index()
+                    # --- PAGE 1 LOGIC (Master View) ---
+                    df_final_m = df_raw.copy()
+                    df_final_m['Amt_Val'] = df_final_m['Amount'].apply(clean_numeric_val)
+                    
+                    # Grouping by Site ID and Project Name
+                    df_master = df_final_m.groupby(['Site ID', 'Project Name'])['Amt_Val'].sum().reset_index()
+                    
+                    # STRICT FILTER: Remove unwanted lines where Amount is 0 or Project/Site are blank
+                    df_master = df_master[df_master['Amt_Val'] > 0]
+                    df_master = df_master[df_master['Site ID'].str.strip() != '']
+                    
+                    # Formatting columns as requested
                     df_master.insert(0, 'PO Number', po_num_val)
-                    df_master.rename(columns={'Project Name': 'Row Labels', 'Amount_Val': 'Sum of Amount'}, inplace=True)
+                    df_master.rename(columns={'Project Name': 'Row Labels', 'Amt_Val': 'Sum of Amount'}, inplace=True)
                     
                     st.session_state.standalone_master_df = df_master
                     st.session_state.standalone_items_df = df_items
@@ -217,24 +231,23 @@ elif st.session_state.current_page == "PO_Line_Working_Page":
                 else:
                     st.error("File mein 'Project Name' header nahi mila!")
             except Exception as e:
-                st.error(f"Processing Error: {e}")
+                st.error(f"Error: {e}")
 
-    # Display Tables in 2 Pages (Sub-Tabs)
+    # Display Tables in 2 Pages
     if 'standalone_master_df' in st.session_state:
         st.divider()
         page_tab1, page_tab2 = st.tabs(["📋 Page 1: Master View", "📦 Page 2: PO Items View"])
         
         with page_tab1:
-            st.subheader("Master View (Project Summary)")
-            df_m = st.session_state.standalone_master_df
-            st.dataframe(df_m, use_container_width=True, hide_index=True)
-            g_total = df_m['Sum of Amount'].sum()
-            st.markdown(f"<h3 style='text-align: right;'>Grand Total: ₹ {g_total:,.2f}</h3>", unsafe_allow_html=True)
+            df_m_disp = st.session_state.standalone_master_df
+            st.markdown("#### Master View (Project Summary)")
+            st.dataframe(df_m_disp, use_container_width=True, hide_index=True)
+            total_sum = df_m_disp['Sum of Amount'].sum()
+            st.markdown(f"<h3 style='text-align: right;'>Grand Total: ₹ {total_sum:,.2f}</h3>", unsafe_allow_html=True)
 
         with page_tab2:
-            st.subheader("PO Items View (Cleaned Data)")
-            df_i = st.session_state.standalone_items_df
-            st.dataframe(df_i, use_container_width=True, hide_index=True)
+            st.markdown("#### PO Items View (Strict Cleaned)")
+            st.dataframe(st.session_state.standalone_items_df, use_container_width=True, hide_index=True)
 
 # --- 5. JAJUPRO MANAGEMENT ---
 elif st.session_state.current_page == "Jajupro":
@@ -500,7 +513,6 @@ elif st.session_state.current_page != "Dashboard":
             
             pdf.set_y(max_y + 5)
             
-            # (Table Rendering logic same as original...)
             pdf.set_font("Helvetica", 'B', 8.5)
             pdf.set_fill_color(240, 240, 240)
             pdf.cell(8, 8, "Sr.", 1, 0, 'C', True)
