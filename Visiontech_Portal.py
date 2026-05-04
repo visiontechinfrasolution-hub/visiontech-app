@@ -177,7 +177,6 @@ elif st.session_state.current_page == "PO_Line_Working_Page":
             st.warning("Kripya PO Number aur File dono upload karein!")
         else:
             try:
-                # TSV Processing Logic
                 content = uploaded_tsv.getvalue().decode('ISO-8859-1').splitlines()
                 header_index = -1
                 for idx, line in enumerate(content):
@@ -189,12 +188,31 @@ elif st.session_state.current_page == "PO_Line_Working_Page":
                     uploaded_tsv.seek(0)
                     df_final = pd.read_csv(uploaded_tsv, sep='\t', skiprows=header_index, quoting=3, encoding='ISO-8859-1', engine='python')
                     
-                    # Cleanup headers and data
+                    # Cleanup headers
                     df_final.columns = [str(c).replace('"', '').strip() for c in df_final.columns]
-                    for col in df_final.columns:
-                        df_final[col] = df_final[col].astype(str).str.replace('"', '', regex=False).str.strip()
                     
-                    st.session_state.standalone_line_df = df_final
+                    # Numeric Helper for cleaning
+                    def clean_numeric(val):
+                        if pd.isna(val) or str(val).strip().lower() in ['nan', 'none', '']: return 0.0
+                        n = str(val).replace('"', '').replace(',', '').strip()
+                        return pd.to_numeric(n, errors='coerce') or 0.0
+
+                    # Logic for Page 2 (PO Items View): Delete rows where Qty is blank/0 and delete blank columns
+                    df_items = df_final.copy()
+                    df_items['Qty_Val'] = df_items['Qty'].apply(clean_numeric)
+                    df_items = df_items[df_items['Qty_Val'] > 0]
+                    df_items = df_items.drop(columns=['Qty_Val'])
+                    # Delete columns where all values are blank/NaN
+                    df_items = df_items.replace(['nan', 'None', '', ' '], pd.NA).dropna(axis=1, how='all')
+
+                    # Logic for Page 1 (Master View): Project wise total
+                    df_final['Amount_Val'] = df_final['Amount'].apply(clean_numeric)
+                    df_master = df_final.groupby(['Site ID', 'Project Name'])['Amount_Val'].sum().reset_index()
+                    df_master.insert(0, 'PO Number', po_num_val)
+                    df_master.rename(columns={'Project Name': 'Row Labels', 'Amount_Val': 'Sum of Amount'}, inplace=True)
+                    
+                    st.session_state.standalone_master_df = df_master
+                    st.session_state.standalone_items_df = df_items
                     st.success(f"Data for PO {po_num_val} processed successfully!")
                 else:
                     st.error("File mein 'Project Name' header nahi mila!")
@@ -202,27 +220,21 @@ elif st.session_state.current_page == "PO_Line_Working_Page":
                 st.error(f"Processing Error: {e}")
 
     # Display Tables in 2 Pages (Sub-Tabs)
-    if 'standalone_line_df' in st.session_state:
-        df_to_show = st.session_state.standalone_line_df
-        
+    if 'standalone_master_df' in st.session_state:
         st.divider()
         page_tab1, page_tab2 = st.tabs(["📋 Page 1: Master View", "📦 Page 2: PO Items View"])
         
         with page_tab1:
-            st.subheader("Master Format Data")
-            srch_p1 = st.text_input("🔍 Search in Master...", key="srch_p1")
-            df_p1 = df_to_show.copy()
-            if srch_p1:
-                df_p1 = df_p1[df_p1.astype(str).apply(lambda x: x.str.contains(srch_p1, case=False)).any(axis=1)]
-            st.dataframe(df_p1, use_container_width=True, hide_index=True)
+            st.subheader("Master View (Project Summary)")
+            df_m = st.session_state.standalone_master_df
+            st.dataframe(df_m, use_container_width=True, hide_index=True)
+            g_total = df_m['Sum of Amount'].sum()
+            st.markdown(f"<h3 style='text-align: right;'>Grand Total: ₹ {g_total:,.2f}</h3>", unsafe_allow_html=True)
 
         with page_tab2:
-            st.subheader("PO Items Data")
-            srch_p2 = st.text_input("🔍 Search in PO Items...", key="srch_p2")
-            df_p2 = df_to_show.copy()
-            if srch_p2:
-                df_p2 = df_p2[df_p2.astype(str).apply(lambda x: x.str.contains(srch_p2, case=False)).any(axis=1)]
-            st.dataframe(df_p2, use_container_width=True, hide_index=True)
+            st.subheader("PO Items View (Cleaned Data)")
+            df_i = st.session_state.standalone_items_df
+            st.dataframe(df_i, use_container_width=True, hide_index=True)
 
 # --- 5. JAJUPRO MANAGEMENT ---
 elif st.session_state.current_page == "Jajupro":
@@ -393,7 +405,6 @@ elif st.session_state.current_page != "Dashboard":
             pdf = FPDF()
             pdf.add_page()
             
-            # --- 100% BULLETPROOF IMAGE HANDLER ---
             logo_file = "logo (1).png"
             sign_file = "Signature in PNG.png"
             
@@ -413,21 +424,18 @@ elif st.session_state.current_page != "Dashboard":
                         sign_file = "cloud_sign.png"
                 except: pass
 
-            # 1. LOGO RENDER (30% Smaller)
             if os.path.exists(logo_file):
                 pdf.image(logo_file, 10, 10, 35) 
             else:
                 pdf.set_font("Helvetica", 'B', 10)
                 pdf.set_text_color(255, 0, 0)
-                pdf.text(10, 20, "Logo Error: Missing file or URL")
+                pdf.text(10, 20, "Logo Error")
 
-            # 2. VISIONTECH Name in Blue
             pdf.set_text_color(11, 61, 102) 
             pdf.set_font("Helvetica", 'B', 14)
             pdf.set_x(100)
             pdf.cell(100, 6, "VISIONTECH INFRA SOLUTION PVT. LTD.", 0, 1, 'R')
             
-            # Header Details
             pdf.set_text_color(0, 0, 0)
             pdf.set_font("Helvetica", '', 8.5)
             pdf.set_x(100)
@@ -437,19 +445,16 @@ elif st.session_state.current_page != "Dashboard":
             pdf.set_x(100)
             pdf.cell(100, 4, "Contact: 9552273181 | Email: vispltower@gmail.com", 0, 1, 'R')
             
-            # 3. TITLE BAR
             pdf.ln(8)
             pdf.set_fill_color(26, 58, 95) 
             pdf.set_text_color(255, 255, 255)
             pdf.set_font("Helvetica", 'B', 14)
             pdf.cell(190, 10, "PURCHASE ORDER", 0, 1, 'C', True)
             
-            # 4. VENDOR & ORDER INFO BOXES
             pdf.set_text_color(0, 0, 0)
             pdf.ln(5)
             y_boxes = pdf.get_y()
             
-            # --- VENDOR DETAILS BOX ---
             pdf.set_font("Helvetica", 'B', 9)
             pdf.cell(92, 6, " VENDOR DETAILS", 1, 1, 'L', False)
             y_addr_start = pdf.get_y()
@@ -471,7 +476,6 @@ elif st.session_state.current_page != "Dashboard":
             pdf.multi_cell(92, 5, f" {actual_address}\n GSTIN: {v_gst}", 0, 'L')
             y_v_end = pdf.get_y()
             
-            # --- ORDER INFORMATION BOX ---
             pdf.set_y(y_boxes)
             pdf.set_x(108)
             pdf.set_font("Helvetica", 'B', 9)
@@ -496,7 +500,7 @@ elif st.session_state.current_page != "Dashboard":
             
             pdf.set_y(max_y + 5)
             
-            # 5. ITEMS TABLE
+            # (Table Rendering logic same as original...)
             pdf.set_font("Helvetica", 'B', 8.5)
             pdf.set_fill_color(240, 240, 240)
             pdf.cell(8, 8, "Sr.", 1, 0, 'C', True)
@@ -519,7 +523,6 @@ elif st.session_state.current_page != "Dashboard":
                 pdf.cell(18, 7, f"{float(item['SGST']):.2f}", 1, 0, 'R')
                 pdf.cell(27, 7, f"{float(item['Total']):.2f}", 1, 1, 'R')
 
-            # 6. SUMMARY TOTALS
             pdf.ln(2)
             pdf.set_x(120)
             pdf.set_font("Helvetica", '', 9)
@@ -543,7 +546,6 @@ elif st.session_state.current_page != "Dashboard":
             pdf.cell(40, 7, "Grand Total:", 0, 0, 'R', True)
             pdf.cell(40, 7, f" {float(po_data['grand_total']):,.2f}", 1, 1, 'R', True)
             
-            # 7. SIGNATURE STAMP & WORDS
             pdf.set_text_color(0, 0, 0)
             pdf.ln(5)
             pdf.set_font("Helvetica", 'B', 8.5)
@@ -569,7 +571,7 @@ elif st.session_state.current_page != "Dashboard":
             else:
                 pdf.set_font("Helvetica", '', 8)
                 pdf.set_text_color(255, 0, 0)
-                pdf.text(148, pdf.get_y() + 10, "Sign Error: Missing file or URL")
+                pdf.text(148, pdf.get_y() + 10, "Sign Error")
 
             pdf.ln(20)
             pdf.set_x(130)
