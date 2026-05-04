@@ -141,9 +141,90 @@ if st.session_state.current_page == "Dashboard":
         if st.button("📁\nData Entry"): st.switch_page("pages/data_entry.py")
         if st.button("📢\nRFAI Billing"): navigate_to("RFAI")
         if st.button("📜\nVintage PDF"): navigate_to("PDFFormat")
+    
+    # Naya Row for new buttons
+    c4, c5, c6 = st.columns(3)
+    with c4:
         if st.button("🛒\nCreate PO"): navigate_to("Purchase Order")
+    with c5:
+        if st.button("📊\nPO line Working"): navigate_to("PO_Line_Working_Page") # New Button
 
-# --- 4. JAJUPRO MANAGEMENT ---
+# --- 4. PO LINE WORKING PAGE (NEW SECTION) ---
+elif st.session_state.current_page == "PO_Line_Working_Page":
+    st.markdown("<div class='back-btn'>", unsafe_allow_html=True)
+    if st.button("⬅️ Dashboard"): navigate_to("Dashboard")
+    st.markdown("</div>", unsafe_allow_html=True)
+    
+    st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>📊 PO Line Working</h2>", unsafe_allow_html=True)
+    st.divider()
+
+    # Form for Inputs
+    with st.form("po_line_working_standalone_form"):
+        col_in1, col_in2 = st.columns([2, 2])
+        po_num_val = col_in1.text_input("📄 PO Number", placeholder="Enter PO Number here...")
+        uploaded_tsv = col_in2.file_uploader("Upload 'export.tsv'", type=['tsv', 'txt'])
+        
+        col_btn1, col_btn2 = st.columns(2)
+        submit_work = col_btn1.form_submit_button("🚀 Process Data", use_container_width=True)
+        clear_work = col_btn2.form_submit_button("🗑️ Clear All", use_container_width=True)
+
+    if clear_work:
+        st.session_state.pop('standalone_line_df', None)
+        st.rerun()
+
+    if submit_work:
+        if not uploaded_tsv or not po_num_val:
+            st.warning("Kripya PO Number aur File dono upload karein!")
+        else:
+            try:
+                # TSV Processing Logic
+                content = uploaded_tsv.getvalue().decode('ISO-8859-1').splitlines()
+                header_index = -1
+                for idx, line in enumerate(content):
+                    if "Project Name" in line:
+                        header_index = idx
+                        break
+                
+                if header_index != -1:
+                    uploaded_tsv.seek(0)
+                    df_final = pd.read_csv(uploaded_tsv, sep='\t', skiprows=header_index, quoting=3, encoding='ISO-8859-1', engine='python')
+                    
+                    # Cleanup headers and data
+                    df_final.columns = [str(c).replace('"', '').strip() for c in df_final.columns]
+                    for col in df_final.columns:
+                        df_final[col] = df_final[col].astype(str).str.replace('"', '', regex=False).str.strip()
+                    
+                    st.session_state.standalone_line_df = df_final
+                    st.success(f"Data for PO {po_num_val} processed successfully!")
+                else:
+                    st.error("File mein 'Project Name' header nahi mila!")
+            except Exception as e:
+                st.error(f"Processing Error: {e}")
+
+    # Display Tables in 2 Pages (Sub-Tabs)
+    if 'standalone_line_df' in st.session_state:
+        df_to_show = st.session_state.standalone_line_df
+        
+        st.divider()
+        page_tab1, page_tab2 = st.tabs(["📋 Page 1: Master View", "📦 Page 2: PO Items View"])
+        
+        with page_tab1:
+            st.subheader("Master Format Data")
+            srch_p1 = st.text_input("🔍 Search in Master...", key="srch_p1")
+            df_p1 = df_to_show.copy()
+            if srch_p1:
+                df_p1 = df_p1[df_p1.astype(str).apply(lambda x: x.str.contains(srch_p1, case=False)).any(axis=1)]
+            st.dataframe(df_p1, use_container_width=True, hide_index=True)
+
+        with page_tab2:
+            st.subheader("PO Items Data")
+            srch_p2 = st.text_input("🔍 Search in PO Items...", key="srch_p2")
+            df_p2 = df_to_show.copy()
+            if srch_p2:
+                df_p2 = df_p2[df_p2.astype(str).apply(lambda x: x.str.contains(srch_p2, case=False)).any(axis=1)]
+            st.dataframe(df_p2, use_container_width=True, hide_index=True)
+
+# --- 5. JAJUPRO MANAGEMENT ---
 elif st.session_state.current_page == "Jajupro":
     st.markdown("<div class='back-btn'>", unsafe_allow_html=True)
     if st.button("⬅️ Dashboard"): 
@@ -297,57 +378,7 @@ elif st.session_state.current_page != "Dashboard":
     elif cur_p == "RFAI":
         st.title("📢 RFAI Billing")
     elif cur_p == "PDFFormat":
-        st.markdown("<h1 style='color: #1E3A8A; text-align: center;'>📜 Vintage PO & Working Dashboard</h1>", unsafe_allow_html=True)
-        
-        # --- UPLOAD SECTION WITH PROCEED BUTTON ---
-        up_po = st.file_uploader("📂 Upload 'export.tsv' or 'PO Format' Excel", type=['xlsx', 'csv', 'tsv', 'txt'])
-        
-        btn_proceed = st.button("🚀 Process & Show Tables", use_container_width=True)
-
-        if up_po and btn_proceed:
-            try:
-                # File Handling based on extension
-                if up_po.name.endswith('.xlsx'):
-                    xls = pd.ExcelFile(up_po)
-                    df_master = pd.read_excel(xls, sheet_name=0)
-                    df_po_items = pd.read_excel(xls, sheet_name=1) if len(xls.sheet_names) > 1 else pd.DataFrame()
-                elif up_po.name.endswith(('.tsv', '.txt')):
-                    df_master = pd.read_csv(up_po, sep='\t', encoding='ISO-8859-1')
-                    df_po_items = pd.DataFrame()
-                else:
-                    df_master = pd.read_csv(up_po)
-                    df_po_items = pd.DataFrame()
-
-                st.divider()
-                # --- TABS DISPLAY ---
-                t1, t2, t3 = st.tabs(["📋 Master Sheet", "📦 PO Items", "🛠️ PO Working"])
-
-                with t1:
-                    s1 = st.text_input("🔍 Search in Master...", key="v_m_s_v2")
-                    d1 = df_master.copy()
-                    if s1: d1 = d1[d1.astype(str).apply(lambda x: x.str.contains(s1, case=False)).any(axis=1)]
-                    st.download_button("📥 Export Master", d1.to_csv(index=False), "Master_Export.csv", key="v_m_dl_v2")
-                    st.dataframe(d1, use_container_width=True, hide_index=True)
-
-                with t2:
-                    if not df_po_items.empty:
-                        s2 = st.text_input("🔍 Search in PO Items...", key="v_i_s_v2")
-                        d2 = df_po_items.copy()
-                        if s2: d2 = d2[d2.astype(str).apply(lambda x: x.str.contains(s2, case=False)).any(axis=1)]
-                        st.download_button("📥 Export PO Items", d2.to_csv(index=False), "Items_Export.csv", key="v_i_dl_v2")
-                        st.dataframe(d2, use_container_width=True, hide_index=True)
-                    else:
-                        st.info("Additional PO Items sheet not detected.")
-
-                with t3:
-                    st.markdown("### 🛠️ Analytics Area")
-                    st.success("File processed successfully!")
-                    st.write("Current Data Shape:", df_master.shape)
-
-            except Exception as e:
-                st.error(f"Error processing file: {e}")
-        elif up_po and not btn_proceed:
-            st.info("Click the 'Process' button above to generate tables.")
+        st.title("📜 Vintage PDF")
 
     # --- 🛒 PURCHASE ORDER PAGE ---
     elif cur_p == "Purchase Order":
@@ -382,7 +413,7 @@ elif st.session_state.current_page != "Dashboard":
                         sign_file = "cloud_sign.png"
                 except: pass
 
-            # 1. LOGO RENDER (30% Smaller: Width reduced from 50 to 35)
+            # 1. LOGO RENDER (30% Smaller)
             if os.path.exists(logo_file):
                 pdf.image(logo_file, 10, 10, 35) 
             else:
@@ -431,12 +462,10 @@ elif st.session_state.current_page != "Dashboard":
                     actual_address = v.get('address', 'N/A')
                     break
             
-            # --- VENDOR NAME IN BOLD ---
             pdf.set_font("Helvetica", 'B', 9)
             pdf.set_x(10)
             pdf.cell(92, 5, f" {v_name}", 0, 1, 'L')
             
-            # ADDRESS AND GST IN REGULAR
             pdf.set_font("Helvetica", '', 9)
             pdf.set_x(10)
             pdf.multi_cell(92, 5, f" {actual_address}\n GSTIN: {v_gst}", 0, 'L')
@@ -461,7 +490,6 @@ elif st.session_state.current_page != "Dashboard":
             pdf.multi_cell(92, 5, o_info, 0, 'L')
             y_o_end = pdf.get_y()
             
-            # DRAW BORDERS
             max_y = max(y_v_end, y_o_end)
             pdf.rect(10, y_addr_start, 92, max_y - y_addr_start)
             pdf.rect(108, y_addr_start, 92, max_y - y_addr_start)
@@ -515,7 +543,7 @@ elif st.session_state.current_page != "Dashboard":
             pdf.cell(40, 7, "Grand Total:", 0, 0, 'R', True)
             pdf.cell(40, 7, f" {float(po_data['grand_total']):,.2f}", 1, 1, 'R', True)
             
-            # 7. SIGNATURE STAMP & TERMS
+            # 7. SIGNATURE STAMP & WORDS
             pdf.set_text_color(0, 0, 0)
             pdf.ln(5)
             pdf.set_font("Helvetica", 'B', 8.5)
@@ -536,7 +564,6 @@ elif st.session_state.current_page != "Dashboard":
             pdf.set_font("Helvetica", 'B', 10)
             pdf.cell(70, 5, "For Visiontech Infra Solution Pvt. Ltd.", 0, 1, 'C')
             
-            # SIGNATURE RENDER (30% Smaller: Width reduced from 35 to 25)
             if os.path.exists(sign_file):
                 pdf.image(sign_file, 148, pdf.get_y() - 2, 25)
             else:
@@ -550,7 +577,7 @@ elif st.session_state.current_page != "Dashboard":
             pdf.cell(70, 5, "Authorized Signatory", 0, 1, 'C')
             return bytes(pdf.output())
 
-        # MASTER DATA FETCH (Used for tables and dropdowns)
+        # FETCH MASTER DATA
         vendors_data = supabase.table("vendors").select("*").execute().data
         items_data = supabase.table("items_master").select("*").execute().data
         team_data = supabase.table("allowed_users").select("*").execute().data
@@ -633,7 +660,6 @@ elif st.session_state.current_page != "Dashboard":
                     r_col[3].write(f"₹{row['grand_total']:,.0f}")
                     
                     pdf_bytes = generate_po_pdf(row, vendors_data)
-                    
                     r_col[4].download_button("📥", data=pdf_bytes, file_name=f"{row['po_number']}.pdf", mime="application/pdf", key=f"dl_{row['id']}")
                     wa_msg = f"Hello, please find Purchase Order: {row['po_number']} for Amount ₹{row['grand_total']:,.2f} from Visiontech Infra Solution."
                     wa_url = f"whatsapp://send?text={urllib.parse.quote(wa_msg)}"
@@ -657,12 +683,8 @@ elif st.session_state.current_page != "Dashboard":
                 search_v = st.text_input("🔍 Search Vendor", key="sv")
                 if search_v:
                     df_v = df_v[df_v.astype(str).apply(lambda x: x.str.contains(search_v, case=False)).any(axis=1)]
-                
-                csv_v = df_v.to_csv(index=False).encode('utf-8')
-                st.download_button("📥 Download Excel/CSV", data=csv_v, file_name="Vendors.csv", mime="text/csv")
+                st.download_button("📥 Download Excel/CSV", data=df_v.to_csv(index=False).encode('utf-8'), file_name="Vendors.csv", mime="text/csv")
                 st.dataframe(df_v, use_container_width=True)
-            else:
-                st.info("No vendor data available.")
 
         with tab_i:
             with st.form("item_reg", clear_on_submit=True):
@@ -682,12 +704,8 @@ elif st.session_state.current_page != "Dashboard":
                 search_i = st.text_input("🔍 Search Item", key="si")
                 if search_i:
                     df_i = df_i[df_i.astype(str).apply(lambda x: x.str.contains(search_i, case=False)).any(axis=1)]
-                
-                csv_i = df_i.to_csv(index=False).encode('utf-8')
-                st.download_button("📥 Download Excel/CSV", data=csv_i, file_name="Items_Master.csv", mime="text/csv")
+                st.download_button("📥 Download Excel/CSV", data=df_i.to_csv(index=False).encode('utf-8'), file_name="Items_Master.csv", mime="text/csv")
                 st.dataframe(df_i, use_container_width=True)
-            else:
-                st.info("No item data available.")
 
         with tab_t:
             with st.form("team_reg", clear_on_submit=True):
@@ -705,12 +723,8 @@ elif st.session_state.current_page != "Dashboard":
                 search_t = st.text_input("🔍 Search Team Member", key="st")
                 if search_t:
                     df_t = df_t[df_t.astype(str).apply(lambda x: x.str.contains(search_t, case=False)).any(axis=1)]
-                
-                csv_t = df_t.to_csv(index=False).encode('utf-8')
-                st.download_button("📥 Download Excel/CSV", data=csv_t, file_name="Team_Members.csv", mime="text/csv")
+                st.download_button("📥 Download Excel/CSV", data=df_t.to_csv(index=False).encode('utf-8'), file_name="Team_Members.csv", mime="text/csv")
                 st.dataframe(df_t, use_container_width=True)
-            else:
-                st.info("No team data available.")
     else:
         st.write(f"Section {cur_p} is active.")
         
