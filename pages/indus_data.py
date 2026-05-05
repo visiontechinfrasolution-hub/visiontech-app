@@ -30,29 +30,29 @@ with st.form("ind_form_v5"):
 if sub_ind:
     res_ind = supabase.table("Indus Data").select("*").ilike("Site ID", f"%{in_id}%").execute()
     if res_ind.data:
-        # Data ko copy karke dataframe banaya taaki original reference na rahe
-        df_ind = pd.DataFrame(res_ind.data).copy()
+        # Step 1: Create DataFrame
+        df_ind = pd.DataFrame(res_ind.data)
         st.dataframe(df_ind, use_container_width=True, hide_index=True)
         st.divider()
         st.subheader("📌 Vertical Site Details")
         
-        # Explicitly fetching from the first record
-        row_in = res_ind.data[0]
+        # Step 2: Extract values using column names directly from the DataFrame 
+        # taaki dictionary ka error khatam ho jaye
+        row_data = df_ind.iloc[0]
         
         base_lat, base_lon = 18.6233, 74.0312
         
-        # FIXED: Variable naming clear rakhi hai taaki overlap na ho
-        # Aur float conversion ke waqt precision loss na ho
+        # Yahan hum direct DataFrame column se value utha rahe hain
         try:
-            actual_lat = float(row_in.get('Lat'))
-            actual_long = float(row_in.get('Long'))
+            site_lat = float(row_data['Lat'])
+            site_lon = float(row_data['Long'])
         except:
-            actual_lat, actual_long = None, None
+            site_lat, site_lon = 0.0, 0.0
 
         dist_km = "-"
-        if actual_lat and actual_long:
+        if site_lat != 0.0:
             try:
-                dist_km = f"{geodesic((base_lat, base_lon), (actual_lat, actual_long)).km:.2f} KM"
+                dist_km = f"{geodesic((base_lat, base_lon), (site_lat, site_lon)).km:.2f} KM"
             except: pass
         
         def call_html(label, name, num):
@@ -62,33 +62,31 @@ if sub_ind:
         
         v1, v2 = st.columns(2)
         with v1:
-            st.markdown(f"🛰️ **Area Name** :- {row_in.get('Area Name','-')}")
-            st.markdown(call_html("👨‍🔧 **Tech Name**", row_in.get('Tech Name','-'), row_in.get('Tech Number','-')), unsafe_allow_html=True)
-            st.markdown(call_html("👷 **FSE**", row_in.get('FSE','-'), row_in.get('FSE Number','-')), unsafe_allow_html=True)
+            st.markdown(f"🛰️ **Area Name** :- {row_data.get('Area Name','-')}")
+            st.markdown(call_html("👨‍🔧 **Tech Name**", row_data.get('Tech Name','-'), row_data.get('Tech Number','-')), unsafe_allow_html=True)
+            st.markdown(call_html("👷 **FSE**", row_data.get('FSE','-'), row_data.get('FSE Number','-')), unsafe_allow_html=True)
         with v2:
             st.markdown(f"📏 **Aerial Distance** :- **{dist_km}**")
-            st.markdown(call_html("👨‍💼 **AOM Name**", row_in.get('AOM Name','-'), row_in.get('AOM Number','-')), unsafe_allow_html=True)
+            st.markdown(call_html("👨‍💼 **AOM Name**", row_data.get('AOM Name','-'), row_data.get('AOM Number','-')), unsafe_allow_html=True)
             
-            if actual_lat and actual_long:
-                maps_url = f"https://www.google.com/maps/dir/{base_lat},{base_lon}/{actual_lat},{actual_long}"
-                st.markdown(f"📍 **Lat/Long** :- {actual_lat} / {actual_long} <a href='{maps_url}' target='_blank'><button style='background-color:#EA4335;color:white;border:none;padding:2px 10px;border-radius:5px;cursor:pointer;font-weight:bold;'>📍 Direction</button></a>", unsafe_allow_html=True)
+            if site_lat != 0.0:
+                maps_url = f"https://www.google.com/maps/dir/{base_lat},{base_lon}/{site_lat},{site_lon}"
+                st.markdown(f"📍 **Lat/Long** :- {site_lat} / {site_lon} <a href='{maps_url}' target='_blank'><button style='background-color:#EA4335;color:white;border:none;padding:2px 10px;border-radius:5px;cursor:pointer;font-weight:bold;'>📍 Direction</button></a>", unsafe_allow_html=True)
             else: 
-                st.markdown(f"📍 **Lat/Long** :- {row_in.get('Lat','-')} / {row_in.get('Long','-')}")
+                st.markdown(f"📍 **Lat/Long** :- {site_lat} / {site_lon}")
         
-        final_maps_dir = f"https://www.google.com/maps/dir/{base_lat},{base_lon}/{actual_lat},{actual_long}"
-        
-        # --- WHATSAPP MESSAGE ---
+        # WhatsApp Message logic using direct variables
         msg_body = (
             f"*Namaskar,*\n\n"
-            f"➡️ *Site Name* :- {row_in.get('Site Name','-')}\n"
-            f"➡️ *Site ID* :- {row_in.get('Site ID','-')}\n"
-            f"➡️ *District* :- {row_in.get('District','-')}\n"
-            f"➡️ *Cluster* :- {row_in.get('Area Name','-')}\n\n"
-            f"👨‍🔧 *Technician* :- {row_in.get('Tech Name','-')} ({row_in.get('Tech Number','-')})\n"
-            f"👷 *FSE* :- {row_in.get('FSE','-')} ({row_in.get('FSE Number','-')})\n"
-            f"👨‍💼 *AOM* :- {row_in.get('AOM Name','-')} ({row_in.get('AOM Number','-')})\n\n"
-            f"📍 *Lat Long* :- {actual_lat} / {actual_long}\n\n"
-            f"🛣️ *Site Location* :- {final_maps_dir}\n\n"
+            f"➡️ *Site Name* :- {row_data.get('Site Name','-')}\n"
+            f"➡️ *Site ID* :- {row_data.get('Site ID','-')}\n"
+            f"➡️ *District* :- {row_data.get('District','-')}\n"
+            f"➡️ *Cluster* :- {row_data.get('Area Name','-')}\n\n"
+            f"👨‍🔧 *Technician* :- {row_data.get('Tech Name','-')} ({row_data.get('Tech Number','-')})\n"
+            f"👷 *FSE* :- {row_data.get('FSE','-')} ({row_data.get('FSE Number','-')})\n"
+            f"👨‍💼 *AOM* :- {row_data.get('AOM Name','-')} ({row_data.get('AOM Number','-')})\n\n"
+            f"📍 *Lat Long* :- {site_lat} / {site_lon}\n\n"
+            f"🛣️ *Site Location* :- https://www.google.com/maps/dir/{base_lat},{base_lon}/{site_lat},{site_lon}\n\n"
             f"🚩 Thanks,\n"
             f"*Visiontech AI Team*"
         )
@@ -152,8 +150,7 @@ if st.button("🚀 Calculate Best Route (Point-wise)", use_container_width=True)
                     route_results.append({"Stop No": i, "Site ID": s['Site ID'], "Name": s.get('Site Name','-')})
                 st.table(pd.DataFrame(route_results))
                 
-                stops_list = [f"{s.get('Lat')},{s.get('Long')}" for s in final_path]
-                stops_str = "/".join(stops_list)
+                stops_str = "/".join([f"{s.get('Lat')},{s.get('Long')}" for s in final_path])
                 gmaps_route = f"https://www.google.com/maps/dir/{start_coords}/{stops_str}/{end_coords}"
                 st.markdown(f'<a href="{gmaps_route}" target="_blank"><button style="width:100%; background-color:#4285F4; color:white; border:none; padding:12px; border-radius:5px; font-weight:bold; cursor:pointer;">🗺️ Open Sequential Route (1-2-3-4)</button></a>', unsafe_allow_html=True)
         except Exception as e: st.error(f"Error: {e}")
