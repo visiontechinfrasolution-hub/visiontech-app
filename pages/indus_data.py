@@ -37,12 +37,18 @@ if sub_ind:
         row_in = res_ind.data[0]
         
         base_lat, base_lon = 18.6233, 74.0312
-        site_lat = row_in.get('Lat')
-        site_lon = row_in.get('Long')
+        
+        # Nayi Correction: Data types ko float me ensure kiya gaya hai
+        try:
+            site_lat = float(row_in.get('Lat')) if row_in.get('Lat') else None
+            site_lon = float(row_in.get('Long')) if row_in.get('Long') else None
+        except:
+            site_lat, site_lon = None, None
+
         dist_km = "-"
-        if site_lat and site_lon:
+        if site_lat is not None and site_lon is not None:
             try:
-                dist_km = f"{geodesic((base_lat, base_lon), (float(site_lat), float(site_lon))).km:.2f} KM"
+                dist_km = f"{geodesic((base_lat, base_lon), (site_lat, site_lon)).km:.2f} KM"
             except: pass
         
         def call_html(label, name, num):
@@ -58,13 +64,16 @@ if sub_ind:
         with v2:
             st.markdown(f"📏 **Aerial Distance** :- **{dist_km}**")
             st.markdown(call_html("👨‍💼 **AOM Name**", row_in.get('AOM Name','-'), row_in.get('AOM Number','-')), unsafe_allow_html=True)
-            lat, lon = row_in.get('Lat', ''), row_in.get('Long', '')
-            if lat and lon and str(lat).strip() not in ['-', '', 'None', 'nan']:
+            
+            # Lat/Long display aur direction logic fix
+            lat, lon = site_lat, site_lon
+            if lat and lon:
                 maps_url = f"https://www.google.com/maps/dir/{base_lat},{base_lon}/{lat},{lon}"
                 st.markdown(f"📍 **Lat/Long** :- {lat} / {lon} <a href='{maps_url}' target='_blank'><button style='background-color:#EA4335;color:white;border:none;padding:2px 10px;border-radius:5px;cursor:pointer;font-weight:bold;'>📍 Direction</button></a>", unsafe_allow_html=True)
-            else: st.markdown(f"📍 **Lat/Long** :- {lat if lat else '-'} / {lon if lon else '-'}")
+            else: 
+                st.markdown(f"📍 **Lat/Long** :- {row_in.get('Lat','-')} / {row_in.get('Long','-')}")
         
-        maps_dir = f"https://www.google.com/maps/dir/{base_lat},{base_lon}/{lat},{lon}"
+        maps_dir = f"https://www.google.com/maps/dir/{base_lat},{base_lon}/{lat},{lon}" if lat and lon else "#"
         
         # --- NEW FORMATTED WHATSAPP MESSAGE ---
         msg_body = (
@@ -106,7 +115,6 @@ with st.expander("🛠️ Add Sites to Route", expanded=True):
                     st.rerun()
                 else: st.error("Site ID not found!")
 
-    # --- Current Added Sites List (Visible before calculation) ---
     if st.session_state.route_list:
         st.write("### 📋 Added Sites:")
         temp_df = pd.DataFrame(st.session_state.route_list)[['Site ID', 'Site Name', 'Lat', 'Long']]
@@ -132,18 +140,17 @@ if st.button("🚀 Calculate Best Route (Point-wise)", use_container_width=True)
                 unvisited = [s for s in st.session_state.route_list if s.get('Lat') and s.get('Long')]
                 final_path = []
                 while unvisited:
+                    # Nayi Correction: float conversion loop ke andar ensure kiya gaya
                     next_s = min(unvisited, key=lambda x: geodesic(curr_p, (float(x['Lat']), float(x['Long']))).km)
                     final_path.append(next_s)
                     curr_p = (float(next_s['Lat']), float(next_s['Long']))
                     unvisited.remove(next_s)
                 
-                # Showing Sequential Table
                 route_results = []
                 for i, s in enumerate(final_path, 1):
                     route_results.append({"Stop No": i, "Site ID": s['Site ID'], "Name": s.get('Site Name','-')})
                 st.table(pd.DataFrame(route_results))
                 
-                # Point-wise Google Maps Link
                 stops = "/".join([f"{s['Lat']},{s['Long']}" for s in final_path])
                 gmaps_route = f"https://www.google.com/maps/dir/{start_coords}/{stops}/{end_coords}"
                 st.markdown(f'<a href="{gmaps_route}" target="_blank"><button style="width:100%; background-color:#4285F4; color:white; border:none; padding:12px; border-radius:5px; font-weight:bold; cursor:pointer;">🗺️ Open Sequential Route (1-2-3-4)</button></a>', unsafe_allow_html=True)
