@@ -38,15 +38,21 @@ if sub_ind:
         
         base_lat, base_lon = 18.6233, 74.0312
         
-        # Nayi Correction: Data types ko float me ensure kiya gaya hai
+        # --- NAYI CORRECTION: COLUMN NAME DETECTION ---
+        # Kabhi-kabhi DB mein 'Long' ki jagah 'Longitude' ya 'long' hota hai
+        possible_lat_keys = ['Lat', 'lat', 'Latitude', 'latitude']
+        possible_lon_keys = ['Long', 'long', 'Longitude', 'longitude', 'Lng', 'lng']
+        
+        site_lat = next((row_in.get(k) for k in possible_lat_keys if row_in.get(k) is not None), None)
+        site_lon = next((row_in.get(k) for k in possible_lon_keys if row_in.get(k) is not None), None)
+
         try:
-            site_lat = float(row_in.get('Lat')) if row_in.get('Lat') else None
-            site_lon = float(row_in.get('Long')) if row_in.get('Long') else None
-        except:
-            site_lat, site_lon = None, None
+            if site_lat: site_lat = float(site_lat)
+            if site_lon: site_lon = float(site_lon)
+        except: pass
 
         dist_km = "-"
-        if site_lat is not None and site_lon is not None:
+        if site_lat and site_lon:
             try:
                 dist_km = f"{geodesic((base_lat, base_lon), (site_lat, site_lon)).km:.2f} KM"
             except: pass
@@ -65,17 +71,18 @@ if sub_ind:
             st.markdown(f"📏 **Aerial Distance** :- **{dist_km}**")
             st.markdown(call_html("👨‍💼 **AOM Name**", row_in.get('AOM Name','-'), row_in.get('AOM Number','-')), unsafe_allow_html=True)
             
-            # Lat/Long display aur direction logic fix
             lat, lon = site_lat, site_lon
             if lat and lon:
                 maps_url = f"https://www.google.com/maps/dir/{base_lat},{base_lon}/{lat},{lon}"
                 st.markdown(f"📍 **Lat/Long** :- {lat} / {lon} <a href='{maps_url}' target='_blank'><button style='background-color:#EA4335;color:white;border:none;padding:2px 10px;border-radius:5px;cursor:pointer;font-weight:bold;'>📍 Direction</button></a>", unsafe_allow_html=True)
+                if lat == lon:
+                    st.warning("⚠️ Warning: DB mein Lat aur Long ki value same hai!")
             else: 
-                st.markdown(f"📍 **Lat/Long** :- {row_in.get('Lat','-')} / {row_in.get('Long','-')}")
+                st.markdown(f"📍 **Lat/Long** :- {lat if lat else '-'} / {lon if lon else '-'}")
         
-        maps_dir = f"https://www.google.com/maps/dir/{base_lat},{base_lon}/{lat},{lon}" if lat and lon else "#"
+        maps_dir = f"https://www.google.com/maps/dir/{base_lat},{base_lon}/{lat},{lon}"
         
-        # --- NEW FORMATTED WHATSAPP MESSAGE ---
+        # --- WHATSAPP MESSAGE ---
         msg_body = (
             f"*Namaskar,*\n\n"
             f"➡️ *Site Name* :- {row_in.get('Site Name','-')}\n"
@@ -137,13 +144,13 @@ if st.button("🚀 Calculate Best Route (Point-wise)", use_container_width=True)
             curr_p, end_p = get_lat_lon(start_coords), get_lat_lon(end_coords)
             if not curr_p or not end_p: st.error("Invalid Start or End Location.")
             else:
-                unvisited = [s for s in st.session_state.route_list if s.get('Lat') and s.get('Long')]
+                unvisited = [s for s in st.session_state.route_list]
                 final_path = []
                 while unvisited:
-                    # Nayi Correction: float conversion loop ke andar ensure kiya gaya
-                    next_s = min(unvisited, key=lambda x: geodesic(curr_p, (float(x['Lat']), float(x['Long']))).km)
+                    # Nayi Correction: coordinate extraction fix
+                    next_s = min(unvisited, key=lambda x: geodesic(curr_p, (float(x.get('Lat',0)), float(x.get('Long',0)))).km)
                     final_path.append(next_s)
-                    curr_p = (float(next_s['Lat']), float(next_s['Long']))
+                    curr_p = (float(next_s.get('Lat',0)), float(next_s.get('Long',0)))
                     unvisited.remove(next_s)
                 
                 route_results = []
@@ -151,7 +158,7 @@ if st.button("🚀 Calculate Best Route (Point-wise)", use_container_width=True)
                     route_results.append({"Stop No": i, "Site ID": s['Site ID'], "Name": s.get('Site Name','-')})
                 st.table(pd.DataFrame(route_results))
                 
-                stops = "/".join([f"{s['Lat']},{s['Long']}" for s in final_path])
+                stops = "/".join([f"{s.get('Lat')},{s.get('Long')}" for s in final_path])
                 gmaps_route = f"https://www.google.com/maps/dir/{start_coords}/{stops}/{end_coords}"
                 st.markdown(f'<a href="{gmaps_route}" target="_blank"><button style="width:100%; background-color:#4285F4; color:white; border:none; padding:12px; border-radius:5px; font-weight:bold; cursor:pointer;">🗺️ Open Sequential Route (1-2-3-4)</button></a>', unsafe_allow_html=True)
         except Exception as e: st.error(f"Error: {e}")
