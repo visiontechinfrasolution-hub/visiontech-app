@@ -1,0 +1,168 @@
+import streamlit as st
+from fpdf import FPDF
+from datetime import datetime
+
+class ChecklistPDF(FPDF):
+    def header(self):
+        # Main Title
+        self.set_font('Arial', 'B', 12)
+        self.cell(0, 8, 'Indus Towers Limited (Invoice submission checklist)', 0, 1, 'L')
+        self.ln(2)
+
+def generate_pdf(data):
+    pdf = ChecklistPDF()
+    pdf.add_page()
+    pdf.set_margins(10, 10, 10)
+    
+    # Header Info Section
+    pdf.set_font('Arial', '', 9)
+    
+    # Row 1
+    pdf.cell(30, 7, 'Inward Number-', 0)
+    pdf.set_font('Arial', 'B', 9)
+    pdf.cell(50, 7, data['inward_no'], 'B')
+    pdf.set_font('Arial', '', 9)
+    pdf.cell(30, 7, 'Inward Date-', 0)
+    pdf.set_font('Arial', 'B', 9)
+    pdf.cell(50, 7, data['date'], 'B', 1)
+    
+    # Row 2
+    pdf.set_font('Arial', '', 9)
+    pdf.cell(30, 7, 'Partner Name :', 0)
+    pdf.set_font('Arial', 'B', 9)
+    pdf.cell(50, 7, 'Visiontech Infra Solutions', 'B')
+    pdf.set_font('Arial', '', 9)
+    pdf.cell(30, 7, 'Invoice No.', 0)
+    pdf.set_font('Arial', 'B', 9)
+    pdf.cell(50, 7, data['inward_no'], 'B', 1)
+    
+    # Row 3
+    pdf.set_font('Arial', '', 9)
+    pdf.cell(30, 7, 'PO NO:', 0)
+    pdf.set_font('Arial', 'B', 9)
+    pdf.cell(50, 7, data['po_no'], 'B')
+    pdf.set_font('Arial', '', 9)
+    pdf.cell(30, 7, 'Invoice Date', 0)
+    pdf.set_font('Arial', 'B', 9)
+    pdf.cell(50, 7, data['date'], 'B', 1)
+    
+    # Row 4
+    pdf.set_font('Arial', '', 9)
+    pdf.cell(30, 7, 'User Name :--', 0)
+    pdf.set_font('Arial', 'B', 9)
+    pdf.cell(50, 7, 'Pramodkumar Jaju', 'B')
+    pdf.set_font('Arial', '', 9)
+    pdf.cell(30, 7, 'Depart.', 0)
+    pdf.set_font('Arial', 'B', 9)
+    pdf.cell(50, 7, 'Deployment', 'B', 1)
+    
+    # Row 5
+    pdf.set_font('Arial', '', 9)
+    pdf.cell(30, 7, 'E-Mail ID : -', 0)
+    pdf.set_font('Arial', 'B', 9)
+    pdf.cell(50, 7, 'vispltower@gmail.com', 'B')
+    pdf.set_font('Arial', '', 9)
+    pdf.cell(30, 7, 'Contact No-', 0)
+    pdf.set_font('Arial', 'B', 9)
+    pdf.cell(50, 7, '9552273181', 'B', 1)
+    
+    pdf.ln(5)
+
+    # Table Header
+    pdf.set_font('Arial', 'B', 8)
+    col_widths = [10, 80, 20, 20, 20, 20, 20]
+    
+    # Header Row 1
+    pdf.cell(col_widths[0], 10, 'S.No.', 1, 0, 'C')
+    pdf.cell(col_widths[1], 10, 'Particulars', 1, 0, 'C')
+    pdf.cell(col_widths[2], 10, 'Supply (Y/N)', 1, 0, 'C')
+    pdf.cell(100, 5, 'Services', 1, 1, 'C')
+    
+    # Header Row 2
+    pdf.cell(col_widths[0] + col_widths[1] + col_widths[2], 5, '', 0) # Spacer
+    pdf.set_font('Arial', 'B', 6)
+    pdf.cell(20, 5, 'TSP (Elec/Civil)', 1, 0, 'C')
+    pdf.cell(20, 5, 'IME/OME/SMS', 1, 0, 'C')
+    pdf.cell(20, 5, 'EB/Liasioning', 1, 0, 'C')
+    pdf.cell(20, 5, 'Others', 1, 0, 'C')
+    pdf.cell(20, 5, 's', 1, 1, 'C')
+
+    # Checklist Data
+    items = [
+        ("1", "Original Invoice", "Y", "Y", "Y", "Y", "Y"),
+        ("a", "Printed/Digital Invoice (No Manual Correction)", "Y", "Y", "Y", "Y", "Y"),
+        ("b", "Invoice No format (< 16 chars)", "Y", "Y", "Y", "Y", "Y"),
+        ("d", "Name, Address & GSTIN matching PO", "Y", "Y", "Y", "Y", "Y"),
+        ("e", "Ship TO & Bill TO mentioned", "Y", "N", "N", "N", "N"),
+        ("f", "HSN/SAC code matching PO/WCR", "Y", "Y", "Y", "Y", "Y"),
+        ("g", "Description of Goods/ services", "Y", "Y", "Y", "Y", "Y"),
+        ("h", "Quantity & UQC details", "Y", "Y", "Y", "Y", "Y"),
+        ("i", "Taxes (IGST/CGST+SGST) matching GRN", "Y", "Y", "Y", "Y", "Y"),
+        ("m", "Total value matching GRN / WCR", "Y", "Y", "Y", "Y", "Y"),
+        ("o", "Stamp & Signature", "Y", "Y", "Y", "Y", "Y"),
+        ("p", "PO Date before Invoice Date", "Y", "Y", "Y", "Y", "Y"),
+        ("2", "E-Waybill / LR copy", "Y", "N", "N", "N", "N"),
+        ("5", "Measurement sheet / Annexure sheet", "N", "Y", "N", "N", "N"),
+        ("10", "STN / MRN / SRN", "N", "Y", "N", "N", "N"),
+    ]
+
+    pdf.set_font('Arial', '', 7)
+    for item in items:
+        # Multi-line cell handling for 'Particulars'
+        x = pdf.get_x()
+        y = pdf.get_y()
+        pdf.cell(col_widths[0], 8, item[0], 1, 0, 'C')
+        pdf.multi_cell(col_widths[1], 8, item[1], 1, 'L')
+        final_y = pdf.get_y()
+        
+        # Reset position for other columns in the same row
+        pdf.set_xy(x + col_widths[0] + col_widths[1], y)
+        h = final_y - y
+        pdf.cell(col_widths[2], h, item[2], 1, 0, 'C')
+        pdf.cell(20, h, item[3], 1, 0, 'C')
+        pdf.cell(20, h, item[4], 1, 0, 'C')
+        pdf.cell(20, h, item[5], 1, 0, 'C')
+        pdf.cell(20, h, item[6], 1, 1, 'C')
+
+    pdf.ln(10)
+    pdf.set_font('Arial', 'B', 9)
+    pdf.cell(0, 10, 'PHD USE ONLY', 1, 1, 'L')
+    pdf.cell(0, 10, 'PHD Inward No. (Mandatory): _____________________', 1, 1, 'L')
+
+    return pdf.output(dest='S').encode('latin-1')
+
+# Streamlit UI
+st.set_page_config(page_title="Indus Invoice Checklist")
+st.title("Indus Towers Checklist Generator")
+
+with st.form("checklist_form"):
+    col1, col2 = st.columns(2)
+    with col1:
+        inward_no = st.text_input("Inward Number / Invoice No")
+        po_no = st.text_input("PO Number")
+    with col2:
+        # User requested DD-Mon-YYYY format
+        inward_date = st.date_input("Inward / Invoice Date", value=datetime.now())
+        formatted_date = inward_date.strftime('%d-%b-%Y')
+        st.write(f"Selected Date: **{formatted_date}**")
+
+    submitted = st.form_submit_button("Generate PDF")
+
+if submitted:
+    if not inward_no or not po_no:
+        st.error("Please fill Inward Number and PO Number")
+    else:
+        data = {
+            'inward_no': inward_no,
+            'po_no': po_no,
+            'date': formatted_date
+        }
+        pdf_bytes = generate_pdf(data)
+        
+        st.success("PDF Generated Successfully!")
+        st.download_button(
+            label="Download Checklist PDF",
+            data=pdf_bytes,
+            file_name=f"Checklist_{inward_no}.pdf",
+            mime="application/pdf"
+        )
