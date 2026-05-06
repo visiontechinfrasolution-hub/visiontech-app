@@ -31,12 +31,15 @@ with st.form("ind_form_v5"):
 if sub_ind:
     res_ind = supabase.table("Indus Data").select("*").ilike("Site ID", f"%{in_id}%").execute()
     if res_ind.data:
+        # Step 1: Create DataFrame
         df_ind = pd.DataFrame(res_ind.data)
         st.dataframe(df_ind, use_container_width=True, hide_index=True)
         st.divider()
         st.subheader("📌 Vertical Site Details")
         
+        # Step 2: Extract values using column names directly from the DataFrame 
         row_data = df_ind.iloc[0]
+        
         base_lat, base_lon = 18.6233, 74.0312
         
         try:
@@ -106,7 +109,7 @@ with st.expander("🛠️ Add Sites to Route", expanded=True):
                 s_res = supabase.table("Indus Data").select("*").ilike("Site ID", f"%{add_sid.strip()}%").execute()
                 if s_res.data: 
                     new_site = s_res.data[0]
-                    new_site['Select'] = False
+                    new_site['Select'] = False # Default checkbox value
                     st.session_state.route_list.append(new_site)
                     st.success(f"Site {add_sid} added!")
                     st.rerun()
@@ -115,28 +118,34 @@ with st.expander("🛠️ Add Sites to Route", expanded=True):
     if st.session_state.route_list:
         st.write("### 📋 Added Sites:")
         
+        # DataFrame banate waqt ensure karein ki 'Select' column hamesha ho
         df_route = pd.DataFrame(st.session_state.route_list)
+        if 'Select' not in df_route.columns:
+            df_route.insert(0, 'Select', False)
         
-        # Select column ko editable banaya hai
+        # Error fix: Column names ko directly fetch karna filter karne se pehle
+        target_cols = ['Select', 'Site ID', 'Site Name', 'Lat', 'Long']
+        valid_cols = [c for c in target_cols if c in df_route.columns]
+
         edited_df = st.data_editor(
-            df_route[['Select', 'Site ID', 'Site Name', 'Lat', 'Long']],
+            df_route[valid_cols],
             use_container_width=True,
             hide_index=True,
             column_config={
-                "Select": st.column_config.CheckboxColumn("Select", default=False, required=True),
+                "Select": st.column_config.CheckboxColumn("Select", default=False),
                 "Site ID": st.column_config.TextColumn(disabled=True),
                 "Site Name": st.column_config.TextColumn(disabled=True),
                 "Lat": st.column_config.NumberColumn(disabled=True),
                 "Long": st.column_config.NumberColumn(disabled=True),
             },
-            key="route_editor"
+            key="route_editor_v1"
         )
 
         col_act1, col_act2 = st.columns(2)
         with col_act1:
             if st.button("🗑️ Delete Selected", use_container_width=True):
-                # edited_df se un-selected sites utha kar route_list update kar rahe hain
-                st.session_state.route_list = edited_df[edited_df["Select"] == False].to_dict('records')
+                # Selected sites ko filter out karke route_list update karna
+                st.session_state.route_list = edited_df[edited_df['Select'] == False].to_dict('records')
                 st.rerun()
         with col_act2:
             if st.button("🧹 Clear All", use_container_width=True):
