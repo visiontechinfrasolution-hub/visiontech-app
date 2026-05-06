@@ -31,19 +31,14 @@ with st.form("ind_form_v5"):
 if sub_ind:
     res_ind = supabase.table("Indus Data").select("*").ilike("Site ID", f"%{in_id}%").execute()
     if res_ind.data:
-        # Step 1: Create DataFrame
         df_ind = pd.DataFrame(res_ind.data)
         st.dataframe(df_ind, use_container_width=True, hide_index=True)
         st.divider()
         st.subheader("📌 Vertical Site Details")
         
-        # Step 2: Extract values using column names directly from the DataFrame 
-        # taaki dictionary ka error khatam ho jaye
         row_data = df_ind.iloc[0]
-        
         base_lat, base_lon = 18.6233, 74.0312
         
-        # Yahan hum direct DataFrame column se value utha rahe hain
         try:
             site_lat = float(row_data['Lat'])
             site_lon = float(row_data['Long'])
@@ -76,7 +71,6 @@ if sub_ind:
             else: 
                 st.markdown(f"📍 **Lat/Long** :- {site_lat} / {site_lon}")
         
-        # WhatsApp Message logic using direct variables
         msg_body = (
             f"*Namaskar,*\n\n"
             f"➡️ *Site Name* :- {row_data.get('Site Name','-')}\n"
@@ -112,8 +106,8 @@ with st.expander("🛠️ Add Sites to Route", expanded=True):
                 s_res = supabase.table("Indus Data").select("*").ilike("Site ID", f"%{add_sid.strip()}%").execute()
                 if s_res.data: 
                     new_site = s_res.data[0]
-                    # Key error fix: Adding unique_id during addition
-                    new_site['unique_id'] = f"{new_site['Site ID']}_{time.time()}"
+                    # Table row ke liye 'Select' column add kar rahe hain
+                    new_site['Select'] = False
                     st.session_state.route_list.append(new_site)
                     st.success(f"Site {add_sid} added!")
                     st.rerun()
@@ -121,25 +115,28 @@ with st.expander("🛠️ Add Sites to Route", expanded=True):
 
     if st.session_state.route_list:
         st.write("### 📋 Added Sites:")
-        temp_df = pd.DataFrame(st.session_state.route_list)[['Site ID', 'Site Name', 'Lat', 'Long']]
-        st.dataframe(temp_df, use_container_width=True, hide_index=True)
         
-        # --- DELETE LOGIC ---
-        st.write("Select sites to remove:")
-        to_delete = []
-        for idx, s in enumerate(st.session_state.route_list):
-            # Key error handling with .get()
-            s_key = s.get('unique_id', f"old_{idx}")
-            if st.checkbox(f"Remove {s['Site ID']} ({s.get('Site Name','')})", key=s_key):
-                to_delete.append(idx)
+        # 1. Convert to DataFrame
+        df_route = pd.DataFrame(st.session_state.route_list)
         
+        # 2. Data Editor use kar rahe hain checkbox ke liye
+        edited_df = st.data_editor(
+            df_route[['Select', 'Site ID', 'Site Name', 'Lat', 'Long']],
+            use_container_width=True,
+            hide_index=True,
+            column_config={"Select": st.column_config.CheckboxColumn("Select", default=False)},
+            key="route_editor"
+        )
+        
+        # 3. Sync state with edited values
+        st.session_state.route_list = edited_df.to_dict('records')
+
         col_act1, col_act2 = st.columns(2)
         with col_act1:
             if st.button("🗑️ Delete Selected", use_container_width=True):
-                if to_delete:
-                    for index in sorted(to_delete, reverse=True):
-                        st.session_state.route_list.pop(index)
-                    st.rerun()
+                # Sirf unhe rakho jo 'Select' nahi hain
+                st.session_state.route_list = [s for s in st.session_state.route_list if not s.get('Select')]
+                st.rerun()
         with col_act2:
             if st.button("🧹 Clear All", use_container_width=True):
                 st.session_state.route_list = []
