@@ -106,7 +106,7 @@ with st.expander("🛠️ Add Sites to Route", expanded=True):
                 s_res = supabase.table("Indus Data").select("*").ilike("Site ID", f"%{add_sid.strip()}%").execute()
                 if s_res.data: 
                     new_site = s_res.data[0]
-                    # Table row ke liye 'Select' column add kar rahe hain
+                    # 'Select' key initialization
                     new_site['Select'] = False
                     st.session_state.route_list.append(new_site)
                     st.success(f"Site {add_sid} added!")
@@ -116,26 +116,27 @@ with st.expander("🛠️ Add Sites to Route", expanded=True):
     if st.session_state.route_list:
         st.write("### 📋 Added Sites:")
         
-        # 1. Convert to DataFrame
         df_route = pd.DataFrame(st.session_state.route_list)
         
-        # 2. Data Editor use kar rahe hain checkbox ke liye
+        # ERROR FIX: Check if columns exist before filtering to avoid KeyError
+        cols_to_show = ['Select', 'Site ID', 'Site Name', 'Lat', 'Long']
+        available_cols = [c for c in cols_to_show if c in df_route.columns]
+        
         edited_df = st.data_editor(
-            df_route[['Select', 'Site ID', 'Site Name', 'Lat', 'Long']],
+            df_route[available_cols],
             use_container_width=True,
             hide_index=True,
             column_config={"Select": st.column_config.CheckboxColumn("Select", default=False)},
             key="route_editor"
         )
         
-        # 3. Sync state with edited values
+        # Update session state with edited values
         st.session_state.route_list = edited_df.to_dict('records')
 
         col_act1, col_act2 = st.columns(2)
         with col_act1:
             if st.button("🗑️ Delete Selected", use_container_width=True):
-                # Sirf unhe rakho jo 'Select' nahi hain
-                st.session_state.route_list = [s for s in st.session_state.route_list if not s.get('Select')]
+                st.session_state.route_list = [s for s in st.session_state.route_list if not s.get('Select', False)]
                 st.rerun()
         with col_act2:
             if st.button("🧹 Clear All", use_container_width=True):
