@@ -112,7 +112,7 @@ with st.expander("🛠️ Add Sites to Route", expanded=True):
                 s_res = supabase.table("Indus Data").select("*").ilike("Site ID", f"%{add_sid.strip()}%").execute()
                 if s_res.data: 
                     new_site = s_res.data[0]
-                    # Adding a timestamp-based ID to ensure unique keys for checkboxes
+                    # Key error fix: Adding unique_id during addition
                     new_site['unique_id'] = f"{new_site['Site ID']}_{time.time()}"
                     st.session_state.route_list.append(new_site)
                     st.success(f"Site {add_sid} added!")
@@ -128,21 +128,24 @@ with st.expander("🛠️ Add Sites to Route", expanded=True):
         st.write("Select sites to remove:")
         to_delete = []
         for idx, s in enumerate(st.session_state.route_list):
-            if st.checkbox(f"Remove {s['Site ID']}", key=s['unique_id']):
+            # Key error handling with .get()
+            s_key = s.get('unique_id', f"old_{idx}")
+            if st.checkbox(f"Remove {s['Site ID']} ({s.get('Site Name','')})", key=s_key):
                 to_delete.append(idx)
         
-        if st.button("🗑️ Delete Selected Sites", use_container_width=True):
-            if to_delete:
-                for index in sorted(to_delete, reverse=True):
-                    st.session_state.route_list.pop(index)
+        col_act1, col_act2 = st.columns(2)
+        with col_act1:
+            if st.button("🗑️ Delete Selected", use_container_width=True):
+                if to_delete:
+                    for index in sorted(to_delete, reverse=True):
+                        st.session_state.route_list.pop(index)
+                    st.rerun()
+        with col_act2:
+            if st.button("🧹 Clear All", use_container_width=True):
+                st.session_state.route_list = []
                 st.rerun()
 
-        if st.button("🧹 Clear All Sites", use_container_width=True):
-            st.session_state.route_list = []
-            st.rerun()
-
 if st.button("🚀 Calculate Best Route (Point-wise)", use_container_width=True):
-    # CHANGED: end_coords is no longer strictly required in the IF condition
     if not start_coords or not st.session_state.route_list: 
         st.warning("Please add Start Location and at least one Site!")
     else:
@@ -155,7 +158,6 @@ if st.button("🚀 Calculate Best Route (Point-wise)", use_container_width=True)
                 l = geolocator.geocode(loc); return [l.latitude, l.longitude] if l else None
             
             curr_p = get_lat_lon(start_coords)
-            # end_p can now be None if end_coords is empty
             end_p = get_lat_lon(end_coords) if end_coords else None
             
             if not curr_p: st.error("Invalid Start Location.")
@@ -175,7 +177,6 @@ if st.button("🚀 Calculate Best Route (Point-wise)", use_container_width=True)
                 
                 stops_str = "/".join([f"{s.get('Lat')},{s.get('Long')}" for s in final_path])
                 
-                # CHANGED: Construct URL based on whether end_coords exists
                 if end_coords:
                     gmaps_route = f"https://www.google.com/maps/dir/{start_coords}/{stops_str}/{end_coords}"
                 else:
