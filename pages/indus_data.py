@@ -106,7 +106,6 @@ with st.expander("🛠️ Add Sites to Route", expanded=True):
                 s_res = supabase.table("Indus Data").select("*").ilike("Site ID", f"%{add_sid.strip()}%").execute()
                 if s_res.data: 
                     new_site = s_res.data[0]
-                    # 'Select' key initialization
                     new_site['Select'] = False
                     st.session_state.route_list.append(new_site)
                     st.success(f"Site {add_sid} added!")
@@ -118,25 +117,26 @@ with st.expander("🛠️ Add Sites to Route", expanded=True):
         
         df_route = pd.DataFrame(st.session_state.route_list)
         
-        # ERROR FIX: Check if columns exist before filtering to avoid KeyError
-        cols_to_show = ['Select', 'Site ID', 'Site Name', 'Lat', 'Long']
-        available_cols = [c for c in cols_to_show if c in df_route.columns]
-        
+        # Select column ko editable banaya hai
         edited_df = st.data_editor(
-            df_route[available_cols],
+            df_route[['Select', 'Site ID', 'Site Name', 'Lat', 'Long']],
             use_container_width=True,
             hide_index=True,
-            column_config={"Select": st.column_config.CheckboxColumn("Select", default=False)},
+            column_config={
+                "Select": st.column_config.CheckboxColumn("Select", default=False, required=True),
+                "Site ID": st.column_config.TextColumn(disabled=True),
+                "Site Name": st.column_config.TextColumn(disabled=True),
+                "Lat": st.column_config.NumberColumn(disabled=True),
+                "Long": st.column_config.NumberColumn(disabled=True),
+            },
             key="route_editor"
         )
-        
-        # Update session state with edited values
-        st.session_state.route_list = edited_df.to_dict('records')
 
         col_act1, col_act2 = st.columns(2)
         with col_act1:
             if st.button("🗑️ Delete Selected", use_container_width=True):
-                st.session_state.route_list = [s for s in st.session_state.route_list if not s.get('Select', False)]
+                # edited_df se un-selected sites utha kar route_list update kar rahe hain
+                st.session_state.route_list = edited_df[edited_df["Select"] == False].to_dict('records')
                 st.rerun()
         with col_act2:
             if st.button("🧹 Clear All", use_container_width=True):
